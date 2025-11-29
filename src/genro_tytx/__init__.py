@@ -30,15 +30,26 @@ from .builtin import (
 )
 from .registry import TypeRegistry, registry
 
-# Helper functions (public API)
+# Public API functions
+fromText = registry.fromText
+asText = registry.asText
+asTypedText = registry.asTypedText
+
+# Legacy aliases (for backwards compatibility)
 parse = registry.parse
 serialize = registry.serialize
 
 __version__ = "0.1.0"
 __all__ = [
     "__version__",
+    # Public API
+    "fromText",
+    "asText",
+    "asTypedText",
+    # Legacy aliases
     "parse",
     "serialize",
+    # Registry
     "registry",
     "TypeRegistry",
     "DataType",
