@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://github.com/genropy/genro-tytx/actions/workflows/test.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](tests/)
+[![codecov](https://codecov.io/gh/genropy/genro-tytx/graph/badge.svg)](https://codecov.io/gh/genropy/genro-tytx)
 [![LLM Docs](https://img.shields.io/badge/LLM%20Docs-available-brightgreen)](llm-docs/)
 
 Part of [Genro Kyō](https://github.com/genropy) ecosystem.
@@ -176,7 +176,7 @@ from_text("550e8400-e29b-41d4-a716-446655440000::U")
 
 ## Development Status
 
-**Alpha** - Core implementation complete. API is stabilizing.
+**Beta** - Core implementation complete. API is stabilizing.
 
 ## License
 
