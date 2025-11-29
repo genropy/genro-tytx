@@ -5,14 +5,19 @@
 [![PyPI version](https://badge.fury.io/py/genro-tytx.svg)](https://badge.fury.io/py/genro-tytx)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Tests](https://github.com/genropy/genro-tytx/actions/workflows/test.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](tests/)
+[![LLM Docs](https://img.shields.io/badge/LLM%20Docs-available-brightgreen)](llm-docs/)
+
+Part of [Genro Kyō](https://github.com/genropy) ecosystem.
 
 ## Overview
 
-TYTX solves the "stringly typed" problem of JSON and other text formats by encoding type information directly into value strings using a concise syntax.
+TYTX solves the "stringly typed" problem of JSON and other text formats by encoding type information directly into value strings using a concise `value::type_code` syntax.
 
 ### The Problem
 
-JSON only supports: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`, `Table`?
+JSON only supports: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
 
 ```json
 {
@@ -32,35 +37,83 @@ Is `price` a float or a precise Decimal? Is `date` a string or a Date object?
 }
 ```
 
-The `::` suffix encodes type information. After hydration:
+The `::` suffix encodes type information. After parsing:
 - `price` → `Decimal("100.50")`
 - `date` → `date(2025, 1, 15)`
 
-## Syntax
+## Quick Start
 
-```
-value::type_code
-```
+### Python
 
-| Native Type | TYTX Syntax | Description |
-|-------------|-------------|-------------|
-| `int` | `"123::I"` | Integer |
-| `Decimal` | `"100.50::D"` | Exact decimal (money) |
-| `datetime` | `"2025-01-15T10:00::dt"` | ISO DateTime |
-| `date` | `"2025-01-15::d"` | ISO Date |
-| `bool` | `"true::B"` | Boolean |
-| `list` | `"a,b,c::L"` | Comma-separated list |
-| `Table` | `"{...}::T"` | Tabular data |
+```python
+from genro_tytx import from_text, as_typed_text
+from decimal import Decimal
+from datetime import date
 
-### Global Marker
+# Parse typed strings
+from_text("100.50::D")        # → Decimal("100.50")
+from_text("2025-01-15::d")    # → date(2025, 1, 15)
+from_text("123::I")           # → 123
 
-For entire payloads containing TYTX values:
-
-```
-{"price": "100::D", "date": "2025-01-15::d"}::TYTX
+# Serialize with types
+as_typed_text(Decimal("99.99"))  # → "99.99::D"
+as_typed_text(date(2025, 1, 15)) # → "2025-01-15::d"
+as_typed_text(123)               # → "123::I"
 ```
 
-The `::TYTX` suffix indicates the payload contains typed values that need hydration.
+### JSON
+
+```python
+from genro_tytx import as_typed_json, from_json
+
+# Serialize to typed JSON
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+as_typed_json(data)
+# '{"price": "99.99::D", "date": "2025-01-15::d"}'
+
+# Parse typed JSON
+from_json('{"price": "99.99::D", "count": "42::I"}')
+# {"price": Decimal("99.99"), "count": 42}
+```
+
+### XML
+
+```python
+from genro_tytx import as_typed_xml, from_xml
+
+# Create typed XML
+data = {"order": {"attrs": {"id": 123}, "value": {"price": {"attrs": {}, "value": Decimal("99.99")}}}}
+as_typed_xml(data)
+# '<order id="123::I"><price>99.99::D</price></order>'
+
+# Parse typed XML
+from_xml('<root>100.50::D</root>')
+# {"root": {"attrs": {}, "value": Decimal("100.50")}}
+```
+
+## Type Codes
+
+| Code | Aliases | Python Type | Example |
+|------|---------|-------------|---------|
+| `I` | `INT`, `INTEGER`, `LONG` | `int` | `"123::I"` |
+| `F` | `R`, `REAL` | `float` | `"1.5::F"` |
+| `D` | `N`, `NUMERIC` | `Decimal` | `"100.50::D"` |
+| `B` | `BOOL`, `BOOLEAN` | `bool` | `"true::B"` |
+| `S` | `T`, `TEXT` | `str` | `"hello::S"` |
+| `d` | - | `date` | `"2025-01-15::d"` |
+| `dt` | `DH`, `DHZ` | `datetime` | `"2025-01-15T10:00::dt"` |
+| `J` | - | `dict`/`list` | `'{"a":1}::J'` |
+| `L` | - | `list` | `"a,b,c::L"` |
+
+## Features
+
+- **Zero dependencies**: Python stdlib only
+- **Bidirectional**: Parse and serialize typed values
+- **Multiple formats**: JSON, XML support built-in
+- **Locale formatting**: Format dates/numbers for display
+- **Extensible**: Register custom types via `registry.register()`
+- **JavaScript**: Matching JS implementation included (`js/`)
+- **100% test coverage**: Comprehensive test suite
 
 ## Installation
 
@@ -68,152 +121,61 @@ The `::TYTX` suffix indicates the payload contains typed values that need hydrat
 pip install genro-tytx
 ```
 
-### Optional Dependencies
-
-```bash
-# Fast JSON with orjson
-pip install genro-tytx[json]
-
-# MessagePack support
-pip install genro-tytx[msgpack]
-
-# All extras
-pip install genro-tytx[all]
-```
-
-## Quick Start
-
-### Python
-
-```python
-from genro_tytx import hydrate, serialize, registry
-
-# Hydrate TYTX values
-data = {"price": "100.50::D", "date": "2025-01-15::d"}
-result = hydrate(data)
-# result = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
-
-# Serialize Python objects
-from decimal import Decimal
-from datetime import date
-
-data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
-result = serialize(data)
-# result = {"price": "100.50::D", "date": "2025-01-15::d"}
-```
-
 ### JavaScript
 
+```bash
+npm install genro-tytx
+```
+
+Or use directly:
+
 ```javascript
-import { hydrate, serialize } from 'genro-tytx';
+import { from_text, as_typed_text, from_json, as_typed_json } from 'genro-tytx';
 
-// Hydrate TYTX values
-const data = { price: "100.50::D", date: "2025-01-15::d" };
-const result = hydrate(data);
-// result = { price: new Decimal("100.50"), date: new Date("2025-01-15") }
-
-// Serialize JavaScript objects
-const data = { price: new Decimal("100.50"), date: new Date("2025-01-15") };
-const result = serialize(data);
-// result = { price: "100.50::D", date: "2025-01-15::d" }
-```
-
-## Format Support
-
-TYTX works with multiple formats:
-
-### JSON
-```python
-import json
-from genro_tytx.encoders import TYTXEncoder, tytx_decoder
-
-# Encode
-json.dumps(data, cls=TYTXEncoder)
-
-# Decode
-json.loads(text, object_hook=tytx_decoder)
-```
-
-### XML
-```xml
-<item price="100.50::D" date="2025-01-15::d" />
-```
-
-### MessagePack
-```python
-import msgpack
-from genro_tytx.encoders import msgpack_encode, msgpack_decode
-
-# TYTX uses ExtType(42) for typed payloads
-packed = msgpack.packb(data, default=msgpack_encode)
-unpacked = msgpack.unpackb(packed, ext_hook=msgpack_decode)
+from_text("123::I");           // → 123
+as_typed_text(123);            // → "123::I"
+from_json('{"x": "10::D"}');   // → {x: "10"} (Decimal as string in JS)
 ```
 
 ## Custom Types
 
-Register custom types with the registry:
-
 ```python
 from genro_tytx import registry
+from genro_tytx.base import DataType
+import uuid
 
-@registry.register("UUID", "U")
-class UUIDType:
+class UUIDType(DataType):
+    name = "uuid"
+    code = "U"
     python_type = uuid.UUID
 
-    @staticmethod
-    def parse(value: str) -> uuid.UUID:
+    def parse(self, value: str) -> uuid.UUID:
         return uuid.UUID(value)
 
-    @staticmethod
-    def serialize(obj: uuid.UUID) -> str:
-        return str(obj)
+    def serialize(self, value: uuid.UUID) -> str:
+        return str(value)
 
-# Now works automatically
-hydrate({"id": "550e8400-e29b-41d4-a716-446655440000::U"})
-# {"id": UUID("550e8400-e29b-41d4-a716-446655440000")}
+registry.register(UUIDType)
+
+# Now works
+from_text("550e8400-e29b-41d4-a716-446655440000::U")
+# → UUID("550e8400-e29b-41d4-a716-446655440000")
 ```
 
-## Integration
+## Documentation
 
-### With genro-asgi
+📚 **[Full Documentation](https://genro-tytx.readthedocs.io/)** (coming soon)
 
-```python
-from genro_asgi import WebSocket
-
-async def handler(ws: WebSocket):
-    await ws.accept()
-
-    # Receive with automatic TYTX hydration
-    data = await ws.receive_typed()
-
-    # Send with automatic TYTX serialization
-    await ws.send_typed({"price": Decimal("100.50")})
-```
-
-### With Pydantic
-
-TYTX hydration happens **before** Pydantic validation:
-
-```python
-from pydantic import BaseModel
-from decimal import Decimal
-
-class Order(BaseModel):
-    price: Decimal
-    date: date
-
-# 1. JSON arrives: {"price": "100::D", "date": "2025-01-15::d"}
-# 2. TYTX hydrates: {"price": Decimal("100"), "date": date(2025, 1, 15)}
-# 3. Pydantic validates the already-typed data
-```
-
-## Specification
-
-See [spec/](spec/) for the complete TYTX specification.
+- [Quick Start](docs/quickstart.md)
+- [Type Guide](docs/guide/types.md)
+- [JSON Utilities](docs/guide/json.md)
+- [XML Utilities](docs/guide/xml.md)
+- [Custom Types](docs/guide/custom-types.md)
+- [API Reference](docs/api/reference.md)
 
 ## Development Status
 
-**Pre-Alpha** - Protocol specification phase. API may change.
+**Alpha** - Core implementation complete. API is stabilizing.
 
 ## License
 

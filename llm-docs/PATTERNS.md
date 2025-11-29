@@ -1,0 +1,251 @@
+# Common Patterns
+
+## Pattern: JSON API with Typed Values
+
+**Problem**: Send Decimal/Date over JSON without losing precision/type
+**Solution**: Use `as_typed_json()` and `from_json()`
+**Use Case**: REST APIs, WebSocket messages
+
+```python
+from decimal import Decimal
+from datetime import date
+from genro_tytx import as_typed_json, from_json
+
+# Serialize for API response
+order = {
+    "id": 123,
+    "price": Decimal("99.99"),
+    "date": date(2025, 1, 15),
+    "customer": "Acme"
+}
+json_response = as_typed_json(order)
+# '{"id": 123, "price": "99.99::D", "date": "2025-01-15::d", "customer": "Acme"}'
+
+# Parse API request
+json_request = '{"price": "150.00::D", "quantity": "5::I"}'
+data = from_json(json_request)
+# {"price": Decimal("150.00"), "quantity": 5}
+```
+
+**Test:** `tests/test_core.py::TestJSONUtils::test_json_roundtrip`
+
+---
+
+## Pattern: XML Config with Types
+
+**Problem**: Parse XML config preserving numeric/date types
+**Solution**: Use `from_xml()` with TYTX suffixes
+**Use Case**: Configuration files, data import
+
+```python
+from genro_tytx import from_xml, as_typed_xml
+
+# Parse config
+config_xml = '''
+<config>
+    <timeout>30::I</timeout>
+    <price>99.99::D</price>
+    <enabled>true::B</enabled>
+</config>
+'''
+config = from_xml(config_xml)
+# config["config"]["value"]["timeout"]["value"] → 30 (int)
+# config["config"]["value"]["price"]["value"] → Decimal("99.99")
+# config["config"]["value"]["enabled"]["value"] → True
+
+# Generate config
+config_data = {
+    "settings": {
+        "attrs": {"version": 1},
+        "value": {
+            "max_retries": {"attrs": {}, "value": 3},
+            "rate_limit": {"attrs": {}, "value": Decimal("100.50")}
+        }
+    }
+}
+xml = as_typed_xml(config_data)
+# <settings version="1::I"><max_retries>3::I</max_retries>...
+```
+
+**Test:** `tests/test_core.py::TestXMLNewStructure::test_xml_roundtrip`
+
+---
+
+## Pattern: Locale-Aware Formatting
+
+**Problem**: Display dates/numbers in user's locale
+**Solution**: Use `as_text(value, format=True, locale="xx_XX")`
+**Use Case**: UI display, reports
+
+```python
+from datetime import date
+from decimal import Decimal
+from genro_tytx import as_text
+
+d = date(2025, 1, 15)
+
+# ISO output (for storage/API)
+as_text(d)  # → "2025-01-15"
+
+# Locale format (for display)
+as_text(d, format="%d/%m/%Y")           # → "15/01/2025"
+as_text(d, format="%d/%m/%Y", locale="it_IT")  # → "15/01/2025"
+
+# Custom format
+as_text(d, format="%A, %B %d")          # → "Wednesday, January 15"
+```
+
+**Test:** `tests/test_core.py::TestAsTextFormatting`
+
+---
+
+## Pattern: Type Detection
+
+**Problem**: Check if string contains typed value
+**Solution**: Use `registry.is_typed()`
+**Use Case**: Conditional parsing, validation
+
+```python
+from genro_tytx import registry, from_text
+
+def process_value(value: str):
+    if registry.is_typed(value):
+        return from_text(value)  # Parse typed value
+    return value  # Keep as string
+
+process_value("123::I")      # → 123
+process_value("hello")       # → "hello"
+process_value("123::BOGUS")  # → "123::BOGUS" (unknown type)
+```
+
+**Test:** `tests/test_core.py::TestRegistryHelpers::test_is_typed`
+
+---
+
+## Pattern: Genropy Compatibility
+
+**Problem**: Support legacy Genropy type codes
+**Solution**: Type aliases handle legacy codes
+**Use Case**: Migration from Genropy, interoperability
+
+```python
+from genro_tytx import from_text
+
+# Genropy integer aliases
+from_text("123::L")      # LONG → 123
+from_text("123::INT")    # INT → 123
+from_text("123::INTEGER")  # INTEGER → 123
+
+# Genropy float aliases
+from_text("1.5::R")      # REAL → 1.5
+
+# Genropy decimal aliases
+from_text("100::N")      # NUMERIC → Decimal("100")
+
+# Genropy datetime aliases
+from_text("2025-01-15T10:00::DH")   # DH → datetime
+from_text("2025-01-15T10:00::DHZ")  # DHZ → datetime
+
+# Genropy string aliases
+from_text("hello::T")    # TEXT → "hello"
+```
+
+**Test:** `tests/test_core.py::TestTypeAttributes::test_genropy_compatible_aliases`
+
+---
+
+## Pattern: Custom Type Registration
+
+**Problem**: Support application-specific types
+**Solution**: Create DataType subclass and register
+**Use Case**: UUID, Money, custom enums
+
+```python
+import uuid
+from genro_tytx import TypeRegistry
+from genro_tytx.base import DataType
+
+class UUIDType(DataType):
+    name = "uuid"
+    code = "U"
+    python_type = uuid.UUID
+    sql_type = "UUID"
+
+    def parse(self, value: str) -> uuid.UUID:
+        return uuid.UUID(value)
+
+    def serialize(self, value: uuid.UUID) -> str:
+        return str(value)
+
+# Register
+my_registry = TypeRegistry()
+my_registry.register(UUIDType)
+
+# Use
+my_registry.from_text("550e8400-e29b-41d4-a716-446655440000::U")
+# → UUID("550e8400-e29b-41d4-a716-446655440000")
+```
+
+**Test:** `tests/test_core.py::TestEdgeCases::test_register_type_without_python_type`
+
+---
+
+## Pattern: Standard JSON Output
+
+**Problem**: Output JSON for systems that don't understand TYTX
+**Solution**: Use `as_json()` instead of `as_typed_json()`
+**Use Case**: Third-party API integration
+
+```python
+from decimal import Decimal
+from datetime import date
+from genro_tytx import as_json, as_typed_json
+
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+
+# For TYTX-aware systems
+as_typed_json(data)
+# '{"price": "99.99::D", "date": "2025-01-15::d"}'
+
+# For standard JSON consumers
+as_json(data)
+# '{"price": 99.99, "date": "2025-01-15"}'
+# Decimal → float, date → ISO string
+```
+
+**Test:** `tests/test_core.py::TestJSONUtils::test_as_json_standard`
+
+---
+
+## Pattern: XML Attributes with Types
+
+**Problem**: XML attributes need typed values
+**Solution**: Attributes are typed in `as_typed_xml()`
+**Use Case**: Typed XML schemas
+
+```python
+from decimal import Decimal
+from genro_tytx import as_typed_xml, from_xml
+
+# Create XML with typed attributes
+data = {
+    "product": {
+        "attrs": {
+            "id": 123,
+            "price": Decimal("99.50"),
+            "active": True
+        },
+        "value": "Widget"
+    }
+}
+xml = as_typed_xml(data)
+# <product id="123::I" price="99.50::D" active="true::B">Widget</product>
+
+# Parse back
+result = from_xml(xml)
+# result["product"]["attrs"]["id"] → 123
+# result["product"]["attrs"]["price"] → Decimal("99.50")
+# result["product"]["attrs"]["active"] → True
+```
+
+**Test:** `tests/test_core.py::TestXMLNewStructure::test_as_typed_xml_with_attrs`
