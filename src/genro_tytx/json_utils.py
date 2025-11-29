@@ -4,13 +4,12 @@ JSON utilities for TYTX Protocol.
 Provides encoder/decoder functions for JSON serialization with typed values.
 
 Usage:
-    # Encoding (Python → JSON with typed strings)
-    json.dumps(data, default=tytx_encoder)
-    # or
-    tytx_dumps(data)
+    # Typed JSON (TYTX format - reversible)
+    as_typed_json(data)  # → '{"price": "99.50::D"}'
+    from_json(json_str)  # → {"price": Decimal("99.50")}
 
-    # Decoding (JSON with typed strings → Python)
-    tytx_loads(json_string)
+    # Standard JSON (for external systems - may lose precision)
+    as_json(data)  # → '{"price": 99.5}'
 """
 
 import json
@@ -19,11 +18,11 @@ from typing import Any
 from .registry import registry
 
 
-def tytx_encoder(obj: Any) -> str:
+def _typed_encoder(obj: Any) -> str:
     """
-    JSON encoder for non-native types.
+    JSON encoder for non-native types (typed output).
 
-    Use with json.dumps(data, default=tytx_encoder).
+    Use with json.dumps(data, default=_typed_encoder).
 
     Args:
         obj: Python object to encode.
@@ -34,13 +33,40 @@ def tytx_encoder(obj: Any) -> str:
     Raises:
         TypeError: If object is not serializable.
     """
-    typed = registry.asTypedText(obj)
+    typed = registry.as_typed_text(obj)
     if typed != str(obj):
         return typed
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def tytx_decoder(obj: Any) -> Any:
+def _standard_encoder(obj: Any) -> Any:
+    """
+    JSON encoder for non-native types (standard output).
+
+    Converts to JSON-compatible types (may lose precision).
+
+    Args:
+        obj: Python object to encode.
+
+    Returns:
+        JSON-compatible representation.
+
+    Raises:
+        TypeError: If object is not serializable.
+    """
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _hydrate(obj: Any) -> Any:
     """
     Recursively hydrate typed strings in parsed JSON.
 
@@ -51,20 +77,20 @@ def tytx_decoder(obj: Any) -> Any:
         Value with typed strings converted to Python objects.
     """
     if isinstance(obj, str):
-        return registry.fromText(obj)
+        return registry.from_text(obj)
     if isinstance(obj, dict):
-        return {k: tytx_decoder(v) for k, v in obj.items()}
+        return {k: _hydrate(v) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [tytx_decoder(v) for v in obj]
+        return [_hydrate(v) for v in obj]
     return obj
 
 
-def tytx_dumps(obj: Any, **kwargs: Any) -> str:
+def as_typed_json(obj: Any, **kwargs: Any) -> str:
     """
-    Serialize Python object to JSON string with typed values.
+    Serialize Python object to JSON string with typed values (TYTX format).
 
     Non-native JSON types (Decimal, date, datetime, etc.) are serialized
-    as typed strings (e.g., "123.45::D").
+    as typed strings (e.g., "123.45::D"). This format is reversible.
 
     Args:
         obj: Python object to serialize.
@@ -73,15 +99,37 @@ def tytx_dumps(obj: Any, **kwargs: Any) -> str:
     Returns:
         JSON string with typed values.
     """
-    kwargs.setdefault("default", tytx_encoder)
+    kwargs.setdefault("default", _typed_encoder)
     return json.dumps(obj, **kwargs)
 
 
-def tytx_loads(s: str, **kwargs: Any) -> Any:
+def as_json(obj: Any, **kwargs: Any) -> str:
+    """
+    Serialize Python object to standard JSON string.
+
+    Non-native JSON types are converted to JSON-compatible types:
+    - Decimal → float (may lose precision)
+    - date/datetime → ISO string
+
+    Use this for export to external systems that don't understand TYTX.
+
+    Args:
+        obj: Python object to serialize.
+        **kwargs: Additional arguments passed to json.dumps.
+
+    Returns:
+        Standard JSON string.
+    """
+    kwargs.setdefault("default", _standard_encoder)
+    return json.dumps(obj, **kwargs)
+
+
+def from_json(s: str, **kwargs: Any) -> Any:
     """
     Parse JSON string and hydrate typed values.
 
     Typed strings (e.g., "123.45::D") are converted to Python objects.
+    Non-typed values are returned as-is.
 
     Args:
         s: JSON string to parse.
@@ -90,4 +138,6 @@ def tytx_loads(s: str, **kwargs: Any) -> Any:
     Returns:
         Python object with typed values hydrated.
     """
-    return tytx_decoder(json.loads(s, **kwargs))
+    return _hydrate(json.loads(s, **kwargs))
+
+

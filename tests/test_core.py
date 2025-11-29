@@ -4,120 +4,119 @@ from decimal import Decimal
 import json
 
 from genro_tytx import (
-    asText,
-    asTypedText,
-    fromText,
-    parse,
+    as_json,
+    as_text,
+    as_typed_json,
+    as_typed_text,
+    as_typed_xml,
+    as_xml,
+    from_json,
+    from_text,
+    from_xml,
     registry,
-    serialize,
-    tytx_decoder,
-    tytx_dumps,
-    tytx_encoder,
-    tytx_loads,
 )
-from genro_tytx.xml_utils import dict_to_xml, xml_to_dict
 
 
 class TestFromText:
-    """Tests for fromText() - the main parsing function."""
+    """Tests for from_text() - the main parsing function."""
 
-    def test_fromtext_typed_int(self):
-        assert fromText("123::I") == 123
-        assert fromText("123::int") == 123
+    def test_from_text_typed_int(self):
+        assert from_text("123::I") == 123
+        assert from_text("123::int") == 123
 
-    def test_fromtext_typed_float(self):
-        assert fromText("123.45::F") == 123.45
+    def test_from_text_typed_float(self):
+        assert from_text("123.45::F") == 123.45
 
-    def test_fromtext_typed_bool(self):
-        assert fromText("true::B") is True
-        assert fromText("false::B") is False
+    def test_from_text_typed_bool(self):
+        assert from_text("true::B") is True
+        assert from_text("false::B") is False
 
-    def test_fromtext_typed_str(self):
-        assert fromText("hello::S") == "hello"
+    def test_from_text_typed_str(self):
+        assert from_text("hello::S") == "hello"
 
-    def test_fromtext_typed_json(self):
-        assert fromText('{"a":1}::J') == {"a": 1}
+    def test_from_text_typed_json(self):
+        assert from_text('{"a":1}::J') == {"a": 1}
 
-    def test_fromtext_typed_list(self):
-        assert fromText("a,b,c::L") == ["a", "b", "c"]
+    def test_from_text_typed_list(self):
+        assert from_text("a,b,c::L") == ["a", "b", "c"]
 
-    def test_fromtext_typed_decimal(self):
-        assert fromText("123.45::D") == Decimal("123.45")
+    def test_from_text_typed_decimal(self):
+        assert from_text("123.45::D") == Decimal("123.45")
 
-    def test_fromtext_typed_date(self):
-        assert fromText("2025-01-15::d") == date(2025, 1, 15)
+    def test_from_text_typed_date(self):
+        assert from_text("2025-01-15::d") == date(2025, 1, 15)
 
-    def test_fromtext_typed_datetime(self):
-        assert fromText("2025-01-15T10:00:00::dt") == datetime(2025, 1, 15, 10, 0, 0)
+    def test_from_text_typed_datetime(self):
+        assert from_text("2025-01-15T10:00:00::dt") == datetime(2025, 1, 15, 10, 0, 0)
 
-    def test_fromtext_no_type(self):
+    def test_from_text_no_type(self):
         """Without type suffix, returns string as-is."""
-        assert fromText("123") == "123"
+        assert from_text("123") == "123"
 
-    def test_fromtext_explicit_type(self):
+    def test_from_text_explicit_type(self):
         """With explicit type_code parameter."""
-        assert fromText("123", "I") == 123
-        assert fromText("123.45", "D") == Decimal("123.45")
-        assert fromText("2025-01-15", "d") == date(2025, 1, 15)
+        assert from_text("123", "I") == 123
+        assert from_text("123.45", "D") == Decimal("123.45")
+        assert from_text("2025-01-15", "d") == date(2025, 1, 15)
 
 
 class TestAsText:
-    """Tests for asText() - serialize without type."""
+    """Tests for as_text() - serialize without type."""
 
-    def test_astext_int(self):
-        assert asText(123) == "123"
+    def test_as_text_int(self):
+        assert as_text(123) == "123"
 
-    def test_astext_float(self):
-        assert asText(123.45) == "123.45"
+    def test_as_text_float(self):
+        assert as_text(123.45) == "123.45"
 
-    def test_astext_bool(self):
-        assert asText(True) == "true"
-        assert asText(False) == "false"
+    def test_as_text_bool(self):
+        assert as_text(True) == "true"
+        assert as_text(False) == "false"
 
-    def test_astext_decimal(self):
-        assert asText(Decimal("123.45")) == "123.45"
+    def test_as_text_decimal(self):
+        assert as_text(Decimal("123.45")) == "123.45"
 
-    def test_astext_date(self):
-        assert asText(date(2025, 1, 15)) == "2025-01-15"
+    def test_as_text_date(self):
+        assert as_text(date(2025, 1, 15)) == "2025-01-15"
 
-    def test_astext_datetime(self):
-        assert asText(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00"
+    def test_as_text_datetime(self):
+        assert as_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00"
 
-    def test_astext_json(self):
-        assert asText({"a": 1}) == '{"a": 1}'
+    def test_as_text_json(self):
+        assert as_text({"a": 1}) == '{"a": 1}'
 
-    def test_astext_str(self):
-        assert asText("hello") == "hello"
+    def test_as_text_str(self):
+        assert as_text("hello") == "hello"
 
 
 class TestAsTypedText:
-    """Tests for asTypedText() - serialize with type."""
+    """Tests for as_typed_text() - serialize with type."""
 
-    def test_astypedtext_int(self):
-        assert asTypedText(123) == "123::I"
+    def test_as_typed_text_int(self):
+        assert as_typed_text(123) == "123::I"
 
-    def test_astypedtext_float(self):
-        assert asTypedText(123.45) == "123.45::F"
+    def test_as_typed_text_float(self):
+        assert as_typed_text(123.45) == "123.45::F"
 
-    def test_astypedtext_bool(self):
-        assert asTypedText(True) == "true::B"
-        assert asTypedText(False) == "false::B"
+    def test_as_typed_text_bool(self):
+        assert as_typed_text(True) == "true::B"
+        assert as_typed_text(False) == "false::B"
 
-    def test_astypedtext_decimal(self):
-        assert asTypedText(Decimal("123.45")) == "123.45::D"
+    def test_as_typed_text_decimal(self):
+        assert as_typed_text(Decimal("123.45")) == "123.45::D"
 
-    def test_astypedtext_date(self):
-        assert asTypedText(date(2025, 1, 15)) == "2025-01-15::d"
+    def test_as_typed_text_date(self):
+        assert as_typed_text(date(2025, 1, 15)) == "2025-01-15::d"
 
-    def test_astypedtext_datetime(self):
-        assert asTypedText(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00::dt"
+    def test_as_typed_text_datetime(self):
+        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00::dt"
 
-    def test_astypedtext_json(self):
-        assert asTypedText({"a": 1}) == '{"a": 1}::J'
+    def test_as_typed_text_json(self):
+        assert as_typed_text({"a": 1}) == '{"a": 1}::J'
 
-    def test_astypedtext_str(self):
+    def test_as_typed_text_str(self):
         """Strings are returned as-is (no type added)."""
-        assert asTypedText("hello") == "hello"
+        assert as_typed_text("hello") == "hello"
 
 
 class TestRegistryHelpers:
@@ -174,164 +173,227 @@ class TestTypeAttributes:
     def test_genropy_compatible_aliases(self):
         """Test that Genropy-compatible aliases work."""
         # Integer aliases (Genropy uses L for long/int)
-        assert fromText("123::INT") == 123
-        assert fromText("123::INTEGER") == 123
-        assert fromText("123::LONG") == 123
+        assert from_text("123::INT") == 123
+        assert from_text("123::INTEGER") == 123
+        assert from_text("123::LONG") == 123
 
         # Float aliases (Genropy uses R for real)
-        assert fromText("1.5::R") == 1.5
-        assert fromText("1.5::REAL") == 1.5
+        assert from_text("1.5::R") == 1.5
+        assert from_text("1.5::REAL") == 1.5
 
         # Boolean
-        assert fromText("true::BOOL") is True
-        assert fromText("true::BOOLEAN") is True
+        assert from_text("true::BOOL") is True
+        assert from_text("true::BOOLEAN") is True
 
         # String/Text (Genropy uses T, A, P)
-        assert fromText("hello::T") == "hello"
-        assert fromText("hello::TEXT") == "hello"
+        assert from_text("hello::T") == "hello"
+        assert from_text("hello::TEXT") == "hello"
 
         # Decimal (Genropy uses N for numeric)
-        assert fromText("100.50::N") == Decimal("100.50")
-        assert fromText("100.50::NUMERIC") == Decimal("100.50")
+        assert from_text("100.50::N") == Decimal("100.50")
+        assert from_text("100.50::NUMERIC") == Decimal("100.50")
 
         # DateTime (Genropy uses DH, DHZ)
-        assert fromText("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
-        assert fromText("2025-01-15T10:00:00::DHZ") == datetime(2025, 1, 15, 10, 0, 0)
-
-
-class TestLegacyAPI:
-    """Tests for legacy parse/serialize (backwards compatibility)."""
-
-    def test_parse_int(self):
-        assert parse("123::I") == 123
-        assert parse("123::int") == 123
-
-    def test_parse_no_type(self):
-        assert parse("123") == "123"
-
-    def test_serialize(self):
-        assert serialize(123) == "123::I"
-        assert serialize(Decimal("123.45")) == "123.45::D"
-        assert serialize("hello") == "hello"
+        assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
+        assert from_text("2025-01-15T10:00:00::DHZ") == datetime(2025, 1, 15, 10, 0, 0)
 
 
 class TestAsTextFormatting:
-    """Tests for asText() with format parameter."""
+    """Tests for as_text() with format parameter."""
 
-    def test_astext_format_none_returns_iso(self):
+    def test_as_text_format_none_returns_iso(self):
         """format=None returns ISO/technical output."""
-        assert asText(date(2025, 1, 15)) == "2025-01-15"
-        assert asText(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00"
-        assert asText(123) == "123"
-        assert asText(Decimal("1234.56")) == "1234.56"
+        assert as_text(date(2025, 1, 15)) == "2025-01-15"
+        assert as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00"
+        assert as_text(123) == "123"
+        assert as_text(Decimal("1234.56")) == "1234.56"
 
-    def test_astext_format_true_uses_default(self):
+    def test_as_text_format_true_uses_default(self):
         """format=True uses type's default_format."""
         # These tests verify format=True activates formatting
         # The exact output depends on system locale
-        result = asText(date(2025, 1, 15), format=True)
+        result = as_text(date(2025, 1, 15), format=True)
         assert result != "2025-01-15"  # Should NOT be ISO format
 
-        result = asText(datetime(2025, 1, 15, 10, 30, 0), format=True)
+        result = as_text(datetime(2025, 1, 15, 10, 30, 0), format=True)
         assert result != "2025-01-15T10:30:00"  # Should NOT be ISO format
 
-    def test_astext_format_string(self):
+    def test_as_text_format_string(self):
         """format=string uses specific format."""
-        assert asText(date(2025, 1, 15), format="%d/%m/%Y") == "15/01/2025"
-        assert asText(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M") == "2025-01-15 10:30"
+        assert as_text(date(2025, 1, 15), format="%d/%m/%Y") == "15/01/2025"
+        assert as_text(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M") == "2025-01-15 10:30"
 
-    def test_astext_format_numeric(self):
+    def test_as_text_format_numeric(self):
         """Numeric types support locale-aware formatting."""
         # Without format: ISO output
-        assert asText(1234567) == "1234567"
+        assert as_text(1234567) == "1234567"
 
         # With explicit format
-        result = asText(1234567, format="%d")
+        result = as_text(1234567, format="%d")
         # Result depends on locale, but should be a string
         assert isinstance(result, str)
 
-    def test_astext_string_ignores_format(self):
+    def test_as_text_string_ignores_format(self):
         """String values return as-is regardless of format."""
-        assert asText("hello", format=True) == "hello"
-        assert asText("hello", format="%s") == "hello"
+        assert as_text("hello", format=True) == "hello"
+        assert as_text("hello", format="%s") == "hello"
 
-class TestXMLUtils:
-    def test_dict_to_xml_simple(self):
-        data = {"root": {"@attr": 123, "#text": "content"}}
-        xml = dict_to_xml(data)
-        assert 'attr="123::I"' in xml
-        assert '>content</root>' in xml
 
-    def test_dict_to_xml_typed_content(self):
-        data = {"root": Decimal("10.50")}
-        xml = dict_to_xml(data)
-        assert '>10.50::D</root>' in xml
+class TestXMLNewStructure:
+    """Tests for XML utilities with new attrs/value structure."""
 
-    def test_xml_to_dict_simple(self):
-        xml = '<root attr="123::I">content</root>'
-        data = xml_to_dict(xml)
-        assert data["root"]["@attr"] == 123
-        assert data["root"]["#text"] == "content"
+    def test_as_typed_xml_simple(self):
+        """Simple element with typed value."""
+        data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
+        xml = as_typed_xml(data)
+        assert "<root>10.50::D</root>" in xml
 
-    def test_xml_to_dict_typed_content(self):
-        xml = '<root>10.50::D</root>'
-        data = xml_to_dict(xml)
-        assert data["root"] == Decimal("10.50")
+    def test_as_xml_simple(self):
+        """Simple element without type suffix."""
+        data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
+        xml = as_xml(data)
+        assert "<root>10.50</root>" in xml
+        assert "::" not in xml
+
+    def test_as_typed_xml_with_attrs(self):
+        """Element with typed attributes."""
+        data = {"root": {"attrs": {"id": 123, "price": Decimal("99.50")}, "value": "content"}}
+        xml = as_typed_xml(data)
+        assert 'id="123::I"' in xml
+        assert 'price="99.50::D"' in xml
+
+    def test_as_xml_with_attrs(self):
+        """Element with attributes (no type suffix)."""
+        data = {"root": {"attrs": {"id": 123}, "value": "content"}}
+        xml = as_xml(data)
+        assert 'id="123"' in xml
+        assert "::" not in xml
+
+    def test_as_typed_xml_nested(self):
+        """Nested elements."""
+        data = {
+            "order": {
+                "attrs": {"id": 1},
+                "value": {
+                    "item": {"attrs": {}, "value": "Widget"},
+                    "price": {"attrs": {}, "value": Decimal("25.00")},
+                },
+            }
+        }
+        xml = as_typed_xml(data)
+        assert 'id="1::I"' in xml
+        assert "<item>Widget</item>" in xml
+        assert "<price>25.00::D</price>" in xml
+
+    def test_from_xml_simple(self):
+        """Parse simple XML to attrs/value structure."""
+        xml = "<root>hello</root>"
+        result = from_xml(xml)
+        assert result == {"root": {"attrs": {}, "value": "hello"}}
+
+    def test_from_xml_typed(self):
+        """Parse XML with typed values."""
+        xml = "<root>10.50::D</root>"
+        result = from_xml(xml)
+        assert result["root"]["value"] == Decimal("10.50")
+
+    def test_from_xml_with_attrs(self):
+        """Parse XML with attributes."""
+        xml = '<root id="123::I" name="test">content</root>'
+        result = from_xml(xml)
+        assert result["root"]["attrs"]["id"] == 123
+        assert result["root"]["attrs"]["name"] == "test"
+        assert result["root"]["value"] == "content"
+
+    def test_from_xml_nested(self):
+        """Parse nested XML."""
+        xml = "<order><item>Widget</item><price>25.00::D</price></order>"
+        result = from_xml(xml)
+        assert result["order"]["attrs"] == {}
+        assert result["order"]["value"]["item"]["value"] == "Widget"
+        assert result["order"]["value"]["price"]["value"] == Decimal("25.00")
+
+    def test_xml_roundtrip(self):
+        """Round-trip: as_typed_xml then from_xml."""
+        original = {
+            "order": {
+                "attrs": {"id": 42},
+                "value": {
+                    "customer": {"attrs": {}, "value": "Acme"},
+                    "total": {"attrs": {}, "value": Decimal("199.99")},
+                },
+            }
+        }
+        xml = as_typed_xml(original)
+        restored = from_xml(xml)
+        assert restored["order"]["attrs"]["id"] == 42
+        assert restored["order"]["value"]["customer"]["value"] == "Acme"
+        assert restored["order"]["value"]["total"]["value"] == Decimal("199.99")
 
 
 class TestJSONUtils:
-    """Tests for JSON encoder/decoder utilities."""
+    """Tests for JSON utilities."""
 
-    def test_tytx_encoder_decimal(self):
-        """tytx_encoder converts Decimal to typed string."""
-        result = json.dumps({"price": Decimal("99.99")}, default=tytx_encoder)
+    def test_as_typed_json_decimal(self):
+        """as_typed_json converts Decimal to typed string."""
+        result = as_typed_json({"price": Decimal("99.99")})
         assert '"price": "99.99::D"' in result
 
-    def test_tytx_encoder_date(self):
-        """tytx_encoder converts date to typed string."""
-        result = json.dumps({"day": date(2025, 1, 15)}, default=tytx_encoder)
+    def test_as_typed_json_date(self):
+        """as_typed_json converts date to typed string."""
+        result = as_typed_json({"day": date(2025, 1, 15)})
         assert '"day": "2025-01-15::d"' in result
 
-    def test_tytx_encoder_datetime(self):
-        """tytx_encoder converts datetime to typed string."""
-        result = json.dumps({"ts": datetime(2025, 1, 15, 10, 30)}, default=tytx_encoder)
+    def test_as_typed_json_datetime(self):
+        """as_typed_json converts datetime to typed string."""
+        result = as_typed_json({"ts": datetime(2025, 1, 15, 10, 30)})
         assert '"ts": "2025-01-15T10:30:00::dt"' in result
 
-    def test_tytx_dumps_complex(self):
-        """tytx_dumps handles complex nested structures."""
+    def test_as_typed_json_complex(self):
+        """as_typed_json handles complex nested structures."""
         data = {
             "name": "Test",
             "price": Decimal("100.50"),
             "date": date(2025, 1, 15),
             "items": [1, 2, 3],
         }
-        result = tytx_dumps(data)
+        result = as_typed_json(data)
         assert '"price": "100.50::D"' in result
         assert '"date": "2025-01-15::d"' in result
         assert '"name": "Test"' in result
 
-    def test_tytx_loads_simple(self):
-        """tytx_loads parses typed strings."""
+    def test_as_json_standard(self):
+        """as_json produces standard JSON (no type suffixes)."""
+        data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+        result = as_json(data)
+        # Decimal becomes float, date becomes ISO string
+        assert "::" not in result
+        parsed = json.loads(result)
+        assert parsed["price"] == 99.99
+        assert parsed["date"] == "2025-01-15"
+
+    def test_from_json_simple(self):
+        """from_json parses typed strings."""
         json_str = '{"price": "99.99::D", "count": "42::I"}'
-        result = tytx_loads(json_str)
+        result = from_json(json_str)
         assert result["price"] == Decimal("99.99")
         assert result["count"] == 42
 
-    def test_tytx_loads_nested(self):
-        """tytx_loads handles nested structures."""
+    def test_from_json_nested(self):
+        """from_json handles nested structures."""
         json_str = '{"order": {"price": "100::D", "date": "2025-01-15::d"}}'
-        result = tytx_loads(json_str)
+        result = from_json(json_str)
         assert result["order"]["price"] == Decimal("100")
         assert result["order"]["date"] == date(2025, 1, 15)
 
-    def test_tytx_loads_list(self):
-        """tytx_loads handles lists with typed values."""
+    def test_from_json_list(self):
+        """from_json handles lists with typed values."""
         json_str = '{"prices": ["10::D", "20::D", "30::D"]}'
-        result = tytx_loads(json_str)
+        result = from_json(json_str)
         assert result["prices"] == [Decimal("10"), Decimal("20"), Decimal("30")]
 
-    def test_tytx_roundtrip(self):
-        """Round-trip: dumps then loads returns original values."""
+    def test_json_roundtrip(self):
+        """Round-trip: as_typed_json then from_json returns original values."""
         original = {
             "price": Decimal("123.45"),
             "date": date(2025, 6, 15),
@@ -339,18 +401,18 @@ class TestJSONUtils:
             "name": "Test",
             "count": 42,
         }
-        json_str = tytx_dumps(original)
-        restored = tytx_loads(json_str)
+        json_str = as_typed_json(original)
+        restored = from_json(json_str)
         assert restored["price"] == original["price"]
         assert restored["date"] == original["date"]
         assert restored["timestamp"] == original["timestamp"]
         assert restored["name"] == original["name"]
-        # Note: int goes through without type suffix, stays int
         assert restored["count"] == original["count"]
 
-    def test_tytx_decoder_preserves_non_typed(self):
-        """tytx_decoder preserves values without type suffix."""
-        result = tytx_decoder({"a": "hello", "b": 123, "c": True})
+    def test_from_json_preserves_non_typed(self):
+        """from_json preserves values without type suffix."""
+        json_str = '{"a": "hello", "b": 123, "c": true}'
+        result = from_json(json_str)
         assert result["a"] == "hello"
         assert result["b"] == 123
         assert result["c"] is True

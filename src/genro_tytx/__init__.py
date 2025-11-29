@@ -14,6 +14,22 @@
 
 """
 TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats.
+
+Public API:
+    # Text conversion
+    from_text("100::D")       → Decimal("100")
+    as_text(Decimal("100"))   → "100"
+    as_typed_text(Decimal("100")) → "100::D"
+
+    # JSON conversion
+    as_json(data)             → standard JSON (for external systems)
+    as_typed_json(data)       → JSON with ::type (TYTX format)
+    from_json(json_str)       → dict with hydrated values
+
+    # XML conversion
+    as_xml(data)              → standard XML (for external systems)
+    as_typed_xml(data)        → XML with ::type (TYTX format)
+    from_xml(xml_str)         → dict with attrs/value structure
 """
 
 from .base import DataType
@@ -28,33 +44,38 @@ from .builtin import (
     ListType,
     StrType,
 )
-from .json_utils import tytx_decoder, tytx_dumps, tytx_encoder, tytx_loads
+from .json_utils import (
+    as_json,
+    as_typed_json,
+    from_json,
+)
 from .registry import TypeRegistry, registry
+from .xml_utils import (
+    as_typed_xml,
+    as_xml,
+    from_xml,
+)
 
 # Public API functions
-fromText = registry.fromText
-asText = registry.asText
-asTypedText = registry.asTypedText
-
-# Legacy aliases (for backwards compatibility)
-parse = registry.parse
-serialize = registry.serialize
+from_text = registry.from_text
+as_text = registry.as_text
+as_typed_text = registry.as_typed_text
 
 __version__ = "0.1.0"
 __all__ = [
     "__version__",
-    # Public API
-    "fromText",
-    "asText",
-    "asTypedText",
-    # JSON utilities
-    "tytx_encoder",
-    "tytx_decoder",
-    "tytx_dumps",
-    "tytx_loads",
-    # Legacy aliases
-    "parse",
-    "serialize",
+    # Text API
+    "from_text",
+    "as_text",
+    "as_typed_text",
+    # JSON API
+    "as_json",
+    "as_typed_json",
+    "from_json",
+    # XML API
+    "as_xml",
+    "as_typed_xml",
+    "from_xml",
     # Registry
     "registry",
     "TypeRegistry",

@@ -53,7 +53,7 @@ class TypeRegistry:
         _, type_part = text.rsplit("::", 1)
         return self.get(type_part) is not None
 
-    def fromText(self, text: str, type_code: str | None = None) -> Any:
+    def from_text(self, text: str, type_code: str | None = None) -> Any:
         """
         Parse a string to a Python value.
 
@@ -109,7 +109,7 @@ class TypeRegistry:
             return None  # Strings don't get typed
         return None
 
-    def asText(
+    def as_text(
         self,
         value: Any,
         format: str | bool | None = None,  # noqa: A002
@@ -143,7 +143,7 @@ class TypeRegistry:
 
         return str(value)
 
-    def asTypedText(self, value: Any) -> str:
+    def as_typed_text(self, value: Any) -> str:
         """
         Serialize a Python object to a typed string (value::type).
 
@@ -165,14 +165,6 @@ class TypeRegistry:
 
         return str(value)
 
-    # Legacy aliases (for backwards compatibility during transition)
-    def parse(self, value_string: str) -> Any:
-        """Legacy alias for fromText()."""
-        return self.fromText(value_string)
-
-    def serialize(self, value: Any) -> str:
-        """Legacy alias for asTypedText()."""
-        return self.asTypedText(value)
 
 
 # Global registry instance
