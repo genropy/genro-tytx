@@ -28,6 +28,7 @@ from .builtin import (
     ListType,
     StrType,
 )
+from .json_utils import tytx_decoder, tytx_dumps, tytx_encoder, tytx_loads
 from .registry import TypeRegistry, registry
 
 # Public API functions
@@ -46,6 +47,11 @@ __all__ = [
     "fromText",
     "asText",
     "asTypedText",
+    # JSON utilities
+    "tytx_encoder",
+    "tytx_decoder",
+    "tytx_dumps",
+    "tytx_loads",
     # Legacy aliases
     "parse",
     "serialize",

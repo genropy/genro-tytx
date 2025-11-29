@@ -1,10 +1,39 @@
+import contextlib
 import json
+import locale as locale_module
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from .base import DataType
 from .registry import registry
+
+
+def _set_locale(locale: str | None) -> str | None:
+    """Set locale temporarily and return the previous locale."""
+    if locale is None:
+        return None
+    prev = locale_module.getlocale(locale_module.LC_ALL)
+    try:
+        # Convert "it-IT" format to "it_IT.UTF-8" format
+        normalized = locale.replace("-", "_")
+        if "." not in normalized:
+            normalized = f"{normalized}.UTF-8"
+        locale_module.setlocale(locale_module.LC_ALL, normalized)
+    except locale_module.Error:
+        # Fallback: try without UTF-8
+        with contextlib.suppress(locale_module.Error):
+            locale_module.setlocale(locale_module.LC_ALL, locale.replace("-", "_"))
+    return prev[0] if prev[0] else None
+
+
+def _restore_locale(prev: str | None) -> None:
+    """Restore previous locale."""
+    if prev is not None:
+        try:
+            locale_module.setlocale(locale_module.LC_ALL, prev)
+        except locale_module.Error:
+            locale_module.setlocale(locale_module.LC_ALL, "")
 
 
 class IntType(DataType):
@@ -14,15 +43,24 @@ class IntType(DataType):
     code = "I"
     aliases = ["integer", "long", "INT", "INTEGER", "LONG", "LONGINT"]
     python_type = int
+    js_type = "number"
     sql_type = "INTEGER"
     align = "R"
     empty = 0
+    default_format = "%d"
 
     def parse(self, value: str) -> int:
         return int(value)
 
     def serialize(self, value: Any) -> str:
         return str(value)
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            return locale_module.format_string(fmt, value, grouping=True)
+        finally:
+            _restore_locale(prev)
 
 
 class FloatType(DataType):
@@ -32,15 +70,24 @@ class FloatType(DataType):
     code = "F"
     aliases = ["double", "real", "FLOAT", "REAL", "R"]
     python_type = float
+    js_type = "number"
     sql_type = "REAL"
     align = "R"
     empty = 0.0
+    default_format = "%.2f"
 
     def parse(self, value: str) -> float:
         return float(value)
 
     def serialize(self, value: Any) -> str:
         return str(value)
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            return locale_module.format_string(fmt, value, grouping=True)
+        finally:
+            _restore_locale(prev)
 
 
 class BoolType(DataType):
@@ -50,6 +97,7 @@ class BoolType(DataType):
     code = "B"
     aliases = ["boolean", "BOOL", "BOOLEAN"]
     python_type = bool
+    js_type = "boolean"
     sql_type = "BOOLEAN"
     align = "L"
     empty = False
@@ -68,6 +116,7 @@ class StrType(DataType):
     code = "S"
     aliases = ["string", "text", "T", "TEXT", "A", "P"]
     python_type = str
+    js_type = "string"
     sql_type = "VARCHAR"
     align = "L"
     empty = ""
@@ -86,6 +135,7 @@ class JsonType(DataType):
     code = "J"
     aliases = ["JS"]
     python_type = dict  # Primary type, also handles list
+    js_type = "object"
     sql_type = "JSON"
     align = "L"
     empty = None
@@ -104,6 +154,7 @@ class ListType(DataType):
     code = "L"
     aliases = ["array"]
     python_type = list
+    js_type = "Array"
     sql_type = "VARCHAR"
     align = "L"
     empty = []  # noqa: RUF012
@@ -124,15 +175,24 @@ class DecimalType(DataType):
     code = "D"
     aliases = ["dec", "numeric", "N", "NUMERIC", "DECIMAL"]
     python_type = Decimal
+    js_type = "number"  # JS has no native Decimal
     sql_type = "DECIMAL"
     align = "R"
     empty = Decimal("0")
+    default_format = "%.2f"
 
     def parse(self, value: str) -> Decimal:
         return Decimal(value)
 
     def serialize(self, value: Any) -> str:
         return str(value)
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            return locale_module.format_string(fmt, float(value), grouping=True)
+        finally:
+            _restore_locale(prev)
 
 
 class DateType(DataType):
@@ -142,15 +202,25 @@ class DateType(DataType):
     code = "d"
     aliases = ["DATE", "D"]
     python_type = date
+    js_type = "Date"
     sql_type = "DATE"
     align = "L"
     empty = None
+    default_format = "%x"  # Locale's appropriate date representation
 
     def parse(self, value: str) -> date:
         return date.fromisoformat(value)
 
     def serialize(self, value: Any) -> str:
         return str(value.isoformat())
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            result: str = value.strftime(fmt)
+            return result
+        finally:
+            _restore_locale(prev)
 
 
 class DateTimeType(DataType):
@@ -160,15 +230,25 @@ class DateTimeType(DataType):
     code = "dt"
     aliases = ["DATETIME", "DT", "DH", "DHZ", "timestamp"]
     python_type = datetime
+    js_type = "Date"
     sql_type = "TIMESTAMP"
     align = "L"
     empty = None
+    default_format = "%c"  # Locale's appropriate date and time representation
 
     def parse(self, value: str) -> datetime:
         return datetime.fromisoformat(value)
 
     def serialize(self, value: Any) -> str:
         return str(value.isoformat())
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            result: str = value.strftime(fmt)
+            return result
+        finally:
+            _restore_locale(prev)
 
 
 # Register built-in types

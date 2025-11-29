@@ -109,12 +109,23 @@ class TypeRegistry:
             return None  # Strings don't get typed
         return None
 
-    def asText(self, value: Any) -> str:
+    def asText(
+        self,
+        value: Any,
+        format: str | bool | None = None,  # noqa: A002
+        locale: str | None = None,
+    ) -> str:
         """
         Serialize a Python object to a string (without type suffix).
 
         Args:
             value: Python value to serialize.
+            format: Controls output format:
+                - None: ISO/technical output (default)
+                - True: use type's default format with locale
+                - str: use specific format string with locale
+            locale: Locale string (e.g., "it-IT"). If None and format is provided,
+                uses system locale.
 
         Returns:
             String representation of value.
@@ -126,6 +137,8 @@ class TypeRegistry:
         if code:
             type_cls = self.get(code)
             if type_cls:
+                if format is not None:
+                    return type_cls().format(value, format, locale)
                 return type_cls().serialize(value)
 
         return str(value)
