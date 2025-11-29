@@ -1,7 +1,7 @@
 import contextlib
 import json
 import locale as locale_module
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -40,8 +40,8 @@ class IntType(DataType):
     """Integer type - whole numbers."""
 
     name = "int"
-    code = "I"
-    aliases = ["integer", "long", "INT", "INTEGER", "LONG", "LONGINT"]
+    code = "L"
+    aliases = ["LONG", "LONGINT", "I", "INT", "INTEGER"]
     python_type = int
     js_type = "number"
     sql_type = "INTEGER"
@@ -67,8 +67,8 @@ class FloatType(DataType):
     """Floating point type - decimal numbers with limited precision."""
 
     name = "float"
-    code = "F"
-    aliases = ["double", "real", "FLOAT", "REAL", "R"]
+    code = "R"
+    aliases = ["REAL", "FLOAT", "F"]
     python_type = float
     js_type = "number"
     sql_type = "REAL"
@@ -113,8 +113,8 @@ class StrType(DataType):
     """String/text type."""
 
     name = "str"
-    code = "S"
-    aliases = ["string", "text", "T", "TEXT", "A", "P"]
+    code = "T"
+    aliases = ["TEXT", "P", "A", "S", "STRING"]
     python_type = str
     js_type = "string"
     sql_type = "VARCHAR"
@@ -132,8 +132,8 @@ class JsonType(DataType):
     """JSON type - serialized dict/list structures."""
 
     name = "json"
-    code = "J"
-    aliases = ["JS"]
+    code = "JS"
+    aliases = ["JSON"]
     python_type = dict  # Primary type, also handles list
     js_type = "object"
     sql_type = "JSON"
@@ -147,33 +147,12 @@ class JsonType(DataType):
         return json.dumps(value)
 
 
-class ListType(DataType):
-    """Comma-separated list type."""
-
-    name = "list"
-    code = "L"
-    aliases = ["array"]
-    python_type = list
-    js_type = "Array"
-    sql_type = "VARCHAR"
-    align = "L"
-    empty = []  # noqa: RUF012
-
-    def parse(self, value: str) -> list[str]:
-        return value.split(",") if value else []
-
-    def serialize(self, value: Any) -> str:
-        if isinstance(value, list):
-            return ",".join(str(v) for v in value)
-        return str(value)
-
-
 class DecimalType(DataType):
     """Decimal type - exact decimal numbers (for money, etc.)."""
 
     name = "decimal"
-    code = "D"
-    aliases = ["dec", "numeric", "N", "NUMERIC", "DECIMAL"]
+    code = "N"
+    aliases = ["NUMERIC", "DECIMAL"]
     python_type = Decimal
     js_type = "number"  # JS has no native Decimal
     sql_type = "DECIMAL"
@@ -199,8 +178,8 @@ class DateType(DataType):
     """Date type - calendar date without time."""
 
     name = "date"
-    code = "d"
-    aliases = ["DATE", "D"]
+    code = "D"
+    aliases = ["DATE"]
     python_type = date
     js_type = "Date"
     sql_type = "DATE"
@@ -227,8 +206,8 @@ class DateTimeType(DataType):
     """DateTime type - date with time."""
 
     name = "datetime"
-    code = "dt"
-    aliases = ["DATETIME", "DT", "DH", "DHZ", "timestamp"]
+    code = "DH"
+    aliases = ["DATETIME", "DT", "DHZ", "timestamp"]
     python_type = datetime
     js_type = "Date"
     sql_type = "TIMESTAMP"
@@ -251,6 +230,34 @@ class DateTimeType(DataType):
             _restore_locale(prev)
 
 
+class TimeType(DataType):
+    """Time type - time of day without date."""
+
+    name = "time"
+    code = "H"
+    aliases = ["TIME", "HZ"]
+    python_type = time
+    js_type = "Date"
+    sql_type = "TIME"
+    align = "L"
+    empty = None
+    default_format = "%X"  # Locale's appropriate time representation
+
+    def parse(self, value: str) -> time:
+        return time.fromisoformat(value)
+
+    def serialize(self, value: Any) -> str:
+        return str(value.isoformat())
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            result: str = value.strftime(fmt)
+            return result
+        finally:
+            _restore_locale(prev)
+
+
 # Register built-in types
 def register_builtins() -> None:
     registry.register(IntType)
@@ -258,10 +265,10 @@ def register_builtins() -> None:
     registry.register(BoolType)
     registry.register(StrType)
     registry.register(JsonType)
-    registry.register(ListType)
     registry.register(DecimalType)
     registry.register(DateType)
     registry.register(DateTimeType)
+    registry.register(TimeType)
 
 
 register_builtins()

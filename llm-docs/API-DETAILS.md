@@ -18,17 +18,17 @@ Parse typed string to Python object.
 
 **Examples:**
 ```python
-# Embedded type
-from_text("123::I")           # → 123
-from_text("100.50::D")        # → Decimal("100.50")
-from_text("2025-01-15::d")    # → date(2025, 1, 15)
+# Embedded type (Genropy-compatible codes)
+from_text("123::L")           # → 123
+from_text("100.50::N")        # → Decimal("100.50")
+from_text("2025-01-15::D")    # → date(2025, 1, 15)
 from_text("true::B")          # → True
-from_text('{"a":1}::J')       # → {"a": 1}
-from_text("a,b,c::L")         # → ["a", "b", "c"]
+from_text('{"a":1}::JS')      # → {"a": 1}
+from_text("10:30:00::H")      # → time(10, 30)
 
 # Explicit type
-from_text("123", "I")         # → 123
-from_text("2025-01-15", "d")  # → date(2025, 1, 15)
+from_text("123", "L")         # → 123
+from_text("2025-01-15", "D")  # → date(2025, 1, 15)
 
 # No type → string
 from_text("hello")            # → "hello"
@@ -93,13 +93,13 @@ Serialize Python value with type suffix.
 
 **Examples:**
 ```python
-as_typed_text(123)                    # → "123::I"
-as_typed_text(1.5)                    # → "1.5::F"
-as_typed_text(Decimal("100.50"))      # → "100.50::D"
-as_typed_text(date(2025, 1, 15))      # → "2025-01-15::d"
-as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::dt"
+as_typed_text(123)                    # → "123::L"
+as_typed_text(1.5)                    # → "1.5::R"
+as_typed_text(Decimal("100.50"))      # → "100.50::N"
+as_typed_text(date(2025, 1, 15))      # → "2025-01-15::D"
+as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::DH"
 as_typed_text(True)                   # → "true::B"
-as_typed_text({"a": 1})               # → '{"a": 1}::J'
+as_typed_text({"a": 1})               # → '{"a": 1}::JS'
 as_typed_text("hello")                # → "hello" (no suffix for strings)
 ```
 
@@ -120,17 +120,17 @@ Serialize to JSON with TYTX type suffixes.
 **Examples:**
 ```python
 as_typed_json({"price": Decimal("99.99")})
-# → '{"price": "99.99::D"}'
+# → '{"price": "99.99::N"}'
 
 as_typed_json({"date": date(2025, 1, 15)})
-# → '{"date": "2025-01-15::d"}'
+# → '{"date": "2025-01-15::D"}'
 
 as_typed_json({
     "price": Decimal("100"),
     "date": date(2025, 1, 15),
     "name": "Test"
 })
-# → '{"price": "100::D", "date": "2025-01-15::d", "name": "Test"}'
+# → '{"price": "100::N", "date": "2025-01-15::D", "name": "Test"}'
 ```
 
 **Test:** `tests/test_core.py::TestJSONUtils`
@@ -166,13 +166,13 @@ Parse JSON with TYTX type hydration.
 
 **Examples:**
 ```python
-from_json('{"price": "99.99::D", "count": "42::I"}')
+from_json('{"price": "99.99::N", "count": "42::L"}')
 # → {"price": Decimal("99.99"), "count": 42}
 
-from_json('{"order": {"price": "100::D", "date": "2025-01-15::d"}}')
+from_json('{"order": {"price": "100::N", "date": "2025-01-15::D"}}')
 # → {"order": {"price": Decimal("100"), "date": date(2025, 1, 15)}}
 
-from_json('{"prices": ["10::D", "20::D", "30::D"]}')
+from_json('{"prices": ["10::N", "20::N", "30::N"]}')
 # → {"prices": [Decimal("10"), Decimal("20"), Decimal("30")]}
 ```
 
@@ -220,11 +220,11 @@ Serialize to XML with TYTX type suffixes.
 ```python
 data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
 as_typed_xml(data)
-# → '<root>10.50::D</root>'
+# → '<root>10.50::N</root>'
 
 data = {"root": {"attrs": {"id": 123, "price": Decimal("99.50")}, "value": "content"}}
 as_typed_xml(data)
-# → '<root id="123::I" price="99.50::D">content</root>'
+# → '<root id="123::L" price="99.50::N">content</root>'
 ```
 
 **Test:** `tests/test_core.py::TestXMLNewStructure`
@@ -263,13 +263,13 @@ Parse XML to `{tag: {attrs: {}, value: ...}}` structure with type hydration.
 from_xml("<root>hello</root>")
 # → {"root": {"attrs": {}, "value": "hello"}}
 
-from_xml("<root>10.50::D</root>")
+from_xml("<root>10.50::N</root>")
 # → {"root": {"attrs": {}, "value": Decimal("10.50")}}
 
-from_xml('<root id="123::I" name="test">content</root>')
+from_xml('<root id="123::L" name="test">content</root>')
 # → {"root": {"attrs": {"id": 123, "name": "test"}, "value": "content"}}
 
-from_xml("<order><item>Widget</item><price>25.00::D</price></order>")
+from_xml("<order><item>Widget</item><price>25.00::N</price></order>")
 # → {"order": {"attrs": {}, "value": {
 #       "item": {"attrs": {}, "value": "Widget"},
 #       "price": {"attrs": {}, "value": Decimal("25.00")}
@@ -292,10 +292,10 @@ Get type class by name, code, or alias.
 
 **Examples:**
 ```python
-registry.get("I")         # → IntType
+registry.get("L")         # → IntType
 registry.get("int")       # → IntType
 registry.get("INTEGER")   # → IntType
-registry.get("D")         # → DecimalType
+registry.get("N")         # → DecimalType
 registry.get("UNKNOWN")   # → None
 ```
 
@@ -330,8 +330,8 @@ Check if string has valid TYTX type suffix.
 
 **Examples:**
 ```python
-registry.is_typed("123::I")        # → True
-registry.is_typed("hello::S")      # → True
+registry.is_typed("123::L")        # → True
+registry.is_typed("hello::T")      # → True
 registry.is_typed("123")           # → False
 registry.is_typed("hello::UNKNOWN")  # → False
 ```
@@ -391,8 +391,8 @@ Each type has these class attributes:
 ### IntType
 
 ```python
-IntType.code = "I"
-IntType.aliases = ["int", "INT", "INTEGER", "LONG"]
+IntType.code = "L"  # Genropy: L for long/int
+IntType.aliases = ["LONG", "LONGINT", "I", "INT", "INTEGER"]
 IntType.python_type = int
 IntType.sql_type = "INTEGER"
 IntType.align = "R"
@@ -402,10 +402,10 @@ IntType.empty = 0
 ### FloatType
 
 ```python
-FloatType.code = "F"
-FloatType.aliases = ["float", "R", "REAL"]
+FloatType.code = "R"  # Genropy: R for real/float
+FloatType.aliases = ["REAL", "FLOAT", "F"]
 FloatType.python_type = float
-FloatType.sql_type = "FLOAT"
+FloatType.sql_type = "REAL"
 FloatType.align = "R"
 FloatType.empty = 0.0
 ```
@@ -413,8 +413,8 @@ FloatType.empty = 0.0
 ### DecimalType
 
 ```python
-DecimalType.code = "D"
-DecimalType.aliases = ["decimal", "N", "NUMERIC"]
+DecimalType.code = "N"  # Genropy: N for numeric/decimal
+DecimalType.aliases = ["NUMERIC", "DECIMAL"]
 DecimalType.python_type = Decimal
 DecimalType.sql_type = "DECIMAL"
 DecimalType.align = "R"
@@ -425,7 +425,7 @@ DecimalType.empty = Decimal("0")
 
 ```python
 BoolType.code = "B"
-BoolType.aliases = ["bool", "BOOL", "BOOLEAN"]
+BoolType.aliases = ["boolean", "BOOL", "BOOLEAN"]
 BoolType.python_type = bool
 BoolType.empty = False
 ```
@@ -433,8 +433,8 @@ BoolType.empty = False
 ### StrType
 
 ```python
-StrType.code = "S"
-StrType.aliases = ["str", "T", "TEXT"]
+StrType.code = "T"  # Genropy: T for text
+StrType.aliases = ["TEXT", "P", "A", "S", "STRING"]
 StrType.python_type = str
 StrType.sql_type = "VARCHAR"
 StrType.align = "L"
@@ -444,8 +444,8 @@ StrType.empty = ""
 ### DateType
 
 ```python
-DateType.code = "d"
-DateType.aliases = ["date"]
+DateType.code = "D"  # Genropy: D for date
+DateType.aliases = ["DATE"]
 DateType.python_type = date
 DateType.sql_type = "DATE"
 DateType.empty = None
@@ -455,31 +455,32 @@ DateType.default_format = "%x"  # Locale date
 ### DateTimeType
 
 ```python
-DateTimeType.code = "dt"
-DateTimeType.aliases = ["datetime", "DH", "DHZ"]
+DateTimeType.code = "DH"  # Genropy: DH for datetime
+DateTimeType.aliases = ["DATETIME", "DT", "DHZ", "timestamp"]
 DateTimeType.python_type = datetime
 DateTimeType.sql_type = "TIMESTAMP"
 DateTimeType.empty = None
-DateTimeType.default_format = "%x %X"  # Locale date + time
+DateTimeType.default_format = "%c"  # Locale date + time
+```
+
+### TimeType
+
+```python
+TimeType.code = "H"  # Genropy: H for time (hour)
+TimeType.aliases = ["TIME", "HZ"]
+TimeType.python_type = time
+TimeType.sql_type = "TIME"
+TimeType.empty = None
+TimeType.default_format = "%X"  # Locale time
 ```
 
 ### JsonType
 
 ```python
-JsonType.code = "J"
-JsonType.aliases = ["json"]
+JsonType.code = "JS"  # Genropy: JS for JSON
+JsonType.aliases = ["JSON"]
 JsonType.python_type = dict
 JsonType.js_type = "object"
-```
-
-### ListType
-
-```python
-ListType.code = "L"
-ListType.aliases = ["list"]
-ListType.python_type = list
-ListType.js_type = "Array"
-ListType.empty = []
 ```
 
 **Test:** `tests/test_core.py::TestTypeAttributes`
@@ -493,18 +494,18 @@ The JavaScript implementation mirrors Python API:
 ```javascript
 import { from_text, as_typed_text, as_json, from_json } from 'genro-tytx';
 
-// Parse
-from_text("123::I")           // → 123
-from_text("100.50::D")        // → "100.50" (string, JS has no Decimal)
-from_text("2025-01-15::d")    // → Date object
+// Parse (Genropy-compatible codes)
+from_text("123::L")           // → 123
+from_text("100.50::N")        // → "100.50" (string, JS has no Decimal)
+from_text("2025-01-15::D")    // → Date object
 
 // Serialize
-as_typed_text(123)            // → "123::I"
-as_typed_text(new Date())     // → "2025-01-15::d"
+as_typed_text(123)            // → "123::L"
+as_typed_text(new Date())     // → "2025-01-15::D"
 
 // JSON
-as_typed_json({price: "100.50"})  // → '{"price": "100.50::D"}'
-from_json('{"count": "42::I"}')   // → {count: 42}
+as_typed_json({price: "100.50"})  // → '{"price": "100.50::N"}'
+from_json('{"count": "42::L"}')   // → {count: 42}
 ```
 
 **Test:** `js/test/test_core.js`

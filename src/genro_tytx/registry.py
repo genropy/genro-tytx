@@ -87,24 +87,26 @@ class TypeRegistry:
     def _get_type_code_for_value(self, value: Any) -> str | None:
         """Get the type code for a Python value."""
         # Import here to avoid circular imports
-        from datetime import date, datetime
+        from datetime import date, datetime, time
         from decimal import Decimal
 
-        # Check built-in types (order matters: bool before int)
+        # Check built-in types (order matters: bool before int, datetime before date)
         if isinstance(value, bool):
             return "B"
         if isinstance(value, int):
-            return "I"
+            return "L"  # Genropy: L for long/int
         if isinstance(value, float):
-            return "F"
+            return "R"  # Genropy: R for real/float
         if isinstance(value, Decimal):
-            return "D"
+            return "N"  # Genropy: N for numeric/decimal
         if isinstance(value, datetime):
-            return "dt"
+            return "DH"  # Genropy: DH for datetime
         if isinstance(value, date):
-            return "d"
+            return "D"  # Genropy: D for date
+        if isinstance(value, time):
+            return "H"  # Genropy: H for time
         if isinstance(value, (dict, list)):
-            return "J"
+            return "JS"  # Genropy: JS for json
         if isinstance(value, str):
             return None  # Strings don't get typed
         return None

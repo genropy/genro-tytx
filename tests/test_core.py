@@ -1,7 +1,6 @@
+import json
 from datetime import date, datetime
 from decimal import Decimal
-
-import json
 
 from genro_tytx import (
     as_json,
@@ -21,33 +20,30 @@ class TestFromText:
     """Tests for from_text() - the main parsing function."""
 
     def test_from_text_typed_int(self):
-        assert from_text("123::I") == 123
+        assert from_text("123::L") == 123
         assert from_text("123::int") == 123
 
     def test_from_text_typed_float(self):
-        assert from_text("123.45::F") == 123.45
+        assert from_text("123.45::R") == 123.45
 
     def test_from_text_typed_bool(self):
         assert from_text("true::B") is True
         assert from_text("false::B") is False
 
     def test_from_text_typed_str(self):
-        assert from_text("hello::S") == "hello"
+        assert from_text("hello::T") == "hello"
 
     def test_from_text_typed_json(self):
-        assert from_text('{"a":1}::J') == {"a": 1}
-
-    def test_from_text_typed_list(self):
-        assert from_text("a,b,c::L") == ["a", "b", "c"]
+        assert from_text('{"a":1}::JS') == {"a": 1}
 
     def test_from_text_typed_decimal(self):
-        assert from_text("123.45::D") == Decimal("123.45")
+        assert from_text("123.45::N") == Decimal("123.45")
 
     def test_from_text_typed_date(self):
-        assert from_text("2025-01-15::d") == date(2025, 1, 15)
+        assert from_text("2025-01-15::D") == date(2025, 1, 15)
 
     def test_from_text_typed_datetime(self):
-        assert from_text("2025-01-15T10:00:00::dt") == datetime(2025, 1, 15, 10, 0, 0)
+        assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
 
     def test_from_text_no_type(self):
         """Without type suffix, returns string as-is."""
@@ -55,9 +51,9 @@ class TestFromText:
 
     def test_from_text_explicit_type(self):
         """With explicit type_code parameter."""
-        assert from_text("123", "I") == 123
-        assert from_text("123.45", "D") == Decimal("123.45")
-        assert from_text("2025-01-15", "d") == date(2025, 1, 15)
+        assert from_text("123", "L") == 123
+        assert from_text("123.45", "N") == Decimal("123.45")
+        assert from_text("2025-01-15", "D") == date(2025, 1, 15)
 
 
 class TestAsText:
@@ -93,26 +89,26 @@ class TestAsTypedText:
     """Tests for as_typed_text() - serialize with type."""
 
     def test_as_typed_text_int(self):
-        assert as_typed_text(123) == "123::I"
+        assert as_typed_text(123) == "123::L"
 
     def test_as_typed_text_float(self):
-        assert as_typed_text(123.45) == "123.45::F"
+        assert as_typed_text(123.45) == "123.45::R"
 
     def test_as_typed_text_bool(self):
         assert as_typed_text(True) == "true::B"
         assert as_typed_text(False) == "false::B"
 
     def test_as_typed_text_decimal(self):
-        assert as_typed_text(Decimal("123.45")) == "123.45::D"
+        assert as_typed_text(Decimal("123.45")) == "123.45::N"
 
     def test_as_typed_text_date(self):
-        assert as_typed_text(date(2025, 1, 15)) == "2025-01-15::d"
+        assert as_typed_text(date(2025, 1, 15)) == "2025-01-15::D"
 
     def test_as_typed_text_datetime(self):
-        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00::dt"
+        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00::DH"
 
     def test_as_typed_text_json(self):
-        assert as_typed_text({"a": 1}) == '{"a": 1}::J'
+        assert as_typed_text({"a": 1}) == '{"a": 1}::JS'
 
     def test_as_typed_text_str(self):
         """Strings are returned as-is (no type added)."""
@@ -123,8 +119,8 @@ class TestRegistryHelpers:
     """Tests for registry helper methods."""
 
     def test_is_typed(self):
-        assert registry.is_typed("123::I") is True
-        assert registry.is_typed("hello::S") is True
+        assert registry.is_typed("123::L") is True
+        assert registry.is_typed("hello::T") is True
         assert registry.is_typed("123") is False
         assert registry.is_typed("hello::UNKNOWN") is False
 
@@ -246,7 +242,7 @@ class TestXMLNewStructure:
         """Simple element with typed value."""
         data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
         xml = as_typed_xml(data)
-        assert "<root>10.50::D</root>" in xml
+        assert "<root>10.50::N</root>" in xml
 
     def test_as_xml_simple(self):
         """Simple element without type suffix."""
@@ -259,8 +255,8 @@ class TestXMLNewStructure:
         """Element with typed attributes."""
         data = {"root": {"attrs": {"id": 123, "price": Decimal("99.50")}, "value": "content"}}
         xml = as_typed_xml(data)
-        assert 'id="123::I"' in xml
-        assert 'price="99.50::D"' in xml
+        assert 'id="123::L"' in xml
+        assert 'price="99.50::N"' in xml
 
     def test_as_xml_with_attrs(self):
         """Element with attributes (no type suffix)."""
@@ -281,9 +277,9 @@ class TestXMLNewStructure:
             }
         }
         xml = as_typed_xml(data)
-        assert 'id="1::I"' in xml
+        assert 'id="1::L"' in xml
         assert "<item>Widget</item>" in xml
-        assert "<price>25.00::D</price>" in xml
+        assert "<price>25.00::N</price>" in xml
 
     def test_from_xml_simple(self):
         """Parse simple XML to attrs/value structure."""
@@ -293,13 +289,13 @@ class TestXMLNewStructure:
 
     def test_from_xml_typed(self):
         """Parse XML with typed values."""
-        xml = "<root>10.50::D</root>"
+        xml = "<root>10.50::N</root>"
         result = from_xml(xml)
         assert result["root"]["value"] == Decimal("10.50")
 
     def test_from_xml_with_attrs(self):
         """Parse XML with attributes."""
-        xml = '<root id="123::I" name="test">content</root>'
+        xml = '<root id="123::L" name="test">content</root>'
         result = from_xml(xml)
         assert result["root"]["attrs"]["id"] == 123
         assert result["root"]["attrs"]["name"] == "test"
@@ -307,7 +303,7 @@ class TestXMLNewStructure:
 
     def test_from_xml_nested(self):
         """Parse nested XML."""
-        xml = "<order><item>Widget</item><price>25.00::D</price></order>"
+        xml = "<order><item>Widget</item><price>25.00::N</price></order>"
         result = from_xml(xml)
         assert result["order"]["attrs"] == {}
         assert result["order"]["value"]["item"]["value"] == "Widget"
@@ -337,17 +333,17 @@ class TestJSONUtils:
     def test_as_typed_json_decimal(self):
         """as_typed_json converts Decimal to typed string."""
         result = as_typed_json({"price": Decimal("99.99")})
-        assert '"price": "99.99::D"' in result
+        assert '"price": "99.99::N"' in result
 
     def test_as_typed_json_date(self):
         """as_typed_json converts date to typed string."""
         result = as_typed_json({"day": date(2025, 1, 15)})
-        assert '"day": "2025-01-15::d"' in result
+        assert '"day": "2025-01-15::D"' in result
 
     def test_as_typed_json_datetime(self):
         """as_typed_json converts datetime to typed string."""
         result = as_typed_json({"ts": datetime(2025, 1, 15, 10, 30)})
-        assert '"ts": "2025-01-15T10:30:00::dt"' in result
+        assert '"ts": "2025-01-15T10:30:00::DH"' in result
 
     def test_as_typed_json_complex(self):
         """as_typed_json handles complex nested structures."""
@@ -358,8 +354,8 @@ class TestJSONUtils:
             "items": [1, 2, 3],
         }
         result = as_typed_json(data)
-        assert '"price": "100.50::D"' in result
-        assert '"date": "2025-01-15::d"' in result
+        assert '"price": "100.50::N"' in result
+        assert '"date": "2025-01-15::D"' in result
         assert '"name": "Test"' in result
 
     def test_as_json_standard(self):
@@ -374,21 +370,21 @@ class TestJSONUtils:
 
     def test_from_json_simple(self):
         """from_json parses typed strings."""
-        json_str = '{"price": "99.99::D", "count": "42::I"}'
+        json_str = '{"price": "99.99::N", "count": "42::L"}'
         result = from_json(json_str)
         assert result["price"] == Decimal("99.99")
         assert result["count"] == 42
 
     def test_from_json_nested(self):
         """from_json handles nested structures."""
-        json_str = '{"order": {"price": "100::D", "date": "2025-01-15::d"}}'
+        json_str = '{"order": {"price": "100::N", "date": "2025-01-15::D"}}'
         result = from_json(json_str)
         assert result["order"]["price"] == Decimal("100")
         assert result["order"]["date"] == date(2025, 1, 15)
 
     def test_from_json_list(self):
         """from_json handles lists with typed values."""
-        json_str = '{"prices": ["10::D", "20::D", "30::D"]}'
+        json_str = '{"prices": ["10::N", "20::N", "30::N"]}'
         result = from_json(json_str)
         assert result["prices"] == [Decimal("10"), Decimal("20"), Decimal("30")]
 
@@ -421,29 +417,19 @@ class TestJSONUtils:
 class TestEdgeCases:
     """Tests for edge cases and 100% coverage."""
 
-    def test_empty_list_parse(self):
-        """Empty list parsing."""
-        assert from_text("::L") == []
-
-    def test_list_serialize_non_list(self):
-        """ListType.serialize with non-list value."""
-        from genro_tytx import ListType
-        lt = ListType()
-        assert lt.serialize("single") == "single"
-
     def test_registry_get_for_value(self):
         """Test registry.get_for_value method."""
         type_cls = registry.get_for_value(42)
         assert type_cls is not None
-        assert type_cls.code == "I"
+        assert type_cls.code == "L"
 
         type_cls = registry.get_for_value(Decimal("10"))
         assert type_cls is not None
-        assert type_cls.code == "D"
+        assert type_cls.code == "N"
 
         type_cls = registry.get_for_value("hello")
         assert type_cls is not None
-        assert type_cls.code == "S"
+        assert type_cls.code == "T"
 
     def test_from_text_unknown_explicit_type(self):
         """from_text with unknown explicit type returns original."""
@@ -578,10 +564,10 @@ class TestEdgeCases:
 
         calls: list[str] = []
 
-        def fake_getlocale(category):
+        def fake_getlocale(_category):
             return ("en_US", "UTF-8")
 
-        def fake_setlocale(category, value):
+        def fake_setlocale(_category, value):
             calls.append(value)
             if value.endswith(".UTF-8"):
                 raise builtin.locale_module.Error("boom")
@@ -603,7 +589,7 @@ class TestEdgeCases:
 
         calls: list[str] = []
 
-        def failing_setlocale(category, value):
+        def failing_setlocale(_category, value):
             calls.append(value)
             if value == "broken":
                 raise builtin.locale_module.Error("fail")
@@ -620,11 +606,11 @@ class TestEdgeCases:
 
         calls: list[str] = []
 
-        monkeypatch.setattr(builtin.locale_module, "getlocale", lambda category: ("C", "UTF-8"))
+        monkeypatch.setattr(builtin.locale_module, "getlocale", lambda _category: ("C", "UTF-8"))
         monkeypatch.setattr(
             builtin.locale_module,
             "setlocale",
-            lambda category, value: calls.append(value) or "ok",
+            lambda _category, value: calls.append(value) or "ok",
         )
 
         prev = builtin._set_locale("fr_FR.UTF-8")
@@ -743,13 +729,6 @@ class TestEdgeCases:
         result = as_text(date(2025, 1, 15), format="%d/%m/%Y", locale="en_US")
         assert result == "15/01/2025"
 
-    def test_list_type_attributes(self):
-        """ListType has correct attributes."""
-        from genro_tytx import ListType
-        assert ListType.python_type is list
-        assert ListType.js_type == "Array"
-        assert ListType.empty == []
-
     def test_bool_type_attributes(self):
         """BoolType has correct attributes."""
         from genro_tytx import BoolType
@@ -817,7 +796,7 @@ class TestEdgeCases:
     def test_as_typed_text_list(self):
         """as_typed_text with list value serializes as JSON."""
         result = as_typed_text([1, 2, 3])
-        assert "::J" in result
+        assert "::JS" in result
 
     def test_xml_value_direct_list(self):
         """XML with value as direct list (same-tag children via value list)."""
@@ -848,20 +827,6 @@ class TestEdgeCases:
         # StrType doesn't override _format_with_locale, so uses base
         result = st._format_with_locale("hello", "%s", "en_US")
         assert result == "hello"
-
-    def test_list_type_serialize_string(self):
-        """ListType.serialize with string returns str()."""
-        from genro_tytx import ListType
-        lt = ListType()
-        result = lt.serialize("not a list")
-        assert result == "not a list"
-
-    def test_list_type_serialize_list(self):
-        """ListType.serialize with actual list."""
-        from genro_tytx import ListType
-        lt = ListType()
-        result = lt.serialize(["a", "b", "c"])
-        assert result == "a,b,c"
 
     def test_as_text_string_type(self):
         """as_text with string returns the string itself."""

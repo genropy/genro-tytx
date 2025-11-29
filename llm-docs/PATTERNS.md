@@ -19,10 +19,10 @@ order = {
     "customer": "Acme"
 }
 json_response = as_typed_json(order)
-# '{"id": 123, "price": "99.99::D", "date": "2025-01-15::d", "customer": "Acme"}'
+# '{"id": 123, "price": "99.99::N", "date": "2025-01-15::D", "customer": "Acme"}'
 
 # Parse API request
-json_request = '{"price": "150.00::D", "quantity": "5::I"}'
+json_request = '{"price": "150.00::N", "quantity": "5::L"}'
 data = from_json(json_request)
 # {"price": Decimal("150.00"), "quantity": 5}
 ```
@@ -43,8 +43,8 @@ from genro_tytx import from_xml, as_typed_xml
 # Parse config
 config_xml = '''
 <config>
-    <timeout>30::I</timeout>
-    <price>99.99::D</price>
+    <timeout>30::L</timeout>
+    <price>99.99::N</price>
     <enabled>true::B</enabled>
 </config>
 '''
@@ -64,7 +64,7 @@ config_data = {
     }
 }
 xml = as_typed_xml(config_data)
-# <settings version="1::I"><max_retries>3::I</max_retries>...
+# <settings version="1::L"><max_retries>3::L</max_retries>...
 ```
 
 **Test:** `tests/test_core.py::TestXMLNewStructure::test_xml_roundtrip`
@@ -113,7 +113,7 @@ def process_value(value: str):
         return from_text(value)  # Parse typed value
     return value  # Keep as string
 
-process_value("123::I")      # → 123
+process_value("123::L")      # → 123
 process_value("hello")       # → "hello"
 process_value("123::BOGUS")  # → "123::BOGUS" (unknown type)
 ```
@@ -124,30 +124,34 @@ process_value("123::BOGUS")  # → "123::BOGUS" (unknown type)
 
 ## Pattern: Genropy Compatibility
 
-**Problem**: Support legacy Genropy type codes
-**Solution**: Type aliases handle legacy codes
-**Use Case**: Migration from Genropy, interoperability
+**Problem**: Use Genropy-compatible type codes
+**Solution**: Primary codes match Genropy, aliases for flexibility
+**Use Case**: Genropy interoperability, migration
 
 ```python
 from genro_tytx import from_text
 
-# Genropy integer aliases
-from_text("123::L")      # LONG → 123
-from_text("123::INT")    # INT → 123
-from_text("123::INTEGER")  # INTEGER → 123
+# Primary integer code (Genropy standard)
+from_text("123::L")      # L (long) → 123
+from_text("123::I")      # I alias → 123
+from_text("123::INT")    # INT alias → 123
 
-# Genropy float aliases
-from_text("1.5::R")      # REAL → 1.5
+# Primary float code (Genropy standard)
+from_text("1.5::R")      # R (real) → 1.5
+from_text("1.5::F")      # F alias → 1.5
 
-# Genropy decimal aliases
-from_text("100::N")      # NUMERIC → Decimal("100")
+# Primary decimal code (Genropy standard)
+from_text("100::N")      # N (numeric) → Decimal("100")
 
-# Genropy datetime aliases
+# Primary date code (Genropy standard)
+from_text("2025-01-15::D")  # D → date
+
+# Primary datetime code (Genropy standard)
 from_text("2025-01-15T10:00::DH")   # DH → datetime
-from_text("2025-01-15T10:00::DHZ")  # DHZ → datetime
+from_text("2025-01-15T10:00::DHZ")  # DHZ alias → datetime
 
-# Genropy string aliases
-from_text("hello::T")    # TEXT → "hello"
+# Primary string code (Genropy standard)
+from_text("hello::T")    # T (text) → "hello"
 ```
 
 **Test:** `tests/test_core.py::TestTypeAttributes::test_genropy_compatible_aliases`
@@ -205,7 +209,7 @@ data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
 
 # For TYTX-aware systems
 as_typed_json(data)
-# '{"price": "99.99::D", "date": "2025-01-15::d"}'
+# '{"price": "99.99::N", "date": "2025-01-15::D"}'
 
 # For standard JSON consumers
 as_json(data)
@@ -239,7 +243,7 @@ data = {
     }
 }
 xml = as_typed_xml(data)
-# <product id="123::I" price="99.50::D" active="true::B">Widget</product>
+# <product id="123::L" price="99.50::N" active="true::B">Widget</product>
 
 # Parse back
 result = from_xml(xml)

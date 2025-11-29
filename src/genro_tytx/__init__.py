@@ -41,8 +41,8 @@ from .builtin import (
     FloatType,
     IntType,
     JsonType,
-    ListType,
     StrType,
+    TimeType,
 )
 from .json_utils import (
     as_json,
@@ -88,6 +88,6 @@ __all__ = [
     "FloatType",
     "IntType",
     "JsonType",
-    "ListType",
     "StrType",
+    "TimeType",
 ]
