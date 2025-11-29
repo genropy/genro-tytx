@@ -1,6 +1,6 @@
 {
   "name": "genro-tytx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats",
   "main": "src/index.js",
   "exports": {
@@ -21,7 +21,8 @@
     "json",
     "xml",
     "genro",
-    "tytx"
+    "tytx",
+    "decimal"
   ],
   "author": "Genropy Team",
   "license": "Apache-2.0",
@@ -35,5 +36,20 @@
   "homepage": "https://github.com/genropy/genro-tytx#readme",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "optionalDependencies": {
+    "big.js": "^6.0.0"
+  },
+  "peerDependencies": {
+    "big.js": ">=6.0.0",
+    "decimal.js": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "big.js": {
+      "optional": true
+    },
+    "decimal.js": {
+      "optional": true
+    }
   }
 }

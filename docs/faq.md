@@ -28,15 +28,25 @@ Strings are the default interpretation for untyped values, so adding `::T` would
 
 ### How do I handle Decimal precision in JavaScript?
 
-JavaScript doesn't have a native Decimal type. The JS implementation returns Decimal values as numbers (e.g., `99.99`). For financial precision, use a library like [decimal.js](https://github.com/MikeMcl/decimal.js/) for arithmetic.
+TYTX automatically uses [big.js](https://github.com/MikeMcl/big.js/) or [decimal.js](https://github.com/MikeMcl/decimal.js/) if installed. Install one for precise decimal arithmetic:
+
+```bash
+npm install big.js       # Lightweight (8KB) - recommended
+# or
+npm install decimal.js   # Full-featured (32KB)
+```
 
 ```javascript
-import { from_text } from 'genro-tytx';
-import Decimal from 'decimal.js';
+import { from_text, decimalLibName } from 'genro-tytx';
 
-const value = from_text("99.99::N");  // Returns 99.99 (number)
-const decimal = new Decimal(value);   // Use decimal.js for precise math
+console.log(decimalLibName);  // "big.js", "decimal.js", or "number"
+
+const value = from_text("99.99::N");
+// With big.js: returns Big instance
+// Without: returns 99.99 (number)
 ```
+
+If no decimal library is installed, native JavaScript numbers are used (may lose precision for large decimals).
 
 ### Can I use TYTX with Pydantic?
 

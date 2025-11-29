@@ -9,6 +9,40 @@
 const { registry } = require('./registry');
 
 /**
+ * Decimal library support.
+ * Priority: big.js > decimal.js > native Number
+ *
+ * Install one of these for precise decimal arithmetic:
+ *   npm install big.js       # Lightweight (8KB)
+ *   npm install decimal.js   # Full-featured (32KB)
+ */
+let DecimalLib = null;
+let decimalLibName = 'number';
+
+// Try big.js first (lighter)
+try {
+    DecimalLib = require('big.js');
+    decimalLibName = 'big.js';
+} catch {
+    // Try decimal.js as fallback
+    try {
+        DecimalLib = require('decimal.js');
+        decimalLibName = 'decimal.js';
+    } catch {
+        // No decimal library, will use native Number
+    }
+}
+
+/**
+ * Check if a value is a Decimal instance (Big or Decimal.js)
+ */
+function isDecimalInstance(value) {
+    if (!DecimalLib) return false;
+    return value instanceof DecimalLib ||
+           (value && value.constructor && value.constructor.name === DecimalLib.name);
+}
+
+/**
  * Integer type - whole numbers.
  * Genropy: L for long/int
  */
@@ -122,31 +156,39 @@ const JsonType = {
 
 /**
  * Decimal type - exact decimal numbers (for money, etc.).
- * Note: JavaScript has no native Decimal, so we use Number.
+ * Uses big.js or decimal.js if available, otherwise native Number.
  * Genropy: N for numeric/decimal
  */
 const DecimalType = {
     name: 'decimal',
     code: 'N',
-    aliases: ['NUMERIC', 'DECIMAL', 'D'],
-    js_type: 'number',
+    aliases: ['NUMERIC', 'DECIMAL'],
+    js_type: DecimalLib ? decimalLibName : 'number',
 
     parse(value) {
+        if (DecimalLib) {
+            return new DecimalLib(value);
+        }
         return parseFloat(value);
     },
 
     serialize(value) {
+        if (isDecimalInstance(value)) {
+            return value.toString();
+        }
         return String(value);
     },
 
     format(value, fmt, locale) {
+        // Convert to number for Intl formatting
+        const num = isDecimalInstance(value) ? parseFloat(value.toString()) : value;
         if (locale) {
             return new Intl.NumberFormat(locale, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
-            }).format(value);
+            }).format(num);
         }
-        return value.toFixed(2);
+        return num.toFixed(2);
     }
 };
 
@@ -276,5 +318,9 @@ module.exports = {
     DateType,
     DateTimeType,
     TimeType,
-    register_builtins
+    register_builtins,
+    // Decimal library info
+    DecimalLib,
+    decimalLibName,
+    isDecimalInstance
 };
