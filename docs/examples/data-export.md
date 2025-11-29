@@ -39,9 +39,9 @@ with open("export.csv", "w", newline="") as f:
 
 # CSV content:
 # id,name,price,date
-# 1::I,Widget,99.99::D,2025-01-15::d
-# 2::I,Gadget,149.50::D,2025-01-16::d
-# 3::I,Thing,49.99::D,2025-01-17::d
+# 1::L,Widget,99.99::N,2025-01-15::D
+# 2::L,Gadget,149.50::N,2025-01-16::D
+# 3::L,Thing,49.99::N,2025-01-17::D
 
 # Import with types
 with open("export.csv", "r") as f:
@@ -78,8 +78,8 @@ with open("export.jsonl", "w") as f:
         f.write(as_typed_json(record) + "\n")
 
 # File content:
-# {"id": 1, "amount": "1000.00::D", "date": "2025-01-15::d"}
-# {"id": 2, "amount": "2500.50::D", "date": "2025-01-16::d"}
+# {"id": "1::L", "amount": "1000.00::N", "date": "2025-01-15::D"}
+# {"id": "2::L", "amount": "2500.50::N", "date": "2025-01-16::D"}
 
 # Import JSONL
 with open("export.jsonl", "r") as f:

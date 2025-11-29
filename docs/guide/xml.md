@@ -41,7 +41,7 @@ from decimal import Decimal
 
 data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
 xml = as_typed_xml(data)
-# <root>10.50::D</root>
+# <root>10.50::N</root>
 ```
 
 ### With Attributes
@@ -59,7 +59,7 @@ data = {
     }
 }
 xml = as_typed_xml(data)
-# <product id="123::I" price="99.50::D">Widget</product>
+# <product id="123::L" price="99.50::N">Widget</product>
 ```
 
 ### Nested Elements
@@ -80,9 +80,9 @@ data = {
     }
 }
 xml = as_typed_xml(data)
-# <order id="1::I">
+# <order id="1::L">
 #     <item>Widget</item>
-#     <price>25.00::D</price>
+#     <price>25.00::N</price>
 # </order>
 ```
 
@@ -134,7 +134,7 @@ from genro_tytx import as_typed_xml
 
 data = {"attrs": {"id": 1}, "value": "content"}
 xml = as_typed_xml(data, root_tag="custom")
-# <custom id="1::I">content</custom>
+# <custom id="1::L">content</custom>
 ```
 
 ## Standard XML (No Types)
@@ -149,7 +149,7 @@ from decimal import Decimal
 
 data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
 xml = as_xml(data)
-# <root>10.50</root>  (no ::D suffix)
+# <root>10.50</root>  (no ::N suffix)
 ```
 
 ## Parsing XML
@@ -173,40 +173,40 @@ result = from_xml(xml)
 ```python
 from genro_tytx import from_xml
 
-xml = "<root>10.50::D</root>"
+xml = "<root>10.50::N</root>"
 result = from_xml(xml)
 # result["root"]["value"] → Decimal("10.50")
 ```
 
-### With Attributes
+### Parsing Attributes
 
 <!-- test: test_core.py::TestXMLNewStructure::test_from_xml_with_attrs -->
 
 ```python
 from genro_tytx import from_xml
 
-xml = '<root id="123::I" name="test">content</root>'
+xml = '<root id="123::L" name="test">content</root>'
 result = from_xml(xml)
 # result["root"]["attrs"]["id"] → 123
 # result["root"]["attrs"]["name"] → "test"
 # result["root"]["value"] → "content"
 ```
 
-### Nested Elements
+### Parsing Nested Elements
 
 <!-- test: test_core.py::TestXMLNewStructure::test_from_xml_nested -->
 
 ```python
 from genro_tytx import from_xml
 
-xml = "<order><item>Widget</item><price>25.00::D</price></order>"
+xml = "<order><item>Widget</item><price>25.00::N</price></order>"
 result = from_xml(xml)
 # result["order"]["attrs"] → {}
 # result["order"]["value"]["item"]["value"] → "Widget"
 # result["order"]["value"]["price"]["value"] → Decimal("25.00")
 ```
 
-### Repeated Children
+### Parsing Repeated Children
 
 <!-- test: test_core.py::TestEdgeCases::test_from_xml_repeated_children -->
 
@@ -223,7 +223,7 @@ result = from_xml(xml)
 # ]
 ```
 
-### Empty Elements
+### Parsing Empty Elements
 
 <!-- test: test_core.py::TestEdgeCases::test_from_xml_empty_element -->
 
@@ -321,8 +321,8 @@ from genro_tytx import from_xml
 
 config_xml = '''
 <config>
-    <timeout>30::I</timeout>
-    <rate_limit>100.50::D</rate_limit>
+    <timeout>30::L</timeout>
+    <rate_limit>100.50::N</rate_limit>
     <enabled>true::B</enabled>
 </config>
 '''

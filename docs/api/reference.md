@@ -20,10 +20,10 @@ Complete API documentation for genro-tytx.
 
    .. code-block:: python
 
-      from_text("123::I")           # → 123
-      from_text("100.50::D")        # → Decimal("100.50")
-      from_text("2025-01-15::d")    # → date(2025, 1, 15)
-      from_text("123", "I")         # → 123 (explicit type)
+      from_text("123::L")           # → 123
+      from_text("100.50::N")        # → Decimal("100.50")
+      from_text("2025-01-15::D")    # → date(2025, 1, 15)
+      from_text("123", "L")         # → 123 (explicit type)
       from_text("hello")            # → "hello" (no type)
 ```
 
@@ -65,8 +65,8 @@ Complete API documentation for genro-tytx.
 
    .. code-block:: python
 
-      as_typed_text(123)                 # → "123::I"
-      as_typed_text(Decimal("100.50"))   # → "100.50::D"
+      as_typed_text(123)                 # → "123::L"
+      as_typed_text(Decimal("100.50"))   # → "100.50::N"
       as_typed_text("hello")             # → "hello" (no suffix)
 ```
 
@@ -89,7 +89,7 @@ Complete API documentation for genro-tytx.
    .. code-block:: python
 
       as_typed_json({"price": Decimal("99.99")})
-      # → '{"price": "99.99::D"}'
+      # → '{"price": "99.99::N"}'
 ```
 
 ### as_json
@@ -127,7 +127,7 @@ Complete API documentation for genro-tytx.
 
    .. code-block:: python
 
-      from_json('{"price": "99.99::D"}')
+      from_json('{"price": "99.99::N"}')
       # → {"price": Decimal("99.99")}
 ```
 
@@ -152,7 +152,7 @@ Complete API documentation for genro-tytx.
 
       data = {"root": {"attrs": {}, "value": Decimal("10.50")}}
       as_typed_xml(data)
-      # → '<root>10.50::D</root>'
+      # → '<root>10.50::N</root>'
 ```
 
 ### as_xml
@@ -184,7 +184,7 @@ Complete API documentation for genro-tytx.
 
    .. code-block:: python
 
-      from_xml("<root>10.50::D</root>")
+      from_xml("<root>10.50::N</root>")
       # → {"root": {"attrs": {}, "value": Decimal("10.50")}}
 ```
 
@@ -254,7 +254,7 @@ Complete API documentation for genro-tytx.
    .. py:attribute:: code
       :type: str
 
-      Type code (e.g., "I")
+      Type code (e.g., "L" for integer)
 
    .. py:attribute:: aliases
       :type: list[str]
@@ -310,19 +310,19 @@ Complete API documentation for genro-tytx.
       Format value for display with locale support.
 ```
 
-## Built-in Types
+## Built-in Types (Genropy-Compatible)
 
 | Type | Code | Python Type | Module |
 |------|------|-------------|--------|
-| `IntType` | `I` | `int` | `genro_tytx` |
-| `FloatType` | `F` | `float` | `genro_tytx` |
-| `DecimalType` | `D` | `Decimal` | `genro_tytx` |
+| `IntType` | `L` | `int` | `genro_tytx` |
+| `FloatType` | `R` | `float` | `genro_tytx` |
+| `DecimalType` | `N` | `Decimal` | `genro_tytx` |
 | `BoolType` | `B` | `bool` | `genro_tytx` |
-| `StrType` | `S` | `str` | `genro_tytx` |
-| `DateType` | `d` | `date` | `genro_tytx` |
-| `DateTimeType` | `dt` | `datetime` | `genro_tytx` |
-| `JsonType` | `J` | `dict` | `genro_tytx` |
-| `ListType` | `L` | `list` | `genro_tytx` |
+| `StrType` | `T` | `str` | `genro_tytx` |
+| `DateType` | `D` | `date` | `genro_tytx` |
+| `DateTimeType` | `DH` | `datetime` | `genro_tytx` |
+| `TimeType` | `H` | `time` | `genro_tytx` |
+| `JsonType` | `JS` | `dict` | `genro_tytx` |
 
 ## Module Exports
 
@@ -355,7 +355,7 @@ from genro_tytx import (
     StrType,
     DateType,
     DateTimeType,
+    TimeType,
     JsonType,
-    ListType,
 )
 ```

@@ -10,10 +10,10 @@ TYTX provides a global registry with built-in types:
 from genro_tytx import registry
 
 # Use registry methods
-registry.from_text("123::I")         # → 123
-registry.as_typed_text(123)          # → "123::I"
-registry.get("I")                    # → IntType
-registry.is_typed("123::I")          # → True
+registry.from_text("123::L")         # → 123
+registry.as_typed_text(123)          # → "123::L"
+registry.get("L")                    # → IntType
+registry.is_typed("123::L")          # → True
 ```
 
 ## Registry Methods
@@ -27,10 +27,10 @@ Get type class by name, code, or alias:
 ```python
 from genro_tytx import registry
 
-registry.get("I")         # → IntType
+registry.get("L")         # → IntType (L = Long)
 registry.get("int")       # → IntType
 registry.get("INTEGER")   # → IntType
-registry.get("D")         # → DecimalType
+registry.get("N")         # → DecimalType (N = Numeric)
 registry.get("UNKNOWN")   # → None
 ```
 
@@ -45,13 +45,12 @@ from genro_tytx import registry
 from decimal import Decimal
 from datetime import date
 
-registry.get_for_value(42)              # → IntType
-registry.get_for_value(1.5)             # → FloatType
-registry.get_for_value(Decimal("10"))   # → DecimalType
-registry.get_for_value(date.today())    # → DateType
-registry.get_for_value("hello")         # → StrType
-registry.get_for_value([1, 2, 3])       # → ListType
-registry.get_for_value({"a": 1})        # → JsonType
+registry.get_for_value(42)              # → IntType (code L)
+registry.get_for_value(1.5)             # → FloatType (code R)
+registry.get_for_value(Decimal("10"))   # → DecimalType (code N)
+registry.get_for_value(date.today())    # → DateType (code D)
+registry.get_for_value("hello")         # → StrType (code T)
+registry.get_for_value({"a": 1})        # → JsonType (code JS)
 
 # Unknown types
 registry.get_for_value(object())        # → None
@@ -66,9 +65,9 @@ Check if string has valid TYTX type suffix:
 ```python
 from genro_tytx import registry
 
-registry.is_typed("123::I")        # → True
-registry.is_typed("hello::S")      # → True
-registry.is_typed("100.50::D")     # → True
+registry.is_typed("123::L")        # → True
+registry.is_typed("hello::T")      # → True
+registry.is_typed("100.50::N")     # → True
 
 registry.is_typed("123")           # → False (no type)
 registry.is_typed("hello::BOGUS")  # → False (unknown type)
@@ -110,11 +109,11 @@ Parse typed string:
 from genro_tytx import registry
 
 # With embedded type
-registry.from_text("123::I")           # → 123
-registry.from_text("100.50::D")        # → Decimal("100.50")
+registry.from_text("123::L")           # → 123
+registry.from_text("100.50::N")        # → Decimal("100.50")
 
 # With explicit type
-registry.from_text("123", "I")         # → 123
+registry.from_text("123", "L")         # → 123
 
 # No type → string
 registry.from_text("hello")            # → "hello"
@@ -142,8 +141,8 @@ Serialize with type suffix:
 ```python
 from genro_tytx import registry
 
-registry.as_typed_text(123)            # → "123::I"
-registry.as_typed_text(Decimal("100")) # → "100::D"
+registry.as_typed_text(123)            # → "123::L"
+registry.as_typed_text(Decimal("100")) # → "100::N"
 registry.as_typed_text("hello")        # → "hello" (no suffix)
 ```
 
@@ -163,8 +162,8 @@ my_registry.register(IntType)
 my_registry.register(DecimalType)
 
 # Use custom registry
-my_registry.from_text("123::I")        # → 123
-my_registry.from_text("hello::S")      # → "hello::S" (StrType not registered)
+my_registry.from_text("123::L")        # → 123
+my_registry.from_text("hello::T")      # → "hello::T" (StrType not registered)
 ```
 
 ## Fallback Behavior
@@ -179,7 +178,7 @@ from genro_tytx import TypeRegistry
 empty_registry = TypeRegistry()
 
 # from_text returns original string
-empty_registry.from_text("123::I")     # → "123::I"
+empty_registry.from_text("123::L")     # → "123::L"
 
 # as_text uses str()
 empty_registry.as_text(123)            # → "123"
@@ -200,30 +199,27 @@ When multiple types could match a value:
 from genro_tytx import registry
 
 # int matches IntType (exact python_type match)
-registry.get_for_value(123)            # → IntType
+registry.get_for_value(123)            # → IntType (code L)
 
 # bool is subclass of int, but matches BoolType
-registry.get_for_value(True)           # → BoolType
-
-# list matches ListType
-registry.get_for_value([1, 2, 3])      # → ListType
+registry.get_for_value(True)           # → BoolType (code B)
 
 # dict matches JsonType
-registry.get_for_value({"a": 1})       # → JsonType
+registry.get_for_value({"a": 1})       # → JsonType (code JS)
 ```
 
 ## Built-in Types in Global Registry
 
-The global registry includes:
+The global registry includes (Genropy-compatible codes):
 
 | Type | Code | Aliases |
 |------|------|---------|
-| IntType | `I` | `int`, `INT`, `INTEGER`, `LONG` |
-| FloatType | `F` | `float`, `R`, `REAL` |
-| DecimalType | `D` | `decimal`, `N`, `NUMERIC` |
-| BoolType | `B` | `bool`, `BOOL`, `BOOLEAN` |
-| StrType | `S` | `str`, `T`, `TEXT` |
-| DateType | `d` | `date` |
-| DateTimeType | `dt` | `datetime`, `DH`, `DHZ` |
-| JsonType | `J` | `json` |
-| ListType | `L` | `list` |
+| IntType | `L` | `I`, `INT`, `INTEGER`, `LONG`, `LONGINT` |
+| FloatType | `R` | `F`, `FLOAT`, `REAL` |
+| DecimalType | `N` | `NUMERIC`, `DECIMAL` |
+| BoolType | `B` | `BOOL`, `BOOLEAN` |
+| StrType | `T` | `S`, `STRING`, `TEXT`, `P`, `A` |
+| DateType | `D` | `DATE` |
+| DateTimeType | `DH` | `DT`, `DHZ`, `DATETIME`, `timestamp` |
+| TimeType | `H` | `TIME`, `HZ` |
+| JsonType | `JS` | `JSON` |

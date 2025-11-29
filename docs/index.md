@@ -1,54 +1,173 @@
-# genro-tytx
+# TYTX - Typed Text Protocol
 
-**TYTX (Typed Text)** - A protocol for exchanging typed data over text-based formats.
+## Why TYTX?
 
-TYTX solves the "stringly typed" problem of JSON by encoding type information directly into value strings using a concise `value::type_code` syntax.
+### The Problem: JSON's Type Blindness
 
-## The Problem
-
-JSON only supports: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
+When building web applications, you constantly exchange data between Python backends and JavaScript frontends. JSON is the universal format, but it has a critical limitation: **it loses type information**.
 
 ```json
 {
   "price": 100.50,
-  "date": "2025-01-15"
+  "order_date": "2025-01-15",
+  "quantity": 42
 }
 ```
 
-Is `price` a float or a precise Decimal? Is `date` a string or a Date object?
+When your Python backend receives this:
 
-## The TYTX Solution
+- Is `price` a `float` (imprecise) or a `Decimal` (exact for money)?
+- Is `order_date` a string or should it be a `date` object?
+- You can infer `quantity` is an integer, but what about `"42"`?
+
+This ambiguity causes bugs, especially with **financial data** where floating-point errors are unacceptable.
+
+### The Solution: Type-Encoded Values
+
+TYTX embeds type information directly in values using a simple `value::type_code` syntax:
 
 ```json
 {
-  "price": "100.50::D",
-  "date": "2025-01-15::d"
+  "price": "100.50::N",
+  "order_date": "2025-01-15::D",
+  "quantity": "42::L"
 }
 ```
 
-The `::` suffix encodes type information. After hydration:
-- `price` → `Decimal("100.50")`
-- `date` → `date(2025, 1, 15)`
+After parsing:
 
-## Quick Example
+- `price` → `Decimal("100.50")` - exact numeric, safe for money
+- `order_date` → `date(2025, 1, 15)` - proper date object
+- `quantity` → `42` - integer
 
-<!-- test: test_core.py::TestFromText::test_from_text_typed_decimal -->
+No ambiguity. No surprises. **Type safety across the wire.**
+
+## Python + JavaScript: Full Stack Type Safety
+
+TYTX provides **identical implementations** for both Python and JavaScript:
+
+### Python
 
 ```python
 from genro_tytx import from_text, as_typed_text
 from decimal import Decimal
-from datetime import date
 
-# Parse typed strings
-price = from_text("100.50::D")      # → Decimal("100.50")
-order_date = from_text("2025-01-15::d")  # → date(2025, 1, 15)
+# Parse
+from_text("100.50::N")  # → Decimal("100.50")
 
-# Serialize with type
-as_typed_text(Decimal("99.99"))     # → "99.99::D"
-as_typed_text(date(2025, 1, 15))    # → "2025-01-15::d"
+# Serialize
+as_typed_text(Decimal("100.50"))  # → "100.50::N"
 ```
 
-## Documentation
+### JavaScript
+
+```javascript
+const { from_text, as_typed_text } = require('genro-tytx');
+
+// Parse
+from_text("100.50::N")  // → 100.50 (number)
+
+// Serialize
+as_typed_text(100.50)  // → "100.50::R"
+```
+
+Your Python backend and JavaScript frontend speak the same type language.
+
+## Real-World Use Cases
+
+### API Responses with Exact Numbers
+
+```python
+from genro_tytx import as_typed_json
+from decimal import Decimal
+from datetime import date
+
+order = {
+    "id": 12345,
+    "total": Decimal("1299.99"),
+    "tax": Decimal("103.99"),
+    "order_date": date(2025, 1, 15),
+    "shipped": True
+}
+
+# Send to frontend
+response = as_typed_json(order)
+# '{"id": "12345::L", "total": "1299.99::N", "tax": "103.99::N",
+#   "order_date": "2025-01-15::D", "shipped": "true::B"}'
+```
+
+The JavaScript frontend receives exact values:
+
+```javascript
+const { from_json } = require('genro-tytx');
+
+const order = from_json(response);
+// order.total → 1299.99 (parsed from Decimal)
+// order.order_date → Date object
+// order.shipped → true (boolean, not string)
+```
+
+### Configuration Files
+
+```python
+from genro_tytx import from_xml
+
+config = from_xml('''
+<settings>
+    <timeout>30::L</timeout>
+    <max_retries>3::L</max_retries>
+    <rate_limit>100.50::N</rate_limit>
+    <debug>false::B</debug>
+</settings>
+''')
+
+# config["settings"]["value"]["timeout"]["value"] → 30 (int, not string)
+# config["settings"]["value"]["debug"]["value"] → False (bool)
+```
+
+### Data Import/Export
+
+```python
+from genro_tytx import as_typed_json, from_json
+from decimal import Decimal
+
+# Export data with full type information
+data = {"balance": Decimal("10000.00"), "last_updated": date.today()}
+export = as_typed_json(data)
+
+# Import later - types are preserved exactly
+restored = from_json(export)
+assert restored["balance"] == Decimal("10000.00")  # Exact match!
+```
+
+## Type Codes (Genropy-Compatible)
+
+TYTX uses type codes aligned with the [Genropy](https://github.com/genropy) framework:
+
+| Code | Type | Python | JavaScript | Example |
+|------|------|--------|------------|---------|
+| `L` | Integer | `int` | `number` | `"42::L"` |
+| `R` | Float | `float` | `number` | `"3.14::R"` |
+| `N` | Decimal | `Decimal` | `number` | `"99.99::N"` |
+| `D` | Date | `date` | `Date` | `"2025-01-15::D"` |
+| `DH` | DateTime | `datetime` | `Date` | `"2025-01-15T10:00::DH"` |
+| `H` | Time | `time` | `string` | `"10:30:00::H"` |
+| `B` | Boolean | `bool` | `boolean` | `"true::B"` |
+| `T` | Text | `str` | `string` | `"hello::T"` |
+| `JS` | JSON | `dict`/`list` | `object`/`array` | `'{"a":1}::JS'` |
+
+Aliases are supported for flexibility (e.g., `I` for integer, `F` for float).
+
+## Key Features
+
+- **Zero dependencies** - Python stdlib only
+- **Bidirectional** - Parse and serialize
+- **JSON & XML support** - Full utilities included
+- **Locale formatting** - Display dates/numbers in any locale
+- **Extensible** - Register custom types
+- **Python + JavaScript** - Same API, same types
+
+## Next Steps
 
 ```{toctree}
 :maxdepth: 2
@@ -60,15 +179,6 @@ examples/index
 api/reference
 faq
 ```
-
-## Features
-
-- **Zero dependencies**: Python stdlib only (optional orjson/msgpack)
-- **Bidirectional**: Parse and serialize typed values
-- **Multiple formats**: JSON, XML support built-in
-- **Locale formatting**: Format dates/numbers for display
-- **Extensible**: Register custom types
-- **JavaScript**: Matching JS implementation included
 
 ## License
 

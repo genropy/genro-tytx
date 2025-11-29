@@ -1,61 +1,61 @@
 # Built-in Types
 
-TYTX includes 9 built-in types that cover common data types.
+TYTX includes 9 built-in types aligned with the Genropy framework.
 
 ## Type Summary
 
-| Code | Name | Python Type | SQL Type | Align | Empty |
-|------|------|-------------|----------|-------|-------|
-| `I` | integer | `int` | `INTEGER` | R | `0` |
-| `F` | float | `float` | `FLOAT` | R | `0.0` |
-| `D` | decimal | `Decimal` | `DECIMAL` | R | `Decimal("0")` |
-| `B` | boolean | `bool` | `BOOLEAN` | L | `False` |
-| `S` | string | `str` | `VARCHAR` | L | `""` |
-| `d` | date | `date` | `DATE` | L | `None` |
-| `dt` | datetime | `datetime` | `TIMESTAMP` | L | `None` |
-| `J` | json | `dict` | `JSON` | L | `None` |
-| `L` | list | `list` | `TEXT` | L | `[]` |
+| Code | Name | Python Type | SQL Type | JS Type | Example |
+|------|------|-------------|----------|---------|---------|
+| `L` | integer | `int` | `INTEGER` | `number` | `"123::L"` |
+| `R` | float | `float` | `REAL` | `number` | `"3.14::R"` |
+| `N` | decimal | `Decimal` | `DECIMAL` | `number` | `"99.99::N"` |
+| `B` | boolean | `bool` | `BOOLEAN` | `boolean` | `"true::B"` |
+| `T` | text | `str` | `VARCHAR` | `string` | `"hello::T"` |
+| `D` | date | `date` | `DATE` | `Date` | `"2025-01-15::D"` |
+| `DH` | datetime | `datetime` | `TIMESTAMP` | `Date` | `"2025-01-15T10:00::DH"` |
+| `H` | time | `time` | `TIME` | `string` | `"10:30:00::H"` |
+| `JS` | json | `dict`/`list` | `JSON` | `object`/`array` | `'{"a":1}::JS'` |
 
-## Integer (I)
+## Integer (L)
 
-<!-- test: test_core.py::TestTypeAttributes::test_int_attributes -->
-
-```python
-from genro_tytx import from_text, as_typed_text
-
-# Parse
-from_text("123::I")        # → 123
-from_text("123::int")      # → 123
-from_text("123::INTEGER")  # → 123
-from_text("123::LONG")     # → 123
-
-# Serialize
-as_typed_text(123)         # → "123::I"
-```
-
-**Aliases**: `int`, `INT`, `INTEGER`, `LONG`
-
-## Float (F)
-
-<!-- test: test_core.py::TestFromText::test_from_text_typed_float -->
+**Genropy code**: `L` (Long)
 
 ```python
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text("123.45::F")     # → 123.45
-from_text("1.5::R")        # → 1.5 (REAL alias)
-from_text("1.5::REAL")     # → 1.5
+from_text("123::L")        # → 123
+from_text("123::I")        # → 123 (alias)
+from_text("123::INT")      # → 123 (alias)
+from_text("123::INTEGER")  # → 123 (alias)
 
 # Serialize
-as_typed_text(123.45)      # → "123.45::F"
+as_typed_text(123)         # → "123::L"
 ```
 
-**Aliases**: `float`, `R`, `REAL`
+**Aliases**: `I`, `INT`, `INTEGER`, `LONG`, `LONGINT`
 
-## Decimal (D)
+## Float (R)
 
-<!-- test: test_core.py::TestTypeAttributes::test_decimal_attributes -->
+**Genropy code**: `R` (Real)
+
+```python
+from genro_tytx import from_text, as_typed_text
+
+# Parse
+from_text("3.14::R")       # → 3.14
+from_text("3.14::F")       # → 3.14 (alias)
+from_text("3.14::FLOAT")   # → 3.14 (alias)
+
+# Serialize
+as_typed_text(3.14)        # → "3.14::R"
+```
+
+**Aliases**: `F`, `FLOAT`, `REAL`
+
+## Decimal (N)
+
+**Genropy code**: `N` (Numeric)
 
 Use Decimal for exact numeric values like money.
 
@@ -64,23 +64,21 @@ from decimal import Decimal
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text("100.50::D")     # → Decimal("100.50")
-from_text("100.50::N")     # → Decimal("100.50") (NUMERIC alias)
-from_text("100.50::NUMERIC")  # → Decimal("100.50")
+from_text("100.50::N")        # → Decimal("100.50")
+from_text("100.50::NUMERIC")  # → Decimal("100.50") (alias)
+from_text("100.50::DECIMAL")  # → Decimal("100.50") (alias)
 
 # Serialize
-as_typed_text(Decimal("99.99"))  # → "99.99::D"
+as_typed_text(Decimal("99.99"))  # → "99.99::N"
 ```
 
-**Aliases**: `decimal`, `N`, `NUMERIC`
+**Aliases**: `NUMERIC`, `DECIMAL`
 
 ```{warning}
-Use `D` (Decimal) instead of `F` (float) for financial calculations to avoid floating-point precision issues.
+Use `N` (Decimal) instead of `R` (float) for financial calculations to avoid floating-point precision issues.
 ```
 
 ## Boolean (B)
-
-<!-- test: test_core.py::TestFromText::test_from_text_typed_bool -->
 
 ```python
 from genro_tytx import from_text, as_typed_text
@@ -88,41 +86,41 @@ from genro_tytx import from_text, as_typed_text
 # Parse
 from_text("true::B")       # → True
 from_text("false::B")      # → False
-from_text("true::BOOL")    # → True
-from_text("true::BOOLEAN") # → True
+from_text("true::BOOL")    # → True (alias)
+from_text("true::BOOLEAN") # → True (alias)
 
 # Serialize
 as_typed_text(True)        # → "true::B"
 as_typed_text(False)       # → "false::B"
 ```
 
-**Aliases**: `bool`, `BOOL`, `BOOLEAN`
+**Aliases**: `BOOL`, `BOOLEAN`
 
-## String (S)
+## Text (T)
 
-<!-- test: test_core.py::TestTypeAttributes::test_str_attributes -->
+**Genropy code**: `T` (Text)
 
 ```python
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text("hello::S")      # → "hello"
-from_text("hello::T")      # → "hello" (TEXT alias)
-from_text("hello::TEXT")   # → "hello"
+from_text("hello::T")      # → "hello"
+from_text("hello::S")      # → "hello" (alias)
+from_text("hello::TEXT")   # → "hello" (alias)
 
 # Serialize - strings have NO type suffix
-as_typed_text("hello")     # → "hello" (no ::S)
+as_typed_text("hello")     # → "hello" (no ::T)
 ```
 
-**Aliases**: `str`, `T`, `TEXT`
+**Aliases**: `S`, `STRING`, `TEXT`, `P`, `A`
 
 ```{note}
 Strings are returned as-is by `as_typed_text()` without a type suffix, since the default interpretation of untyped values is string.
 ```
 
-## Date (d)
+## Date (D)
 
-<!-- test: test_core.py::TestTypeAttributes::test_date_attributes -->
+**Genropy code**: `D` (Date)
 
 ISO 8601 date format (YYYY-MM-DD).
 
@@ -131,17 +129,18 @@ from datetime import date
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text("2025-01-15::d")  # → date(2025, 1, 15)
+from_text("2025-01-15::D")     # → date(2025, 1, 15)
+from_text("2025-01-15::DATE")  # → date(2025, 1, 15) (alias)
 
 # Serialize
-as_typed_text(date(2025, 1, 15))  # → "2025-01-15::d"
+as_typed_text(date(2025, 1, 15))  # → "2025-01-15::D"
 ```
 
-**Default format**: `%x` (locale date)
+**Aliases**: `DATE`
 
-## DateTime (dt)
+## DateTime (DH)
 
-<!-- test: test_core.py::TestTypeAttributes::test_datetime_attributes -->
+**Genropy code**: `DH` (Date with Hour)
 
 ISO 8601 datetime format.
 
@@ -150,20 +149,40 @@ from datetime import datetime
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text("2025-01-15T10:00:00::dt")  # → datetime(2025, 1, 15, 10, 0, 0)
-from_text("2025-01-15T10:00:00::DH")  # → datetime (Genropy alias)
-from_text("2025-01-15T10:00:00::DHZ") # → datetime (Genropy alias)
+from_text("2025-01-15T10:00:00::DH")    # → datetime(2025, 1, 15, 10, 0, 0)
+from_text("2025-01-15T10:00:00::DT")    # → datetime (alias)
+from_text("2025-01-15T10:00:00::DHZ")   # → datetime (alias)
+from_text("2025-01-15T10:00:00::DATETIME")  # → datetime (alias)
 
 # Serialize
-as_typed_text(datetime(2025, 1, 15, 10, 30))  # → "2025-01-15T10:30:00::dt"
+as_typed_text(datetime(2025, 1, 15, 10, 30))  # → "2025-01-15T10:30:00::DH"
 ```
 
-**Aliases**: `datetime`, `DH`, `DHZ`
-**Default format**: `%x %X` (locale date + time)
+**Aliases**: `DT`, `DHZ`, `DATETIME`, `timestamp`
 
-## JSON (J)
+## Time (H)
 
-<!-- test: test_core.py::TestFromText::test_from_text_typed_json -->
+**Genropy code**: `H` (Hour)
+
+ISO 8601 time format.
+
+```python
+from datetime import time
+from genro_tytx import from_text, as_typed_text
+
+# Parse
+from_text("10:30:00::H")     # → time(10, 30, 0)
+from_text("10:30:00::TIME")  # → time(10, 30, 0) (alias)
+
+# Serialize
+as_typed_text(time(10, 30))  # → "10:30:00::H"
+```
+
+**Aliases**: `TIME`, `HZ`
+
+## JSON (JS)
+
+**Genropy code**: `JS` (JavaScript object)
 
 Embedded JSON for complex structures.
 
@@ -171,36 +190,16 @@ Embedded JSON for complex structures.
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text('{"a":1}::J')    # → {"a": 1}
-from_text('[1,2,3]::J')    # → [1, 2, 3]
+from_text('{"a":1}::JS')    # → {"a": 1}
+from_text('[1,2,3]::JS')    # → [1, 2, 3]
+from_text('{"a":1}::JSON')  # → {"a": 1} (alias)
 
 # Serialize
-as_typed_text({"a": 1})    # → '{"a": 1}::J'
-as_typed_text([1, 2, 3])   # → '[1, 2, 3]::J'
+as_typed_text({"a": 1})    # → '{"a": 1}::JS'
+as_typed_text([1, 2, 3])   # → '[1, 2, 3]::JS'
 ```
 
-## List (L)
-
-<!-- test: test_core.py::TestFromText::test_from_text_typed_list -->
-
-Comma-separated list of strings.
-
-```python
-from genro_tytx import from_text, as_typed_text
-
-# Parse
-from_text("a,b,c::L")      # → ["a", "b", "c"]
-from_text("::L")           # → [] (empty list)
-
-# Serialize
-from genro_tytx import ListType
-lt = ListType()
-lt.serialize(["a", "b", "c"])  # → "a,b,c"
-```
-
-```{note}
-For complex lists with non-string elements, use JSON type (`J`) instead.
-```
+**Aliases**: `JSON`
 
 ## Type Attributes
 
@@ -209,8 +208,8 @@ Each type class has these attributes:
 | Attribute | Description |
 |-----------|-------------|
 | `name` | Human-readable name |
-| `code` | TYTX type code (e.g., `"I"`, `"D"`) |
-| `aliases` | Alternative codes (e.g., `["int", "INTEGER"]`) |
+| `code` | TYTX type code (e.g., `"L"`, `"N"`) |
+| `aliases` | Alternative codes |
 | `python_type` | Python type class |
 | `sql_type` | SQL column type |
 | `align` | Display alignment (`"L"`, `"R"`, `"C"`) |
@@ -223,13 +222,13 @@ Example:
 ```python
 from genro_tytx import IntType, DecimalType
 
-IntType.code           # → "I"
+IntType.code           # → "L"
 IntType.python_type    # → int
 IntType.sql_type       # → "INTEGER"
 IntType.align          # → "R"
 IntType.empty          # → 0
 
-DecimalType.code       # → "D"
+DecimalType.code       # → "N"
 DecimalType.python_type  # → Decimal
 DecimalType.sql_type   # → "DECIMAL"
 ```

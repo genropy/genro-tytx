@@ -22,20 +22,20 @@ No, TYTX is a **convention** for encoding types in existing formats (JSON, XML, 
 
 ## Usage
 
-### Why does `as_typed_text("hello")` not add `::S`?
+### Why does `as_typed_text("hello")` not add `::T`?
 
-Strings are the default interpretation for untyped values, so adding `::S` would be redundant. This keeps output cleaner and reduces data size.
+Strings are the default interpretation for untyped values, so adding `::T` would be redundant. This keeps output cleaner and reduces data size.
 
 ### How do I handle Decimal precision in JavaScript?
 
-JavaScript doesn't have a native Decimal type. The JS implementation returns Decimal values as strings (e.g., `"99.99"` instead of float `99.99`). Use a library like [decimal.js](https://github.com/MikeMcl/decimal.js/) for arithmetic.
+JavaScript doesn't have a native Decimal type. The JS implementation returns Decimal values as numbers (e.g., `99.99`). For financial precision, use a library like [decimal.js](https://github.com/MikeMcl/decimal.js/) for arithmetic.
 
 ```javascript
 import { from_text } from 'genro-tytx';
 import Decimal from 'decimal.js';
 
-const value = from_text("99.99::D");  // Returns "99.99" string
-const decimal = new Decimal(value);   // Use decimal.js for math
+const value = from_text("99.99::N");  // Returns 99.99 (number)
+const decimal = new Decimal(value);   // Use decimal.js for precise math
 ```
 
 ### Can I use TYTX with Pydantic?
@@ -53,7 +53,7 @@ class Order(BaseModel):
     date: date
 
 # TYTX hydrates types before Pydantic validates
-data = from_json('{"price": "99.99::D", "date": "2025-01-15::d"}')
+data = from_json('{"price": "99.99::N", "date": "2025-01-15::D"}')
 order = Order(**data)  # Works!
 ```
 
@@ -93,7 +93,7 @@ The `::` sequence is:
 Yes, TYTX uses the **last** `::` in a string as the type separator:
 
 ```python
-from_text("http://example.com::S")  # → "http://example.com"
+from_text("http://example.com::T")  # → "http://example.com"
 from_text("http://example.com")     # → "http://example.com" (no type)
 ```
 
@@ -149,12 +149,19 @@ Currently:
 
 ### Is TYTX compatible with Genropy?
 
-Yes! TYTX supports Genropy type aliases:
-- `L`, `INT`, `INTEGER` → integer
-- `R`, `REAL` → float
-- `N`, `NUMERIC` → decimal
-- `DH`, `DHZ` → datetime
-- `T`, `TEXT` → string
+Yes! TYTX uses Genropy-compatible type codes as primary codes:
+
+| Code | Type | Aliases |
+|------|------|---------|
+| `L` | integer | `I`, `INT`, `INTEGER`, `LONG` |
+| `R` | float | `F`, `FLOAT`, `REAL` |
+| `N` | decimal | `NUMERIC`, `DECIMAL` |
+| `D` | date | `DATE` |
+| `DH` | datetime | `DT`, `DHZ`, `DATETIME` |
+| `H` | time | `TIME`, `HZ` |
+| `T` | string | `S`, `STRING`, `TEXT` |
+| `B` | boolean | `BOOL`, `BOOLEAN` |
+| `JS` | json | `JSON` |
 
 ## Troubleshooting
 
@@ -181,9 +188,9 @@ from genro_tytx import registry
 print(registry.get_for_value(my_value))
 
 # Check if a type code exists
-print(registry.get("X"))
+print(registry.get("L"))  # → IntType
 
 # Check if string is typed
-print(registry.is_typed("123::I"))  # True
+print(registry.is_typed("123::L"))  # True
 print(registry.is_typed("123"))     # False
 ```

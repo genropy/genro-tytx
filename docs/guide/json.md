@@ -36,12 +36,12 @@ json_str = as_typed_json(data)
 Output:
 ```json
 {
-    "price": "99.99::D",
-    "date": "2025-01-15::d",
-    "timestamp": "2025-01-15T10:30:00::dt",
-    "quantity": 5,
+    "price": "99.99::N",
+    "date": "2025-01-15::D",
+    "timestamp": "2025-01-15T10:30:00::DH",
+    "quantity": "5::L",
     "name": "Widget",
-    "active": true
+    "active": "true::B"
 }
 ```
 
@@ -49,16 +49,16 @@ Output:
 
 | Python Type | JSON Output | Typed |
 |-------------|-------------|-------|
-| `Decimal` | `"99.99::D"` | Yes |
-| `date` | `"2025-01-15::d"` | Yes |
-| `datetime` | `"2025-01-15T10:00::dt"` | Yes |
-| `int` | `5` | No (native) |
-| `float` | `1.5` | No (native) |
-| `str` | `"hello"` | No (native) |
-| `bool` | `true` | No (native) |
+| `int` | `"5::L"` | Yes |
+| `float` | `"1.5::R"` | Yes |
+| `Decimal` | `"99.99::N"` | Yes |
+| `bool` | `"true::B"` | Yes |
+| `date` | `"2025-01-15::D"` | Yes |
+| `datetime` | `"2025-01-15T10:00::DH"` | Yes |
+| `str` | `"hello"` | No (default) |
 | `None` | `null` | No (native) |
-| `list` | `[...]` | No (native) |
-| `dict` | `{...}` | No (native) |
+| `list` | `[...]` | Recursive |
+| `dict` | `{...}` | Recursive |
 
 ## Standard JSON
 
@@ -92,7 +92,7 @@ Use `from_json()` to parse JSON with type hydration:
 from genro_tytx import from_json
 
 # Simple values
-result = from_json('{"price": "99.99::D", "count": "42::I"}')
+result = from_json('{"price": "99.99::N", "count": "42::L"}')
 # {"price": Decimal("99.99"), "count": 42}
 ```
 
@@ -106,8 +106,8 @@ from genro_tytx import from_json
 json_str = '''
 {
     "order": {
-        "price": "100::D",
-        "date": "2025-01-15::d",
+        "price": "100::N",
+        "date": "2025-01-15::D",
         "customer": "Acme"
     }
 }
@@ -125,7 +125,7 @@ result = from_json(json_str)
 ```python
 from genro_tytx import from_json
 
-json_str = '{"prices": ["10::D", "20::D", "30::D"]}'
+json_str = '{"prices": ["10::N", "20::N", "30::N"]}'
 result = from_json(json_str)
 # result["prices"] → [Decimal("10"), Decimal("20"), Decimal("30")]
 ```
@@ -209,7 +209,7 @@ from genro_tytx import from_json
 
 def create_order(request_body: str):
     data = from_json(request_body)
-    # data["price"] is already Decimal if it was "100::D"
+    # data["price"] is already Decimal if it was "100::N"
     process_order(data)
 ```
 

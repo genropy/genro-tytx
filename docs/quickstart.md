@@ -6,57 +6,53 @@ Get productive with TYTX in 5 minutes.
 
 TYTX uses `value::type_code` syntax to encode type information in strings:
 
-| Syntax | Result |
-|--------|--------|
-| `"123::I"` | `int(123)` |
-| `"100.50::D"` | `Decimal("100.50")` |
-| `"2025-01-15::d"` | `date(2025, 1, 15)` |
-| `"true::B"` | `True` |
+| Syntax | Python Result | JavaScript Result |
+|--------|---------------|-------------------|
+| `"123::L"` | `123` (int) | `123` (number) |
+| `"100.50::N"` | `Decimal("100.50")` | `100.50` (number) |
+| `"2025-01-15::D"` | `date(2025, 1, 15)` | `Date` object |
+| `"true::B"` | `True` | `true` |
 
 ## Basic Usage
-
-<!-- test: test_core.py::TestFromText -->
 
 ### Parsing Typed Strings
 
 ```python
 from genro_tytx import from_text
 from decimal import Decimal
-from datetime import date, datetime
+from datetime import date, datetime, time
 
-# Parse with embedded type
-from_text("123::I")                    # → 123
-from_text("100.50::D")                 # → Decimal("100.50")
-from_text("2025-01-15::d")             # → date(2025, 1, 15)
-from_text("2025-01-15T10:00:00::dt")   # → datetime(2025, 1, 15, 10, 0, 0)
-from_text("true::B")                   # → True
-from_text('{"a":1}::J')                # → {"a": 1}
-from_text("a,b,c::L")                  # → ["a", "b", "c"]
+# Parse with embedded type (Genropy-compatible codes)
+from_text("123::L")                    # → 123 (L = Long/int)
+from_text("100.50::N")                 # → Decimal("100.50") (N = Numeric)
+from_text("3.14::R")                   # → 3.14 (R = Real/float)
+from_text("2025-01-15::D")             # → date(2025, 1, 15) (D = Date)
+from_text("2025-01-15T10:00:00::DH")   # → datetime(...) (DH = DateTime)
+from_text("10:30:00::H")               # → time(10, 30) (H = Hour/time)
+from_text("true::B")                   # → True (B = Boolean)
+from_text('{"a":1}::JS')               # → {"a": 1} (JS = JSON)
 
 # Parse with explicit type
-from_text("123", "I")                  # → 123
-from_text("2025-01-15", "d")           # → date(2025, 1, 15)
+from_text("123", "L")                  # → 123
+from_text("2025-01-15", "D")           # → date(2025, 1, 15)
 ```
 
 ### Serializing to Typed Strings
 
-<!-- test: test_core.py::TestAsTypedText -->
-
 ```python
 from genro_tytx import as_typed_text
 
-as_typed_text(123)                     # → "123::I"
-as_typed_text(Decimal("100.50"))       # → "100.50::D"
-as_typed_text(date(2025, 1, 15))       # → "2025-01-15::d"
-as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::dt"
+as_typed_text(123)                     # → "123::L"
+as_typed_text(3.14)                    # → "3.14::R"
+as_typed_text(Decimal("100.50"))       # → "100.50::N"
+as_typed_text(date(2025, 1, 15))       # → "2025-01-15::D"
+as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::DH"
 as_typed_text(True)                    # → "true::B"
-as_typed_text({"a": 1})                # → '{"a": 1}::J'
+as_typed_text({"a": 1})                # → '{"a": 1}::JS'
 as_typed_text("hello")                 # → "hello" (no suffix for strings)
 ```
 
 ### Plain Serialization (No Type)
-
-<!-- test: test_core.py::TestAsText -->
 
 ```python
 from genro_tytx import as_text
@@ -68,8 +64,6 @@ as_text(True)                          # → "true"
 ```
 
 ## JSON Usage
-
-<!-- test: test_core.py::TestJSONUtils -->
 
 ### Typed JSON
 
@@ -85,9 +79,9 @@ data = {
     "name": "Widget"
 }
 json_str = as_typed_json(data)
-# '{"price": "99.99::D", "date": "2025-01-15::d", "name": "Widget"}'
+# '{"price": "99.99::N", "date": "2025-01-15::D", "name": "Widget"}'
 
-# Parse back
+# Parse back - types are restored
 result = from_json(json_str)
 # {"price": Decimal("99.99"), "date": date(2025, 1, 15), "name": "Widget"}
 ```
@@ -103,8 +97,6 @@ as_json({"price": Decimal("99.99")})
 ```
 
 ## XML Usage
-
-<!-- test: test_core.py::TestXMLNewStructure -->
 
 TYTX uses `{tag: {attrs: {}, value: ...}}` structure:
 
@@ -123,7 +115,7 @@ data = {
     }
 }
 xml = as_typed_xml(data)
-# <order id="123::I"><item>Widget</item><price>99.99::D</price></order>
+# <order id="123::L"><item>Widget</item><price>99.99::N</price></order>
 
 # Parse XML
 result = from_xml(xml)
@@ -131,19 +123,41 @@ result = from_xml(xml)
 # result["order"]["value"]["price"]["value"] → Decimal("99.99")
 ```
 
-## Type Codes Reference
+## JavaScript Usage
+
+The JavaScript API mirrors Python exactly:
+
+```javascript
+const { from_text, as_typed_text, from_json, as_typed_json } = require('genro-tytx');
+
+// Parse
+from_text("123::L")           // → 123
+from_text("100.50::N")        // → 100.50
+from_text("2025-01-15::D")    // → Date object
+
+// Serialize
+as_typed_text(123)            // → "123::L"
+as_typed_text(new Date())     // → "2025-01-15::D"
+
+// JSON
+const data = { price: 99.99, count: 42 };
+as_typed_json(data)           // → '{"price":"99.99::R","count":"42::L"}'
+from_json('{"x": "10::L"}')   // → {x: 10}
+```
+
+## Type Codes Reference (Genropy-Compatible)
 
 | Code | Aliases | Python Type | Example |
 |------|---------|-------------|---------|
-| `I` | `INT`, `INTEGER`, `LONG` | `int` | `"123::I"` |
-| `F` | `R`, `REAL` | `float` | `"1.5::F"` |
-| `D` | `N`, `NUMERIC` | `Decimal` | `"100.50::D"` |
+| `L` | `I`, `INT`, `INTEGER`, `LONG` | `int` | `"123::L"` |
+| `R` | `F`, `FLOAT`, `REAL` | `float` | `"1.5::R"` |
+| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `"100.50::N"` |
 | `B` | `BOOL`, `BOOLEAN` | `bool` | `"true::B"` |
-| `S` | `T`, `TEXT` | `str` | `"hello::S"` |
-| `d` | - | `date` | `"2025-01-15::d"` |
-| `dt` | `DH`, `DHZ` | `datetime` | `"2025-01-15T10:00::dt"` |
-| `J` | - | `dict`/`list` | `'{"a":1}::J'` |
-| `L` | - | `list` | `"a,b,c::L"` |
+| `T` | `S`, `TEXT`, `STRING` | `str` | `"hello::T"` |
+| `D` | `DATE` | `date` | `"2025-01-15::D"` |
+| `DH` | `DT`, `DHZ`, `DATETIME` | `datetime` | `"2025-01-15T10:00::DH"` |
+| `H` | `TIME`, `HZ` | `time` | `"10:30:00::H"` |
+| `JS` | `JSON` | `dict`/`list` | `'{"a":1}::JS'` |
 
 ## Next Steps
 

@@ -21,19 +21,19 @@ config_xml = '''
 <config version="1.0">
     <database>
         <host>localhost</host>
-        <port>5432::I</port>
-        <pool_size>10::I</pool_size>
-        <timeout>30.5::F</timeout>
+        <port>5432::L</port>
+        <pool_size>10::L</pool_size>
+        <timeout>30.5::R</timeout>
     </database>
     <api>
-        <rate_limit>100.50::D</rate_limit>
-        <max_requests>1000::I</max_requests>
+        <rate_limit>100.50::N</rate_limit>
+        <max_requests>1000::L</max_requests>
         <enabled>true::B</enabled>
     </api>
     <features>
         <dark_mode>true::B</dark_mode>
         <beta_features>false::B</beta_features>
-        <launch_date>2025-02-01::d</launch_date>
+        <launch_date>2025-02-01::D</launch_date>
     </features>
 </config>
 '''
@@ -65,18 +65,18 @@ config_json = '''
 {
     "database": {
         "host": "localhost",
-        "port": "5432::I",
-        "pool_size": "10::I",
-        "timeout": "30.5::F"
+        "port": "5432::L",
+        "pool_size": "10::L",
+        "timeout": "30.5::R"
     },
     "api": {
-        "rate_limit": "100.50::D",
-        "max_requests": "1000::I",
+        "rate_limit": "100.50::N",
+        "max_requests": "1000::L",
         "enabled": "true::B"
     },
     "features": {
         "dark_mode": "true::B",
-        "launch_date": "2025-02-01::d"
+        "launch_date": "2025-02-01::D"
     }
 }
 '''
@@ -195,13 +195,13 @@ def load_config_with_env():
 
     # Override from environment
     if "DB_PORT" in os.environ:
-        config["database"]["port"] = from_text(os.environ["DB_PORT"], "I")
+        config["database"]["port"] = from_text(os.environ["DB_PORT"], "L")
 
     if "API_RATE_LIMIT" in os.environ:
-        config["api"]["rate_limit"] = from_text(os.environ["API_RATE_LIMIT"], "D")
+        config["api"]["rate_limit"] = from_text(os.environ["API_RATE_LIMIT"], "N")
 
     if "LAUNCH_DATE" in os.environ:
-        config["features"]["launch_date"] = from_text(os.environ["LAUNCH_DATE"], "d")
+        config["features"]["launch_date"] = from_text(os.environ["LAUNCH_DATE"], "D")
 
     return config
 

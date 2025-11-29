@@ -40,16 +40,16 @@ print(typed_response)
 **Output (typed):**
 ```json
 {
-    "id": 12345,
+    "id": "12345::L",
     "customer": "Acme Corp",
     "items": [
-        {"product": "Widget", "price": "99.99::D", "qty": 2},
-        {"product": "Gadget", "price": "149.50::D", "qty": 1}
+        {"product": "Widget", "price": "99.99::N", "qty": "2::L"},
+        {"product": "Gadget", "price": "149.50::N", "qty": "1::L"}
     ],
-    "total": "349.48::D",
-    "order_date": "2025-01-15::d",
-    "ship_date": "2025-01-18::d",
-    "created_at": "2025-01-15T10:30:00::dt"
+    "total": "349.48::N",
+    "order_date": "2025-01-15::D",
+    "ship_date": "2025-01-18::D",
+    "created_at": "2025-01-15T10:30:00::DH"
 }
 ```
 
@@ -82,8 +82,8 @@ print(standard_response)
 request_body = '''
 {
     "product": "New Widget",
-    "price": "199.99::D",
-    "available_from": "2025-02-01::d"
+    "price": "199.99::N",
+    "available_from": "2025-02-01::D"
 }
 '''
 
@@ -158,7 +158,7 @@ console.log(data.order_date);  // Date object
 // Send order with types
 const order = {
     product: "Widget",
-    price: "99.99",  // Will be "99.99::D"
+    price: 99.99,  // Will be "99.99::R" (number → float in JS)
     date: new Date()
 };
 
