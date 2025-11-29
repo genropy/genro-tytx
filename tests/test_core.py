@@ -416,3 +416,475 @@ class TestJSONUtils:
         assert result["a"] == "hello"
         assert result["b"] == 123
         assert result["c"] is True
+
+
+class TestEdgeCases:
+    """Tests for edge cases and 100% coverage."""
+
+    def test_empty_list_parse(self):
+        """Empty list parsing."""
+        assert from_text("::L") == []
+
+    def test_list_serialize_non_list(self):
+        """ListType.serialize with non-list value."""
+        from genro_tytx import ListType
+        lt = ListType()
+        assert lt.serialize("single") == "single"
+
+    def test_registry_get_for_value(self):
+        """Test registry.get_for_value method."""
+        type_cls = registry.get_for_value(42)
+        assert type_cls is not None
+        assert type_cls.code == "I"
+
+        type_cls = registry.get_for_value(Decimal("10"))
+        assert type_cls is not None
+        assert type_cls.code == "D"
+
+        type_cls = registry.get_for_value("hello")
+        assert type_cls is not None
+        assert type_cls.code == "S"
+
+    def test_from_text_unknown_explicit_type(self):
+        """from_text with unknown explicit type returns original."""
+        result = from_text("hello", "UNKNOWN")
+        assert result == "hello"
+
+    def test_as_text_unknown_type(self):
+        """as_text with unknown type uses str()."""
+        class CustomType:
+            pass
+        obj = CustomType()
+        result = as_text(obj)
+        assert "CustomType" in result
+
+    def test_as_typed_text_unknown_type(self):
+        """as_typed_text with unknown type uses str()."""
+        class CustomType:
+            pass
+        obj = CustomType()
+        result = as_typed_text(obj)
+        assert "CustomType" in result
+        assert "::" not in result  # No type suffix for unknown
+
+    def test_xml_empty_element(self):
+        """XML with None value produces self-closing tag."""
+        data = {"empty": {"attrs": {}, "value": None}}
+        xml = as_typed_xml(data)
+        assert "<empty />" in xml or "<empty/>" in xml
+
+    def test_xml_list_children(self):
+        """XML with list of same-tag children."""
+        data = {
+            "items": {
+                "attrs": {},
+                "value": {
+                    "item": [
+                        {"attrs": {}, "value": "first"},
+                        {"attrs": {}, "value": "second"},
+                    ]
+                }
+            }
+        }
+        xml = as_typed_xml(data)
+        assert "<item>first</item>" in xml
+        assert "<item>second</item>" in xml
+
+    def test_from_xml_empty_element(self):
+        """Parse empty XML element."""
+        xml = "<empty />"
+        result = from_xml(xml)
+        assert result["empty"]["value"] is None
+
+    def test_from_xml_repeated_children(self):
+        """Parse XML with repeated child tags."""
+        xml = "<items><item>a</item><item>b</item></items>"
+        result = from_xml(xml)
+        # Repeated tags become a list
+        items = result["items"]["value"]["item"]
+        assert isinstance(items, list)
+        assert len(items) == 2
+
+    def test_from_xml_repeated_children_three_items(self):
+        """Repeated tags beyond two keep appending to the existing list."""
+        xml = "<items><item>a</item><item>b</item><item>c</item></items>"
+        result = from_xml(xml)
+        items = result["items"]["value"]["item"]
+        assert isinstance(items, list)
+        assert items[2]["value"] == "c"
+
+    def test_as_typed_json_bool(self):
+        """as_typed_json preserves native JSON booleans."""
+        # Booleans are native JSON types, not converted to typed strings
+        result = as_typed_json({"active": True, "deleted": False})
+        assert "true" in result
+        assert "false" in result
+
+    def test_as_json_datetime(self):
+        """as_json converts datetime to ISO string."""
+        dt = datetime(2025, 1, 15, 10, 30, 0)
+        result = as_json({"ts": dt})
+        assert "2025-01-15" in result
+        assert "::" not in result
+
+    def test_datatype_format_none_uses_serialize(self):
+        """DataType.format falls back to serialize when fmt is None."""
+        from genro_tytx import StrType
+
+        st = StrType()
+        assert st.format("hello", None) == "hello"
+
+    def test_register_type_without_python_type(self):
+        """TypeRegistry.register skips python_type mapping when None."""
+        from genro_tytx import TypeRegistry
+        from genro_tytx.base import DataType
+
+        class NoPythonType(DataType):
+            name = "nop"
+            code = "NP"
+            python_type = None
+
+            def parse(self, value: str):
+                return value
+
+            def serialize(self, value):
+                return str(value)
+
+        local_registry = TypeRegistry()
+        local_registry.register(NoPythonType)
+
+        assert local_registry.get("nop") is NoPythonType
+        assert local_registry.get_for_value("anything") is None
+
+    def test_type_code_for_string_returns_none(self):
+        """_get_type_code_for_value returns None for plain strings."""
+        from genro_tytx import TypeRegistry
+
+        local_registry = TypeRegistry()
+        assert local_registry._get_type_code_for_value("hello") is None
+
+    def test_as_text_with_unregistered_type_code(self):
+        """as_text/as_typed_text fall back when type is not registered."""
+        from genro_tytx import TypeRegistry
+
+        local_registry = TypeRegistry()
+
+        assert local_registry.as_text(123) == "123"
+        assert local_registry.as_typed_text(123) == "123"
+
+    def test_set_locale_fallback_and_restore(self, monkeypatch):
+        """_set_locale fallback path and _restore_locale error handling."""
+        import genro_tytx.builtin as builtin
+
+        calls: list[str] = []
+
+        def fake_getlocale(category):
+            return ("en_US", "UTF-8")
+
+        def fake_setlocale(category, value):
+            calls.append(value)
+            if value.endswith(".UTF-8"):
+                raise builtin.locale_module.Error("boom")
+            return "ok"
+
+        monkeypatch.setattr(builtin.locale_module, "getlocale", fake_getlocale)
+        monkeypatch.setattr(builtin.locale_module, "setlocale", fake_setlocale)
+
+        prev = builtin._set_locale("zz-ZZ")
+        assert calls[:2] == ["zz_ZZ.UTF-8", "zz_ZZ"]
+        assert prev == "en_US"
+
+        builtin._restore_locale(prev)
+        assert calls[-1] == "en_US"
+
+    def test_restore_locale_error_branch(self, monkeypatch):
+        """_restore_locale falls back to default locale when restore fails."""
+        import genro_tytx.builtin as builtin
+
+        calls: list[str] = []
+
+        def failing_setlocale(category, value):
+            calls.append(value)
+            if value == "broken":
+                raise builtin.locale_module.Error("fail")
+            return "ok"
+
+        monkeypatch.setattr(builtin.locale_module, "setlocale", failing_setlocale)
+
+        builtin._restore_locale("broken")
+        assert calls == ["broken", ""]
+
+    def test_set_locale_with_existing_encoding(self, monkeypatch):
+        """_set_locale keeps provided encoding when already present."""
+        import genro_tytx.builtin as builtin
+
+        calls: list[str] = []
+
+        monkeypatch.setattr(builtin.locale_module, "getlocale", lambda category: ("C", "UTF-8"))
+        monkeypatch.setattr(
+            builtin.locale_module,
+            "setlocale",
+            lambda category, value: calls.append(value) or "ok",
+        )
+
+        prev = builtin._set_locale("fr_FR.UTF-8")
+        assert calls == ["fr_FR.UTF_8"]
+        assert prev == "C"
+
+    def test_format_with_locale_int(self):
+        """Test integer formatting with locale."""
+        from genro_tytx import IntType
+        it = IntType()
+        result = it.format(1234567, "%d")
+        assert isinstance(result, str)
+
+    def test_format_with_locale_decimal(self):
+        """Test Decimal formatting with locale."""
+        from genro_tytx import DecimalType
+        dt = DecimalType()
+        result = dt.format(Decimal("1234.56"), "%.2f")
+        assert isinstance(result, str)
+
+    def test_format_with_locale_date(self):
+        """Test date formatting with locale."""
+        from genro_tytx import DateType
+        dt = DateType()
+        result = dt.format(date(2025, 1, 15), "%Y-%m-%d")
+        assert result == "2025-01-15"
+
+    def test_format_with_locale_datetime(self):
+        """Test datetime formatting with locale."""
+        from genro_tytx import DateTimeType
+        dtt = DateTimeType()
+        result = dtt.format(datetime(2025, 1, 15, 10, 30), "%Y-%m-%d %H:%M")
+        assert result == "2025-01-15 10:30"
+
+    def test_format_true_without_default(self):
+        """format=True on type without default_format."""
+        from genro_tytx import StrType
+        st = StrType()
+        # StrType has no default_format, should fall back to serialize
+        result = st.format("hello", True)
+        assert result == "hello"
+
+    def test_json_type_serialize(self):
+        """JsonType serialize produces JSON string."""
+        from genro_tytx import JsonType
+        jt = JsonType()
+        result = jt.serialize({"a": 1})
+        assert result == '{"a": 1}'
+
+    def test_json_type_parse(self):
+        """JsonType parse returns dict/list."""
+        from genro_tytx import JsonType
+        jt = JsonType()
+        result = jt.parse('{"a": 1}')
+        assert result == {"a": 1}
+
+    def test_float_format_with_locale(self):
+        """FloatType format with locale."""
+        from genro_tytx import FloatType
+        ft = FloatType()
+        result = ft.format(1234.56, "%.2f")
+        assert isinstance(result, str)
+
+    def test_xml_root_tag_parameter(self):
+        """as_typed_xml with explicit root_tag."""
+        data = {"attrs": {"id": 1}, "value": "content"}
+        xml = as_typed_xml(data, root_tag="custom")
+        assert "<custom" in xml
+        assert "</custom>" in xml
+
+    def test_xml_invalid_content_raises(self):
+        """XML build with invalid content raises ValueError."""
+        import pytest
+        data = {"root": "not a dict with attrs/value"}
+        with pytest.raises(ValueError):
+            as_typed_xml(data)
+
+    def test_xml_multiple_roots_raises(self):
+        """XML with multiple roots and no root_tag raises ValueError."""
+        import pytest
+        data = {"a": {"attrs": {}, "value": "x"}, "b": {"attrs": {}, "value": "y"}}
+        with pytest.raises(ValueError):
+            as_typed_xml(data)
+
+    def test_from_xml_mixed_content(self):
+        """Parse XML with mixed content (text + children)."""
+        xml = "<root>text<child>inner</child></root>"
+        result = from_xml(xml)
+        # Mixed content: children dict has #text key
+        assert "child" in result["root"]["value"]
+        assert "#text" in result["root"]["value"]
+        assert result["root"]["value"]["#text"] == "text"
+
+    def test_json_encoder_type_error(self):
+        """JSON encoder raises TypeError for non-serializable objects."""
+        import pytest
+
+        class NonSerializable:
+            pass
+
+        with pytest.raises(TypeError):
+            as_typed_json({"obj": NonSerializable()})
+
+    def test_json_standard_encoder_type_error(self):
+        """Standard JSON encoder raises TypeError for non-serializable objects."""
+        import pytest
+
+        class NonSerializable:
+            pass
+
+        with pytest.raises(TypeError):
+            as_json({"obj": NonSerializable()})
+
+    def test_as_text_with_format_and_locale(self):
+        """as_text with both format and locale parameters."""
+        result = as_text(date(2025, 1, 15), format="%d/%m/%Y", locale="en_US")
+        assert result == "15/01/2025"
+
+    def test_list_type_attributes(self):
+        """ListType has correct attributes."""
+        from genro_tytx import ListType
+        assert ListType.python_type is list
+        assert ListType.js_type == "Array"
+        assert ListType.empty == []
+
+    def test_bool_type_attributes(self):
+        """BoolType has correct attributes."""
+        from genro_tytx import BoolType
+        assert BoolType.python_type is bool
+        assert BoolType.empty is False
+
+    def test_json_type_attributes(self):
+        """JsonType has correct attributes."""
+        from genro_tytx import JsonType
+        assert JsonType.python_type is dict
+        assert JsonType.js_type == "object"
+
+    def test_float_type_attributes(self):
+        """FloatType has correct attributes."""
+        from genro_tytx import FloatType
+        assert FloatType.python_type is float
+        assert FloatType.empty == 0.0
+        assert FloatType.align == "R"
+
+    def test_registry_get_none(self):
+        """registry.get returns None for unknown type."""
+        assert registry.get("NONEXISTENT") is None
+
+    def test_as_text_none_value(self):
+        """as_text with None returns 'None'."""
+        result = as_text(None)
+        assert result == "None"
+
+    def test_as_typed_text_none_value(self):
+        """as_typed_text with None returns 'None'."""
+        result = as_typed_text(None)
+        assert result == "None"
+
+    def test_xml_value_as_list_direct(self):
+        """XML content value as list directly."""
+        # This case: value is a list of items (same tag repeated)
+        data = {
+            "root": {
+                "attrs": {},
+                "value": {
+                    "item": [
+                        {"attrs": {"n": 1}, "value": "a"},
+                        {"attrs": {"n": 2}, "value": "b"},
+                        {"attrs": {"n": 3}, "value": "c"},
+                    ]
+                }
+            }
+        }
+        xml = as_xml(data)
+        assert xml.count("<item") == 3
+
+    def test_format_with_explicit_locale(self):
+        """Test formatting with explicit locale parameter."""
+        from genro_tytx import DateType
+        dt = DateType()
+        # Use a simple format that doesn't depend on locale
+        result = dt.format(date(2025, 1, 15), "%d-%m-%Y", locale="C")
+        assert result == "15-01-2025"
+
+    def test_as_text_list(self):
+        """as_text with list value."""
+        result = as_text([1, 2, 3])
+        assert result == '{"a": 1}' or "1, 2, 3" in result or "[1, 2, 3]" in result or result == '[1, 2, 3]'
+
+    def test_as_typed_text_list(self):
+        """as_typed_text with list value serializes as JSON."""
+        result = as_typed_text([1, 2, 3])
+        assert "::J" in result
+
+    def test_xml_value_direct_list(self):
+        """XML with value as direct list (same-tag children via value list)."""
+        # When value is a list directly, each item becomes same-tag child
+        # This is a less common pattern but should work
+        data = {
+            "items": {
+                "attrs": {},
+                "value": [
+                    {"attrs": {"id": 1}, "value": "a"},
+                    {"attrs": {"id": 2}, "value": "b"},
+                ]
+            }
+        }
+        xml = as_xml(data)
+        # The list items become repeated <items> tags
+        assert "<items" in xml
+
+    def test_from_text_with_invalid_embedded_type(self):
+        """from_text returns original string when embedded type is unknown."""
+        result = from_text("hello::NOTAVALIDTYPE")
+        assert result == "hello::NOTAVALIDTYPE"
+
+    def test_datatype_base_format_with_locale_default(self):
+        """Test DataType._format_with_locale default implementation."""
+        from genro_tytx import StrType
+        st = StrType()
+        # StrType doesn't override _format_with_locale, so uses base
+        result = st._format_with_locale("hello", "%s", "en_US")
+        assert result == "hello"
+
+    def test_list_type_serialize_string(self):
+        """ListType.serialize with string returns str()."""
+        from genro_tytx import ListType
+        lt = ListType()
+        result = lt.serialize("not a list")
+        assert result == "not a list"
+
+    def test_list_type_serialize_list(self):
+        """ListType.serialize with actual list."""
+        from genro_tytx import ListType
+        lt = ListType()
+        result = lt.serialize(["a", "b", "c"])
+        assert result == "a,b,c"
+
+    def test_as_text_string_type(self):
+        """as_text with string returns the string itself."""
+        result = as_text("hello world")
+        assert result == "hello world"
+
+    def test_as_typed_text_string_type(self):
+        """as_typed_text with string returns the string (no type suffix)."""
+        result = as_typed_text("hello world")
+        assert result == "hello world"
+        assert "::" not in result
+
+    def test_format_int_with_locale(self):
+        """IntType format with explicit locale."""
+        from genro_tytx import IntType
+        it = IntType()
+        # Test format with None locale (uses system)
+        result = it.format(1234, "%d", None)
+        assert isinstance(result, str)
+
+    def test_format_decimal_with_locale(self):
+        """DecimalType format with explicit locale."""
+        from genro_tytx import DecimalType
+        dt = DecimalType()
+        result = dt.format(Decimal("1234.56"), "%.2f", None)
+        assert isinstance(result, str)

@@ -34,14 +34,14 @@ class DataType(ABC):
         """
         Convert string representation to python object.
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def serialize(self, value: Any) -> str:
         """
         Convert python object to string representation.
         """
-        pass
+        raise NotImplementedError
 
     def format(
         self, value: Any, fmt: str | bool | None = None, locale: str | None = None
