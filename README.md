@@ -32,14 +32,15 @@ Is `price` a float or a precise Decimal? Is `date` a string or a Date object?
 
 ```json
 {
-  "price": "100.50::D",
-  "date": "2025-01-15::d"
+  "price": "100.50::N",
+  "date": "2025-01-15::D"
 }
 ```
 
 The `::` suffix encodes type information. After parsing:
-- `price` → `Decimal("100.50")`
-- `date` → `date(2025, 1, 15)`
+
+- `price` → `Decimal("100.50")` (N = Numeric)
+- `date` → `date(2025, 1, 15)` (D = Date)
 
 ## Quick Start
 
@@ -50,15 +51,15 @@ from genro_tytx import from_text, as_typed_text
 from decimal import Decimal
 from datetime import date
 
-# Parse typed strings
-from_text("100.50::D")        # → Decimal("100.50")
-from_text("2025-01-15::d")    # → date(2025, 1, 15)
-from_text("123::I")           # → 123
+# Parse typed strings (Genropy-compatible codes)
+from_text("100.50::N")        # → Decimal("100.50")  (N = Numeric)
+from_text("2025-01-15::D")    # → date(2025, 1, 15)  (D = Date)
+from_text("123::L")           # → 123                (L = Long/int)
 
 # Serialize with types
-as_typed_text(Decimal("99.99"))  # → "99.99::D"
-as_typed_text(date(2025, 1, 15)) # → "2025-01-15::d"
-as_typed_text(123)               # → "123::I"
+as_typed_text(Decimal("99.99"))  # → "99.99::N"
+as_typed_text(date(2025, 1, 15)) # → "2025-01-15::D"
+as_typed_text(123)               # → "123::L"
 ```
 
 ### JSON
@@ -69,10 +70,10 @@ from genro_tytx import as_typed_json, from_json
 # Serialize to typed JSON
 data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
 as_typed_json(data)
-# '{"price": "99.99::D", "date": "2025-01-15::d"}'
+# '{"price": "99.99::N", "date": "2025-01-15::D"}'
 
 # Parse typed JSON
-from_json('{"price": "99.99::D", "count": "42::I"}')
+from_json('{"price": "99.99::N", "count": "42::L"}')
 # {"price": Decimal("99.99"), "count": 42}
 ```
 
@@ -84,26 +85,26 @@ from genro_tytx import as_typed_xml, from_xml
 # Create typed XML
 data = {"order": {"attrs": {"id": 123}, "value": {"price": {"attrs": {}, "value": Decimal("99.99")}}}}
 as_typed_xml(data)
-# '<order id="123::I"><price>99.99::D</price></order>'
+# '<order id="123::L"><price>99.99::N</price></order>'
 
 # Parse typed XML
-from_xml('<root>100.50::D</root>')
+from_xml('<root>100.50::N</root>')
 # {"root": {"attrs": {}, "value": Decimal("100.50")}}
 ```
 
-## Type Codes
+## Type Codes (Genropy-compatible)
 
 | Code | Aliases | Python Type | Example |
 |------|---------|-------------|---------|
-| `I` | `INT`, `INTEGER`, `LONG` | `int` | `"123::I"` |
-| `F` | `R`, `REAL` | `float` | `"1.5::F"` |
-| `D` | `N`, `NUMERIC` | `Decimal` | `"100.50::D"` |
+| `L` | `I`, `INT`, `INTEGER`, `LONG` | `int` | `"123::L"` |
+| `R` | `F`, `REAL`, `FLOAT` | `float` | `"1.5::R"` |
+| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `"100.50::N"` |
 | `B` | `BOOL`, `BOOLEAN` | `bool` | `"true::B"` |
-| `S` | `T`, `TEXT` | `str` | `"hello::S"` |
-| `d` | - | `date` | `"2025-01-15::d"` |
-| `dt` | `DH`, `DHZ` | `datetime` | `"2025-01-15T10:00::dt"` |
-| `J` | - | `dict`/`list` | `'{"a":1}::J'` |
-| `L` | - | `list` | `"a,b,c::L"` |
+| `T` | `S`, `TEXT`, `STRING` | `str` | `"hello::T"` |
+| `D` | `DATE` | `date` | `"2025-01-15::D"` |
+| `DH` | `DT`, `DHZ`, `DATETIME` | `datetime` | `"2025-01-15T10:00::DH"` |
+| `H` | `TIME`, `HZ` | `time` | `"10:30:00::H"` |
+| `JS` | `JSON` | `dict`/`list` | `'{"a":1}::JS'` |
 
 ## Features
 
@@ -132,9 +133,9 @@ Or use directly:
 ```javascript
 import { from_text, as_typed_text, from_json, as_typed_json } from 'genro-tytx';
 
-from_text("123::I");           // → 123
-as_typed_text(123);            // → "123::I"
-from_json('{"x": "10::D"}');   // → {x: "10"} (Decimal as string in JS)
+from_text("123::L");           // → 123
+as_typed_text(123);            // → "123::L"
+from_json('{"x": "10::N"}');   // → {x: 10} (Decimal as number in JS)
 ```
 
 ## Custom Types

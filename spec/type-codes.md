@@ -1,63 +1,82 @@
 # TYTX Type Codes Registry
 
-**Version**: 1.0
+**Version**: 1.1
+**Updated**: 2025-01-29
+**Note**: Type codes are aligned with Genropy framework standards.
 
 This document defines all registered type codes for the TYTX protocol.
 
-## Reserved Codes (0x00 - 0x1F)
-
-These codes are reserved for protocol use:
+## Reserved Codes
 
 | Code | Purpose |
 |------|---------|
 | `TYTX` | Global marker for typed payloads |
 
-## Built-in Type Codes
+## Built-in Type Codes (Genropy-compatible)
 
 ### Numeric Types
 
-| Code | Alias | Python | JavaScript | Format | Example |
-|------|-------|--------|------------|--------|---------|
-| `I` | `int` | `int` | `number` / `BigInt` | Decimal string | `"123::I"` |
-| `D` | `decimal` | `Decimal` | `Decimal` | Decimal string | `"100.50::D"` |
-| `F` | `float` | `float` | `number` | Scientific notation OK | `"3.14::F"` |
+| Code | Aliases | Python | JavaScript | Format | Example |
+|------|---------|--------|------------|--------|---------|
+| `L` | `I`, `INT`, `INTEGER`, `LONG`, `LONGINT` | `int` | `number` | Decimal string | `"123::L"` |
+| `R` | `F`, `REAL`, `FLOAT` | `float` | `number` | Scientific notation OK | `"3.14::R"` |
+| `N` | `NUMERIC`, `DECIMAL`, `D` | `Decimal` | `number` (string) | Decimal string | `"100.50::N"` |
 
 ### Date/Time Types
 
-| Code | Alias | Python | JavaScript | Format | Example |
-|------|-------|--------|------------|--------|---------|
-| `d` | `date` | `date` | `Date` | ISO 8601 date | `"2025-01-15::d"` |
-| `dt` | `datetime` | `datetime` | `Date` | ISO 8601 datetime | `"2025-01-15T10:30:00::dt"` |
-| `t` | `time` | `time` | `string` | ISO 8601 time | `"10:30:00::t"` |
-| `ts` | `timestamp` | `datetime` | `Date` | Unix timestamp (seconds) | `"1705312200::ts"` |
+| Code | Aliases | Python | JavaScript | Format | Example |
+|------|---------|--------|------------|--------|---------|
+| `D` | `DATE` | `date` | `Date` | ISO 8601 date | `"2025-01-15::D"` |
+| `DH` | `DT`, `DHZ`, `DATETIME`, `timestamp` | `datetime` | `Date` | ISO 8601 datetime | `"2025-01-15T10:30:00::DH"` |
+| `H` | `TIME`, `HZ` | `time` | `string` | ISO 8601 time | `"10:30:00::H"` |
 
 ### Boolean Types
 
-| Code | Alias | Python | JavaScript | Format | Example |
-|------|-------|--------|------------|--------|---------|
-| `B` | `bool` | `bool` | `boolean` | `true` / `false` | `"true::B"` |
+| Code | Aliases | Python | JavaScript | Format | Example |
+|------|---------|--------|------------|--------|---------|
+| `B` | `BOOL`, `BOOLEAN` | `bool` | `boolean` | `true` / `false` | `"true::B"` |
 
-### String/Binary Types
+### String Types
 
-| Code | Alias | Python | JavaScript | Format | Example |
-|------|-------|--------|------------|--------|---------|
-| `b64` | `bytes` | `bytes` | `Uint8Array` | Base64 encoded | `"SGVsbG8=::b64"` |
-| `U` | `uuid` | `UUID` | `string` | UUID string | `"550e8400-...::U"` |
+| Code | Aliases | Python | JavaScript | Format | Example |
+|------|---------|--------|------------|--------|---------|
+| `T` | `TEXT`, `S`, `STRING`, `P`, `A` | `str` | `string` | UTF-8 string | `"hello::T"` |
 
-### Collection Types
+### Structured Types
 
-| Code | Alias | Python | JavaScript | Format | Example |
-|------|-------|--------|------------|--------|---------|
-| `L` | `list` | `list[str]` | `string[]` | Comma-separated | `"a,b,c::L"` |
-| `T` | `table` | `Table` | `Table` | JSON structure | `"{...}::T"` |
+| Code | Aliases | Python | JavaScript | Format | Example |
+|------|---------|--------|------------|--------|---------|
+| `JS` | `JSON`, `J` | `dict`/`list` | `object`/`array` | JSON encoded | `'{"a":1}::JS'` |
 
-## Code Naming Conventions
+## Type Code Conventions
 
-1. **Single uppercase letter**: Core types (`I`, `D`, `B`, `T`, `U`, `F`, `L`)
-2. **Single lowercase letter**: Date/time types (`d`, `t`)
-3. **Two lowercase letters**: Extended core types (`dt`, `ts`)
-4. **Three+ lowercase letters**: Special encodings (`b64`)
-5. **Custom codes**: Uppercase, 2-4 characters (`MT`, `GEO`, `JSON`)
+### Genropy Standard Codes
+
+The primary codes follow the Genropy framework conventions:
+
+| Code | Genropy Meaning |
+|------|-----------------|
+| `L` | **L**ong integer |
+| `R` | **R**eal (float) |
+| `N` | **N**umeric (decimal) |
+| `D` | **D**ate |
+| `DH` | **D**ate with **H**our (datetime) |
+| `H` | **H**our (time) |
+| `T` | **T**ext (string) |
+| `B` | **B**oolean |
+| `JS` | **J**ava**S**cript object (JSON) |
+
+### Aliases for Compatibility
+
+Aliases are provided for compatibility with common conventions:
+
+- `I`, `INT`, `INTEGER` → `L` (integer)
+- `F`, `FLOAT` → `R` (float)
+- `DECIMAL`, `D` → `N` (decimal - note: `D` is alias for decimal when not used for date context)
+- `DT`, `DHZ`, `DATETIME` → `DH` (datetime)
+- `TIME`, `HZ` → `H` (time)
+- `S`, `STRING` → `T` (text)
+- `JSON`, `J` → `JS` (json)
 
 ## Registering Custom Types
 
@@ -65,39 +84,52 @@ These codes are reserved for protocol use:
 
 ```python
 from genro_tytx import registry
+from genro_tytx.base import DataType
+import uuid
 
-@registry.register("GeoPoint", "GEO")
-class GeoPointHandler:
-    python_type = GeoPoint
+class UUIDType(DataType):
+    name = "uuid"
+    code = "U"
+    aliases = ["UUID"]
+    python_type = uuid.UUID
+    sql_type = "UUID"
 
-    @staticmethod
-    def parse(value: str) -> GeoPoint:
-        lat, lon = value.split(",")
-        return GeoPoint(float(lat), float(lon))
+    def parse(self, value: str) -> uuid.UUID:
+        return uuid.UUID(value)
 
-    @staticmethod
-    def serialize(obj: GeoPoint) -> str:
-        return f"{obj.lat},{obj.lon}"
+    def serialize(self, value: uuid.UUID) -> str:
+        return str(value)
+
+registry.register(UUIDType)
 
 # Usage
-# "40.7128,-74.0060::GEO" -> GeoPoint(40.7128, -74.0060)
+# "550e8400-e29b-41d4-a716-446655440000::U" → UUID("550e8400-...")
 ```
 
 ### JavaScript
 
-```typescript
-import { registry } from 'genro-tytx';
+```javascript
+const { registry } = require('genro-tytx');
 
-registry.register("GeoPoint", "GEO", {
-  parse: (value: string) => {
-    const [lat, lon] = value.split(",").map(Number);
-    return { lat, lon };
-  },
-  serialize: (obj: GeoPoint) => `${obj.lat},${obj.lon}`
-});
+const UUIDType = {
+    name: 'uuid',
+    code: 'U',
+    aliases: ['UUID'],
+    js_type: 'string',
+
+    parse(value) {
+        return value; // JS stores UUID as string
+    },
+
+    serialize(value) {
+        return String(value);
+    }
+};
+
+registry.register(UUIDType);
 
 // Usage
-// "40.7128,-74.0060::GEO" -> { lat: 40.7128, lon: -74.0060 }
+// "550e8400-e29b-41d4-a716-446655440000::U" → "550e8400-..."
 ```
 
 ## MessagePack Extension Type
@@ -105,7 +137,7 @@ registry.register("GeoPoint", "GEO", {
 TYTX reserves MessagePack ExtType code **42** for typed payloads.
 
 ```python
-# ExtType(42, b'{"price": "100::D"}::TYTX')
+# ExtType(42, b'{"price": "100::N"}::TYTX')
 ```
 
 The content is always a UTF-8 encoded TYTX string.
@@ -114,7 +146,7 @@ The content is always a UTF-8 encoded TYTX string.
 
 The following codes are reserved:
 
-- `J` - JSON (nested JSON object)
 - `X` - XML (nested XML fragment)
-- `R` - Reference (internal object reference)
-- `N` - Null with type hint
+- `REF` - Reference (internal object reference)
+- `NULL` - Null with type hint
+- `b64` - Base64 encoded bytes
