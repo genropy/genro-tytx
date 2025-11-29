@@ -2,27 +2,17 @@
   "name": "genro-tytx",
   "version": "0.1.0",
   "description": "TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "main": "src/index.js",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./src/index.js"
     }
   },
   "files": [
-    "dist",
     "src"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "test": "node --test test/"
   },
   "keywords": [
     "typed",
@@ -30,7 +20,6 @@
     "protocol",
     "json",
     "xml",
-    "messagepack",
     "genro",
     "tytx"
   ],
@@ -44,24 +33,6 @@
     "url": "https://github.com/genropy/genro-tytx/issues"
   },
   "homepage": "https://github.com/genropy/genro-tytx#readme",
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "eslint": "^8.0.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
-  },
-  "dependencies": {
-    "decimal.js": "^10.4.0"
-  },
-  "peerDependencies": {
-    "@msgpack/msgpack": "^3.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@msgpack/msgpack": {
-      "optional": true
-    }
-  },
   "engines": {
     "node": ">=18.0.0"
   }

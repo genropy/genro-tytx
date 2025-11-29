@@ -1,161 +1,87 @@
 /**
- * TYTX (Typed Text) - JavaScript Implementation
+ * TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats.
+ *
+ * Public API:
+ *     // Text conversion
+ *     from_text("100::D")       ’ 100 (Number)
+ *     as_text(100)              ’ "100"
+ *     as_typed_text(100)        ’ "100::I"
+ *
+ *     // JSON conversion
+ *     as_json(data)             ’ standard JSON (for external systems)
+ *     as_typed_json(data)       ’ JSON with ::type (TYTX format)
+ *     from_json(json_str)       ’ object with hydrated values
+ *
+ *     // XML conversion
+ *     as_xml(data)              ’ standard XML (for external systems)
+ *     as_typed_xml(data)        ’ XML with ::type (TYTX format)
+ *     from_xml(xml_str)         ’ object with attrs/value structure
+ *
+ * @module genro-tytx
+ * @version 0.1.0
+ * @license Apache-2.0
+ * @copyright Softwell S.r.l. 2025
  */
 
-class DataType {
-    constructor(name, code, aliases = []) {
-        this.name = name;
-        this.code = code;
-        this.aliases = aliases;
-    }
+// Import registry and ensure types are registered
+const { TypeRegistry, registry } = require('./registry');
+require('./types'); // Side effect: registers built-in types
 
-    parse(value) {
-        return value;
-    }
+// Import utilities
+const { as_json, as_typed_json, from_json } = require('./json_utils');
+const { as_xml, as_typed_xml, from_xml } = require('./xml_utils');
 
-    serialize(value) {
-        return String(value);
-    }
-}
+// Import type definitions
+const {
+    IntType,
+    FloatType,
+    BoolType,
+    StrType,
+    JsonType,
+    ListType,
+    DecimalType,
+    DateType,
+    DateTimeType
+} = require('./types');
 
-class TypeRegistry {
-    constructor() {
-        this.types = new Map();
-        this.codes = new Map();
-        this.aliases = new Map();
-    }
+// Public API functions (bound to registry)
+const from_text = registry.from_text.bind(registry);
+const as_text = registry.as_text.bind(registry);
+const as_typed_text = registry.as_typed_text.bind(registry);
 
-    register(typeInstance) {
-        this.types.set(typeInstance.name, typeInstance);
-        this.codes.set(typeInstance.code, typeInstance);
-        typeInstance.aliases.forEach(alias => {
-            this.aliases.set(alias, typeInstance);
-        });
-    }
-
-    get(nameOrCode) {
-        if (this.types.has(nameOrCode)) return this.types.get(nameOrCode);
-        if (this.codes.has(nameOrCode)) return this.codes.get(nameOrCode);
-        if (this.aliases.has(nameOrCode)) return this.aliases.get(nameOrCode);
-        return null;
-    }
-
-    hydrate(valueString) {
-        if (typeof valueString !== 'string' || !valueString.includes('::')) {
-            return valueString;
-        }
-
-        // Split on last occurrence of ::
-        const lastIndex = valueString.lastIndexOf('::');
-        const valPart = valueString.substring(0, lastIndex);
-        const typePart = valueString.substring(lastIndex + 2);
-
-        const typeHandler = this.get(typePart);
-        if (typeHandler) {
-            return typeHandler.parse(valPart);
-        }
-        return valueString;
-    }
-
-    serialize(value) {
-        if (typeof value === 'boolean') return this.get('B').serialize(value) + '::B';
-        if (typeof value === 'number') {
-            if (Number.isInteger(value)) return this.get('I').serialize(value) + '::I';
-            return this.get('F').serialize(value) + '::F';
-        }
-        if (typeof value === 'string') {
-            if (value.includes('::')) return value;
-            return value;
-        }
-        if (value instanceof Date) {
-            // Heuristic: if time is 00:00:00, assume date? No, safer to use datetime or explicit type.
-            // For now, let's default to datetime for Date objects
-            return this.get('dt').serialize(value) + '::dt';
-        }
-        if (Array.isArray(value)) {
-            // Could be List or JSON. If simple list of strings, maybe L.
-            // But JSON is safer for complex structures.
-            return this.get('J').serialize(value) + '::J';
-        }
-        if (typeof value === 'object' && value !== null) {
-            // Check for custom types if we had a way to map classes to types
-            // For now, JSON fallback
-            return this.get('J').serialize(value) + '::J';
-        }
-        return String(value);
-    }
-}
-
-// Built-in Types
-
-class IntType extends DataType {
-    constructor() { super('int', 'I', ['integer', 'long']); }
-    parse(value) { return parseInt(value, 10); }
-}
-
-class FloatType extends DataType {
-    constructor() { super('float', 'F', ['double', 'real']); }
-    parse(value) { return parseFloat(value); }
-}
-
-class BoolType extends DataType {
-    constructor() { super('bool', 'B', ['boolean']); }
-    parse(value) {
-        const v = value.toLowerCase();
-        return v === 'true' || v === '1' || v === 'yes' || v === 't';
-    }
-    serialize(value) { return value ? 'true' : 'false'; }
-}
-
-class StrType extends DataType {
-    constructor() { super('str', 'S', ['string', 'text']); }
-}
-
-class JsonType extends DataType {
-    constructor() { super('json', 'J', []); }
-    parse(value) { return JSON.parse(value); }
-    serialize(value) { return JSON.stringify(value); }
-}
-
-class ListType extends DataType {
-    constructor() { super('list', 'L', ['array']); }
-    parse(value) { return value ? value.split(',') : []; }
-    serialize(value) { return Array.isArray(value) ? value.join(',') : String(value); }
-}
-
-class DecimalType extends DataType {
-    constructor() { super('decimal', 'D', ['dec', 'money']); }
-    parse(value) { return parseFloat(value); } // JS has no native Decimal, use float for now
-}
-
-class DateType extends DataType {
-    constructor() { super('date', 'd', []); }
-    parse(value) { return new Date(value); }
-    serialize(value) { return value.toISOString().split('T')[0]; }
-}
-
-class DateTimeType extends DataType {
-    constructor() { super('datetime', 'dt', []); }
-    parse(value) { return new Date(value); }
-    serialize(value) { return value.toISOString(); }
-}
-
-// Initialize Registry
-const registry = new TypeRegistry();
-registry.register(new IntType());
-registry.register(new FloatType());
-registry.register(new BoolType());
-registry.register(new StrType());
-registry.register(new JsonType());
-registry.register(new ListType());
-registry.register(new DecimalType());
-registry.register(new DateType());
-registry.register(new DateTimeType());
+const VERSION = '0.1.0';
 
 module.exports = {
+    // Version
+    VERSION,
+
+    // Text API
+    from_text,
+    as_text,
+    as_typed_text,
+
+    // JSON API
+    as_json,
+    as_typed_json,
+    from_json,
+
+    // XML API
+    as_xml,
+    as_typed_xml,
+    from_xml,
+
+    // Registry
     registry,
-    DataType,
     TypeRegistry,
-    hydrate: (val) => registry.hydrate(val),
-    serialize: (val) => registry.serialize(val)
+
+    // Type definitions
+    IntType,
+    FloatType,
+    BoolType,
+    StrType,
+    JsonType,
+    ListType,
+    DecimalType,
+    DateType,
+    DateTimeType
 };
