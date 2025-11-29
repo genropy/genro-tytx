@@ -12,7 +12,7 @@
     "src"
   ],
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/test_core.js"
   },
   "keywords": [
     "typed",

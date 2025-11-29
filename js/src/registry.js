@@ -54,6 +54,7 @@ class TypeRegistry {
 
     /**
      * Get the type code for a JavaScript value.
+     * Uses Genropy-compatible codes.
      * @param {*} value
      * @returns {string|null}
      */
@@ -65,7 +66,7 @@ class TypeRegistry {
             return 'B';
         }
         if (typeof value === 'number') {
-            return Number.isInteger(value) ? 'I' : 'F';
+            return Number.isInteger(value) ? 'L' : 'R';  // Genropy: L for long/int, R for real/float
         }
         if (value instanceof Date) {
             // Check if it's date-only (time is 00:00:00)
@@ -73,10 +74,10 @@ class TypeRegistry {
                 || value.getMinutes() !== 0
                 || value.getSeconds() !== 0
                 || value.getMilliseconds() !== 0;
-            return has_time ? 'dt' : 'd';
+            return has_time ? 'DH' : 'D';  // Genropy: DH for datetime, D for date
         }
         if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-            return 'J';
+            return 'JS';  // Genropy: JS for json
         }
         if (typeof value === 'string') {
             return null; // Strings don't get typed

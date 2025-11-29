@@ -10,11 +10,12 @@ const { registry } = require('./registry');
 
 /**
  * Integer type - whole numbers.
+ * Genropy: L for long/int
  */
 const IntType = {
     name: 'int',
-    code: 'I',
-    aliases: ['integer', 'long', 'INT', 'INTEGER', 'LONG', 'LONGINT'],
+    code: 'L',
+    aliases: ['LONG', 'LONGINT', 'I', 'INT', 'INTEGER'],
     js_type: 'number',
 
     parse(value) {
@@ -35,11 +36,12 @@ const IntType = {
 
 /**
  * Float type - decimal numbers with limited precision.
+ * Genropy: R for real/float
  */
 const FloatType = {
     name: 'float',
-    code: 'F',
-    aliases: ['double', 'real', 'FLOAT', 'REAL', 'R'],
+    code: 'R',
+    aliases: ['REAL', 'FLOAT', 'F'],
     js_type: 'number',
 
     parse(value) {
@@ -82,11 +84,12 @@ const BoolType = {
 
 /**
  * String/text type.
+ * Genropy: T for text
  */
 const StrType = {
     name: 'str',
-    code: 'S',
-    aliases: ['string', 'text', 'T', 'TEXT', 'A', 'P'],
+    code: 'T',
+    aliases: ['TEXT', 'P', 'A', 'S', 'STRING'],
     js_type: 'string',
 
     parse(value) {
@@ -100,11 +103,12 @@ const StrType = {
 
 /**
  * JSON type - serialized object/array structures.
+ * Genropy: JS for json
  */
 const JsonType = {
     name: 'json',
-    code: 'J',
-    aliases: ['JS'],
+    code: 'JS',
+    aliases: ['JSON', 'J'],
     js_type: 'object',
 
     parse(value) {
@@ -117,34 +121,14 @@ const JsonType = {
 };
 
 /**
- * Comma-separated list type.
- */
-const ListType = {
-    name: 'list',
-    code: 'L',
-    aliases: ['array'],
-    js_type: 'Array',
-
-    parse(value) {
-        return value ? value.split(',') : [];
-    },
-
-    serialize(value) {
-        if (Array.isArray(value)) {
-            return value.map(String).join(',');
-        }
-        return String(value);
-    }
-};
-
-/**
  * Decimal type - exact decimal numbers (for money, etc.).
  * Note: JavaScript has no native Decimal, so we use Number.
+ * Genropy: N for numeric/decimal
  */
 const DecimalType = {
     name: 'decimal',
-    code: 'D',
-    aliases: ['dec', 'numeric', 'N', 'NUMERIC', 'DECIMAL'],
+    code: 'N',
+    aliases: ['NUMERIC', 'DECIMAL', 'D'],
     js_type: 'number',
 
     parse(value) {
@@ -168,10 +152,11 @@ const DecimalType = {
 
 /**
  * Date type - calendar date without time.
+ * Genropy: D for date
  */
 const DateType = {
     name: 'date',
-    code: 'd',
+    code: 'D',
     aliases: ['DATE'],
     js_type: 'Date',
 
@@ -203,11 +188,12 @@ const DateType = {
 
 /**
  * DateTime type - date with time.
+ * Genropy: DH for datetime
  */
 const DateTimeType = {
     name: 'datetime',
-    code: 'dt',
-    aliases: ['DATETIME', 'DT', 'DH', 'DHZ', 'timestamp'],
+    code: 'DH',
+    aliases: ['DATETIME', 'DT', 'DHZ', 'timestamp'],
     js_type: 'Date',
 
     parse(value) {
@@ -236,6 +222,33 @@ const DateTimeType = {
 };
 
 /**
+ * Time type - time without date.
+ * Genropy: H for time (hour)
+ */
+const TimeType = {
+    name: 'time',
+    code: 'H',
+    aliases: ['TIME', 'HZ'],
+    js_type: 'string',
+
+    parse(value) {
+        // Return time as string (JS has no native time type)
+        return value;
+    },
+
+    serialize(value) {
+        // If Date object, extract time part
+        if (value instanceof Date) {
+            const hours = String(value.getHours()).padStart(2, '0');
+            const minutes = String(value.getMinutes()).padStart(2, '0');
+            const seconds = String(value.getSeconds()).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        }
+        return String(value);
+    }
+};
+
+/**
  * Register all built-in types.
  */
 function register_builtins() {
@@ -244,10 +257,10 @@ function register_builtins() {
     registry.register(BoolType);
     registry.register(StrType);
     registry.register(JsonType);
-    registry.register(ListType);
     registry.register(DecimalType);
     registry.register(DateType);
     registry.register(DateTimeType);
+    registry.register(TimeType);
 }
 
 // Auto-register on module load
@@ -259,9 +272,9 @@ module.exports = {
     BoolType,
     StrType,
     JsonType,
-    ListType,
     DecimalType,
     DateType,
     DateTimeType,
+    TimeType,
     register_builtins
 };

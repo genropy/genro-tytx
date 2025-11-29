@@ -26,15 +26,15 @@ const {
 
 describe('from_text', () => {
     test('parses integer', () => {
-        assert.strictEqual(from_text('42::I'), 42);
+        assert.strictEqual(from_text('42::L'), 42);
     });
 
     test('parses float', () => {
-        assert.strictEqual(from_text('3.14::F'), 3.14);
+        assert.strictEqual(from_text('3.14::R'), 3.14);
     });
 
     test('parses decimal', () => {
-        assert.strictEqual(from_text('99.99::D'), 99.99);
+        assert.strictEqual(from_text('99.99::N'), 99.99);
     });
 
     test('parses boolean true', () => {
@@ -46,7 +46,7 @@ describe('from_text', () => {
     });
 
     test('parses date', () => {
-        const result = from_text('2024-01-15::d');
+        const result = from_text('2024-01-15::D');
         assert.ok(result instanceof Date);
         assert.strictEqual(result.getFullYear(), 2024);
         assert.strictEqual(result.getMonth(), 0); // January
@@ -54,20 +54,20 @@ describe('from_text', () => {
     });
 
     test('parses datetime', () => {
-        const result = from_text('2024-01-15T10:30:00.000Z::dt');
+        const result = from_text('2024-01-15T10:30:00.000Z::DH');
         assert.ok(result instanceof Date);
         assert.strictEqual(result.getUTCFullYear(), 2024);
         assert.strictEqual(result.getUTCMonth(), 0);
         assert.strictEqual(result.getUTCDate(), 15);
     });
 
-    test('parses list', () => {
-        const result = from_text('a,b,c::L');
-        assert.deepStrictEqual(result, ['a', 'b', 'c']);
+    test('parses time', () => {
+        const result = from_text('10:30:00::H');
+        assert.strictEqual(result, '10:30:00');
     });
 
     test('parses json', () => {
-        const result = from_text('{"x":1}::J');
+        const result = from_text('{"x":1}::JS');
         assert.deepStrictEqual(result, { x: 1 });
     });
 
@@ -80,11 +80,12 @@ describe('from_text', () => {
     });
 
     test('with explicit type_code', () => {
-        assert.strictEqual(from_text('42', 'I'), 42);
+        assert.strictEqual(from_text('42', 'L'), 42);
     });
 
     test('aliases work', () => {
         assert.strictEqual(from_text('42::INTEGER'), 42);
+        assert.strictEqual(from_text('42::I'), 42);  // I is now alias for L
         assert.strictEqual(from_text('42::int'), 42);
         assert.strictEqual(from_text('true::BOOLEAN'), true);
     });
@@ -116,11 +117,11 @@ describe('as_text', () => {
 
 describe('as_typed_text', () => {
     test('types integer', () => {
-        assert.strictEqual(as_typed_text(42), '42::I');
+        assert.strictEqual(as_typed_text(42), '42::L');
     });
 
     test('types float', () => {
-        assert.strictEqual(as_typed_text(3.14), '3.14::F');
+        assert.strictEqual(as_typed_text(3.14), '3.14::R');
     });
 
     test('types boolean', () => {
@@ -130,23 +131,23 @@ describe('as_typed_text', () => {
 
     test('types date', () => {
         const d = new Date(2024, 0, 15); // Jan 15, 2024, no time
-        assert.strictEqual(as_typed_text(d), '2024-01-15::d');
+        assert.strictEqual(as_typed_text(d), '2024-01-15::D');
     });
 
     test('types datetime', () => {
         const dt = new Date(2024, 0, 15, 10, 30, 0); // With time
         const result = as_typed_text(dt);
-        assert.ok(result.endsWith('::dt'));
+        assert.ok(result.endsWith('::DH'));
     });
 
     test('types object as JSON', () => {
         const result = as_typed_text({ x: 1 });
-        assert.strictEqual(result, '{"x":1}::J');
+        assert.strictEqual(result, '{"x":1}::JS');
     });
 
     test('types array as JSON', () => {
         const result = as_typed_text([1, 2, 3]);
-        assert.strictEqual(result, '[1,2,3]::J');
+        assert.strictEqual(result, '[1,2,3]::JS');
     });
 
     test('returns string as-is', () => {
@@ -161,18 +162,18 @@ describe('as_typed_text', () => {
 describe('as_typed_json', () => {
     test('types numbers', () => {
         const result = as_typed_json({ count: 42 });
-        assert.strictEqual(result, '{"count":"42::I"}');
+        assert.strictEqual(result, '{"count":"42::L"}');
     });
 
     test('types dates', () => {
         const d = new Date(2024, 0, 15);
         const result = as_typed_json({ date: d });
-        assert.ok(result.includes('::d'));
+        assert.ok(result.includes('::D'));
     });
 
     test('nested objects', () => {
         const result = as_typed_json({ outer: { inner: 42 } });
-        assert.ok(result.includes('42::I'));
+        assert.ok(result.includes('42::L'));
     });
 });
 
@@ -191,17 +192,17 @@ describe('as_json', () => {
 
 describe('from_json', () => {
     test('hydrates typed values', () => {
-        const result = from_json('{"price": "99.99::D"}');
+        const result = from_json('{"price": "99.99::N"}');
         assert.strictEqual(result.price, 99.99);
     });
 
     test('hydrates nested', () => {
-        const result = from_json('{"outer": {"inner": "42::I"}}');
+        const result = from_json('{"outer": {"inner": "42::L"}}');
         assert.strictEqual(result.outer.inner, 42);
     });
 
     test('hydrates arrays', () => {
-        const result = from_json('{"items": ["1::I", "2::I"]}');
+        const result = from_json('{"items": ["1::L", "2::L"]}');
         assert.deepStrictEqual(result.items, [1, 2]);
     });
 
@@ -252,13 +253,13 @@ describe('as_typed_xml', () => {
     test('simple element', () => {
         const data = { price: { attrs: {}, value: 99.99 } };
         const result = as_typed_xml(data);
-        assert.ok(result.includes('99.99::F'));
+        assert.ok(result.includes('99.99::R'));
     });
 
     test('with attributes', () => {
         const data = { item: { attrs: { id: 42 }, value: 'test' } };
         const result = as_typed_xml(data);
-        assert.ok(result.includes('id="42::I"'));
+        assert.ok(result.includes('id="42::L"'));
     });
 
     test('nested elements', () => {
@@ -287,12 +288,12 @@ describe('as_xml', () => {
 
 describe('from_xml', () => {
     test('parses simple element', () => {
-        const result = from_xml('<price>99.99::F</price>');
+        const result = from_xml('<price>99.99::R</price>');
         assert.strictEqual(result.price.value, 99.99);
     });
 
     test('parses attributes', () => {
-        const result = from_xml('<item id="42::I">test</item>');
+        const result = from_xml('<item id="42::L">test</item>');
         assert.strictEqual(result.item.attrs.id, 42);
         assert.strictEqual(result.item.value, 'test');
     });
@@ -332,27 +333,27 @@ describe('XML round-trip', () => {
 
 describe('registry', () => {
     test('is_typed detects typed strings', () => {
-        assert.strictEqual(registry.is_typed('42::I'), true);
+        assert.strictEqual(registry.is_typed('42::L'), true);
         assert.strictEqual(registry.is_typed('hello'), false);
         assert.strictEqual(registry.is_typed('foo::UNKNOWN'), false);
     });
 
     test('get returns type by code', () => {
-        const intType = registry.get('I');
+        const intType = registry.get('L');
         assert.ok(intType);
-        assert.strictEqual(intType.code, 'I');
+        assert.strictEqual(intType.code, 'L');
     });
 
     test('get returns type by name', () => {
         const intType = registry.get('int');
         assert.ok(intType);
-        assert.strictEqual(intType.code, 'I');
+        assert.strictEqual(intType.code, 'L');
     });
 
     test('get returns type by alias', () => {
         const intType = registry.get('INTEGER');
         assert.ok(intType);
-        assert.strictEqual(intType.code, 'I');
+        assert.strictEqual(intType.code, 'L');
     });
 
     test('get returns null for unknown', () => {
@@ -375,18 +376,13 @@ describe('edge cases', () => {
 
     test('multiple :: in value', () => {
         // The value itself contains :: - uses last :: as separator
-        // "http://example.com::S" → string "http://example.com"
-        assert.strictEqual(from_text('http://example.com::S'), 'http://example.com');
+        // "http://example.com::T" → string "http://example.com"
+        assert.strictEqual(from_text('http://example.com::T'), 'http://example.com');
     });
 
     test('null and undefined handling', () => {
         assert.strictEqual(as_typed_text(null), 'null');
         assert.strictEqual(as_typed_text(undefined), 'undefined');
-    });
-
-    test('empty list', () => {
-        const result = from_text('::L');
-        assert.deepStrictEqual(result, []);
     });
 
     test('boolean aliases', () => {
