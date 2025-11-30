@@ -93,6 +93,51 @@ from_xml('<root>100.50::N</root>')
 # {"root": {"attrs": {}, "value": Decimal("100.50")}}
 ```
 
+### Pydantic Integration
+
+```python
+from genro_tytx.pydantic import TytxModel
+from decimal import Decimal
+from datetime import date
+
+class Order(TytxModel):
+    price: Decimal
+    order_date: date
+    quantity: int
+
+order = Order(price=Decimal("99.99"), order_date=date(2025, 1, 15), quantity=5)
+
+# Serialize to TYTX JSON (preserves Decimal precision)
+json_str = order.model_dump_json()
+# '{"price": "99.99::N", "order_date": "2025-01-15::D", "quantity": "5::L"}'
+
+# Deserialize from TYTX JSON
+restored = Order.model_validate_tytx(json_str)
+assert restored.price == Decimal("99.99")  # Exact precision!
+
+# MessagePack support (requires msgpack)
+packed = order.model_dump_msgpack()
+restored = Order.model_validate_tytx_msgpack(packed)
+```
+
+### MessagePack
+
+```python
+from genro_tytx.msgpack_utils import packb, unpackb
+from decimal import Decimal
+from datetime import date
+
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+
+# Pack to MessagePack bytes with TYTX types
+packed = packb(data)
+
+# Unpack with types restored
+restored = unpackb(packed)
+assert restored["price"] == Decimal("99.99")
+assert restored["date"] == date(2025, 1, 15)
+```
+
 ## Type Codes (Genropy-compatible)
 
 | Code | Aliases | Python Type | Example |
@@ -109,9 +154,10 @@ from_xml('<root>100.50::N</root>')
 
 ## Features
 
-- **Zero dependencies**: Python stdlib only
+- **Zero dependencies**: Python stdlib only (optional extras for performance)
 - **Bidirectional**: Parse and serialize typed values
-- **Multiple formats**: JSON, XML support built-in
+- **Multiple formats**: JSON, XML, MessagePack support
+- **Pydantic integration**: `TytxModel` base class for type-preserving serialization
 - **Locale formatting**: Format dates/numbers for display
 - **Extensible**: Register custom types via `registry.register()`
 - **JavaScript**: Matching JS implementation included (`js/`)
@@ -121,6 +167,15 @@ from_xml('<root>100.50::N</root>')
 
 ```bash
 pip install genro-tytx
+
+# Optional: Pydantic integration
+pip install genro-tytx[pydantic]
+
+# Optional: MessagePack support
+pip install genro-tytx[msgpack]
+
+# Optional: All extras
+pip install genro-tytx[pydantic,msgpack]
 ```
 
 ### JavaScript
@@ -172,6 +227,8 @@ from_text("550e8400-e29b-41d4-a716-446655440000::U")
 - [Type Guide](docs/guide/types.md)
 - [JSON Utilities](docs/guide/json.md)
 - [XML Utilities](docs/guide/xml.md)
+- [MessagePack](docs/guide/msgpack.md)
+- [Pydantic Integration](docs/guide/pydantic.md)
 - [Custom Types](docs/guide/custom-types.md)
 - [API Reference](docs/api/reference.md)
 
