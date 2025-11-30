@@ -13,17 +13,18 @@ def _set_locale(locale: str | None) -> str | None:
     """Set locale temporarily and return the previous locale."""
     if locale is None:
         return None
-    prev = locale_module.getlocale(locale_module.LC_ALL)
+    # Use LC_TIME instead of LC_ALL to avoid issues with composite locales
+    prev = locale_module.getlocale(locale_module.LC_TIME)
     try:
         # Convert "it-IT" format to "it_IT.UTF-8" format
         normalized = locale.replace("-", "_")
         if "." not in normalized:
             normalized = f"{normalized}.UTF-8"
-        locale_module.setlocale(locale_module.LC_ALL, normalized)
+        locale_module.setlocale(locale_module.LC_TIME, normalized)
     except locale_module.Error:
         # Fallback: try without UTF-8
         with contextlib.suppress(locale_module.Error):
-            locale_module.setlocale(locale_module.LC_ALL, locale.replace("-", "_"))
+            locale_module.setlocale(locale_module.LC_TIME, locale.replace("-", "_"))
     return prev[0] if prev[0] else None
 
 
@@ -31,9 +32,9 @@ def _restore_locale(prev: str | None) -> None:
     """Restore previous locale."""
     if prev is not None:
         try:
-            locale_module.setlocale(locale_module.LC_ALL, prev)
+            locale_module.setlocale(locale_module.LC_TIME, prev)
         except locale_module.Error:
-            locale_module.setlocale(locale_module.LC_ALL, "")
+            locale_module.setlocale(locale_module.LC_TIME, "")
 
 
 class IntType(DataType):
