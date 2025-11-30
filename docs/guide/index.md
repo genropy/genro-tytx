@@ -9,6 +9,7 @@ types
 formatting
 json
 xml
+javascript
 custom-types
 registry
 ```

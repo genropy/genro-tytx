@@ -1,6 +1,6 @@
 # genro-tytx (JavaScript)
 
-JavaScript/TypeScript implementation of TYTX (Typed Text) protocol.
+JavaScript implementation of TYTX (Typed Text) protocol.
 
 ## Installation
 
@@ -8,56 +8,106 @@ JavaScript/TypeScript implementation of TYTX (Typed Text) protocol.
 npm install genro-tytx
 ```
 
-### Optional Dependencies
+### Optional: Decimal Support
+
+For precise decimal arithmetic (recommended for financial applications):
 
 ```bash
-# MessagePack support
-npm install @msgpack/msgpack
+npm install big.js       # Lightweight (8KB) - recommended
+# or
+npm install decimal.js   # Full-featured (32KB)
 ```
 
-## Usage
+TYTX automatically detects and uses whichever library is installed.
 
-```typescript
-import { hydrate, serialize } from 'genro-tytx';
-import Decimal from 'decimal.js';
+## Quick Start
 
-// Hydrate TYTX values
-const data = hydrate({ price: "100.50::D", date: "2025-01-15::d" });
-// { price: Decimal("100.50"), date: Date("2025-01-15") }
+```javascript
+const { from_text, as_typed_text, from_json, as_typed_json } = require('genro-tytx');
 
-// Serialize JavaScript objects
-const tytx = serialize({
-  price: new Decimal("100.50"),
-  date: new Date("2025-01-15")
-});
-// { price: "100.50::D", date: "2025-01-15::d" }
+// Parse typed strings
+from_text("123::L");           // → 123
+from_text("99.99::N");         // → 99.99 (or Big if big.js installed)
+from_text("2025-01-15::D");    // → Date object
+from_text("true::B");          // → true
+
+// Serialize with types
+as_typed_text(123);            // → "123::L"
+as_typed_text(new Date());     // → "2025-01-15::D"
+as_typed_text(true);           // → "true::B"
+
+// JSON
+as_typed_json({ price: 99.99, date: new Date(2025, 0, 15) });
+// → '{"price":"99.99::R","date":"2025-01-15::D"}'
+
+from_json('{"price":"99.99::N","date":"2025-01-15::D"}');
+// → { price: 99.99, date: Date }
 ```
 
-## Browser Usage
+## Type Codes (Genropy-Compatible)
 
-```html
-<script src="https://unpkg.com/genro-tytx"></script>
-<script>
-  const { hydrate, serialize } = GenroTYTX;
-  // ...
-</script>
+| Code | Aliases | JS Type | Example |
+|------|---------|---------|---------|
+| `L` | `I`, `INT`, `INTEGER`, `LONG` | `number` | `"123::L"` |
+| `R` | `F`, `REAL`, `FLOAT` | `number` | `"1.5::R"` |
+| `N` | `NUMERIC`, `DECIMAL` | `number`/`Big` | `"100.50::N"` |
+| `B` | `BOOL`, `BOOLEAN` | `boolean` | `"true::B"` |
+| `T` | `S`, `TEXT`, `STRING` | `string` | `"hello::T"` |
+| `D` | `DATE` | `Date` | `"2025-01-15::D"` |
+| `DH` | `DT`, `DHZ`, `DATETIME` | `Date` | `"2025-01-15T10:00::DH"` |
+| `H` | `TIME`, `HZ` | `string` | `"10:30:00::H"` |
+| `JS` | `JSON` | `object` | `'{"a":1}::JS'` |
+
+## API Reference
+
+### Text Functions
+
+- `from_text(value, type_code?)` - Parse typed string to JS value
+- `as_text(value, format?, locale?)` - Convert to string
+- `as_typed_text(value)` - Convert to typed string with `::code` suffix
+
+### JSON Functions
+
+- `as_typed_json(data)` - Serialize to JSON with type suffixes
+- `as_json(data)` - Serialize to standard JSON
+- `from_json(json_str)` - Parse JSON with type hydration
+
+### XML Functions
+
+- `as_typed_xml(data)` - Serialize to XML with type suffixes
+- `as_xml(data)` - Serialize to standard XML
+- `from_xml(xml_str)` - Parse XML with type hydration
+
+### Registry
+
+- `registry.register(type)` - Register custom type
+- `registry.get(code)` - Get type by code
+- `registry.is_typed(value)` - Check if string has type suffix
+
+## Decimal Library Detection
+
+```javascript
+const { decimalLibName, isDecimalInstance } = require('genro-tytx');
+
+console.log(decimalLibName);  // "big.js", "decimal.js", or "number"
+
+const value = from_text("99.99::N");
+console.log(isDecimalInstance(value));  // true if library installed
 ```
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Test
+# Run tests
 npm test
 
-# Type check
-npm run typecheck
+# Generate docs
+npm run docs
 ```
+
+## Documentation
+
+Full documentation: <https://genro-tytx.readthedocs.io/>
 
 ## License
 
