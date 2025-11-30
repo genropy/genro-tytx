@@ -20,7 +20,7 @@ This document defines all registered type codes for the TYTX protocol.
 |------|---------|--------|------------|--------|---------|
 | `L` | `I`, `INT`, `INTEGER`, `LONG`, `LONGINT` | `int` | `number` | Decimal string | `"123::L"` |
 | `R` | `F`, `REAL`, `FLOAT` | `float` | `number` | Scientific notation OK | `"3.14::R"` |
-| `N` | `NUMERIC`, `DECIMAL`, `D` | `Decimal` | `number` (string) | Decimal string | `"100.50::N"` |
+| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `number` (string) | Decimal string | `"100.50::N"` |
 
 ### Date/Time Types
 
@@ -72,7 +72,7 @@ Aliases are provided for compatibility with common conventions:
 
 - `I`, `INT`, `INTEGER` → `L` (integer)
 - `F`, `FLOAT` → `R` (float)
-- `DECIMAL`, `D` → `N` (decimal - note: `D` is alias for decimal when not used for date context)
+- `DECIMAL` → `N` (decimal)
 - `DT`, `DHZ`, `DATETIME` → `DH` (datetime)
 - `TIME`, `HZ` → `H` (time)
 - `S`, `STRING` → `T` (text)
