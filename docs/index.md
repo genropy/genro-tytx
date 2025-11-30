@@ -1,5 +1,25 @@
 # TYTX - Typed Text Protocol
 
+**TYTX** (Typed Text) is a lightweight protocol for preserving type information when exchanging data over text-based formats like JSON, XML, and MessagePack.
+
+```text
+"99.99::N"  →  Decimal("99.99")
+"2025-01-15::D"  →  date(2025, 1, 15)
+"true::B"  →  True
+```
+
+**Key benefits:**
+
+- **Type safety** - No more guessing if `"42"` is a string or integer
+- **Precision** - Decimal values stay exact (critical for financial data)
+- **Cross-platform** - Python, JavaScript, and TypeScript implementations
+- **Zero dependencies** - Pure Python stdlib, optional performance extras
+- **Extensible** - Register custom types, struct schemas, and typed arrays
+
+**Version**: 0.3.0 | **License**: Apache 2.0 | **Python**: 3.10+
+
+---
+
 ## Why TYTX?
 
 ### The Problem: JSON's Type Blindness
