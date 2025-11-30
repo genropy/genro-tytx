@@ -118,3 +118,10 @@ export function fromJson<T = TytxValue>(jsonStr: string): T {
 export function hydrateObject<T = TytxValue>(obj: unknown): T {
   return hydrate(obj) as T;
 }
+
+/**
+ * Hydrate typed values in an already-parsed array.
+ */
+export function hydrateArray<T = TytxValue[]>(arr: unknown[]): T {
+  return hydrate(arr) as T;
+}

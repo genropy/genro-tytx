@@ -22,14 +22,13 @@ registry.is_typed("123::L")          # → True
 
 <!-- test: test_core.py::TestEdgeCases::test_registry_get_none -->
 
-Get type class by name, code, or alias:
+Get type class by name or code:
 
 ```python
 from genro_tytx import registry
 
 registry.get("L")         # → IntType (L = Long)
 registry.get("int")       # → IntType
-registry.get("INTEGER")   # → IntType
 registry.get("N")         # → DecimalType (N = Numeric)
 registry.get("UNKNOWN")   # → None
 ```
@@ -210,16 +209,17 @@ registry.get_for_value({"a": 1})       # → JsonType (code JS)
 
 ## Built-in Types in Global Registry
 
-The global registry includes (Genropy-compatible codes):
+The global registry includes:
 
-| Type | Code | Aliases |
-|------|------|---------|
-| IntType | `L` | `I`, `INT`, `INTEGER`, `LONG`, `LONGINT` |
-| FloatType | `R` | `F`, `FLOAT`, `REAL` |
-| DecimalType | `N` | `NUMERIC`, `DECIMAL` |
-| BoolType | `B` | `BOOL`, `BOOLEAN` |
-| StrType | `T` | `S`, `STRING`, `TEXT`, `P`, `A` |
-| DateType | `D` | `DATE` |
-| DateTimeType | `DH` | `DT`, `DHZ`, `DATETIME`, `timestamp` |
-| TimeType | `H` | `TIME`, `HZ` |
-| JsonType | `JS` | `JSON` |
+| Type | Code | Name |
+|------|------|------|
+| IntType | `L` | int |
+| FloatType | `R` | float |
+| DecimalType | `N` | decimal |
+| BoolType | `B` | bool |
+| StrType | `T` | str |
+| DateType | `D` | date |
+| DateTimeType | `DHZ` | datetime |
+| NaiveDateTimeType | `DH` | naive_datetime (deprecated) |
+| TimeType | `H` | time |
+| JsonType | `JS` | json |

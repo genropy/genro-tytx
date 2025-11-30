@@ -30,19 +30,30 @@ as_typed_json({"price": Decimal("100")})  # → '{"price": "100::N"}'
 from_json('{"price": "100::N"}')          # → {"price": Decimal("100")}
 ```
 
-## Type Codes (Genropy-compatible)
+## Type Codes
 
-| Code | Aliases | Python Type | Example |
-|------|---------|-------------|---------|
-| `L` | `I`, `INT`, `INTEGER`, `LONG` | `int` | `"123::L"` |
-| `R` | `F`, `REAL`, `FLOAT` | `float` | `"1.5::R"` |
-| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `"100.50::N"` |
-| `B` | `BOOL`, `BOOLEAN` | `bool` | `"true::B"` |
-| `T` | `S`, `TEXT`, `P`, `A` | `str` | `"hello::T"` |
-| `D` | `DATE` | `date` | `"2025-01-15::D"` |
-| `DH` | `DT`, `DHZ`, `DATETIME` | `datetime` | `"2025-01-15T10:00::DH"` |
-| `H` | `TIME`, `HZ` | `time` | `"10:30:00::H"` |
-| `JS` | `JSON` | `dict`/`list` | `'{"a":1}::JS'` |
+| Code | Name | Python Type | Example |
+|------|------|-------------|---------|
+| `L` | integer | `int` | `"123::L"` |
+| `R` | float | `float` | `"1.5::R"` |
+| `N` | decimal | `Decimal` | `"100.50::N"` |
+| `B` | bool | `bool` | `"true::B"` |
+| `T` | str | `str` | `"hello::T"` |
+| `D` | date | `date` | `"2025-01-15::D"` |
+| `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
+| `H` | time | `time` | `"10:30:00::H"` |
+| `JS` | json | `dict`/`list` | `'{"a":1}::JS'` |
+
+## Typed Arrays
+
+```python
+# Parse compact arrays
+from_text("[1,2,3]::L")       # → [1, 2, 3]
+from_text("[[1,2],[3,4]]::L") # → [[1, 2], [3, 4]]
+
+# Serialize with compact_array
+as_typed_text([1, 2, 3], compact_array=True)  # → '["1","2","3"]::L'
+```
 
 ## Key Features
 

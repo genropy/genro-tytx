@@ -23,11 +23,10 @@ L'implementazione JavaScript viene **generata** dalle definizioni Python.
 
 ### Motivazione
 
-1. **Genropy è Python-first**: il framework principale è Python, quindi ha senso che Python sia il master
+1. **Python-first**: il framework principale è Python, quindi ha senso che Python sia il master
 2. **Espressività**: le classi Python possono contenere logica complessa (validazione, format, etc.)
 3. **Ereditarietà nativa**: Python supporta ereditarietà di classi, perfetto per tipi derivati (es. `MoneyType` eredita da `DecimalType`)
 4. **Single point of truth**: modifiche in un solo posto, JS sempre sincronizzato
-5. **Compatibilità Genropy**: facilita l'allineamento con `gnrclasses.py`
 
 ---
 
@@ -47,7 +46,6 @@ class DecimalType(DataType):
     """Tipo base per numeri decimali."""
     name = "decimal"
     code = "N"
-    aliases = ["NUMERIC", "DECIMAL"]
     python_type = Decimal
     sql_type = "DECIMAL"
     precision = None  # Nessun limite
@@ -58,7 +56,6 @@ class MoneyType(DecimalType):
     """Tipo derivato per valori monetari."""
     name = "money"
     code = "MNY"
-    aliases = []
     precision = 2           # Fissato a 2 decimali
     format = "€ #,##0.00"   # Format di default
     sql_type = "DECIMAL(15,2)"
@@ -91,7 +88,6 @@ I parametri dei tipi (precision, format, etc.) sono **definiti nella classe**, n
 1. **Semplicità**: la sintassi `value::type` resta minimale e predicibile
 2. **Leggibilità**: `::MNY` è più chiaro di `::N:2:€`
 3. **Validazione**: il tipo `MNY` garantisce precision=2, non serve validare parametri
-4. **Compatibilità Genropy**: allineato al comportamento esistente di `gnrclasses.py`
 
 ---
 
@@ -105,7 +101,6 @@ Ogni tipo TYTX definisce questi attributi:
 |-----------|------|-------------|--------------|
 | `name` | str | Nome leggibile | ✅ |
 | `code` | str | Codice breve (es. "N", "MNY") | ✅ |
-| `aliases` | list[str] | Alias alternativi | ✅ (può essere vuoto) |
 | `python_type` | type | Tipo Python corrispondente | ✅ |
 | `sql_type` | str | Tipo SQL per DDL | ✅ |
 | `align` | str | Allineamento display ("L", "R", "C") | ❌ |
@@ -115,39 +110,39 @@ Ogni tipo TYTX definisce questi attributi:
 
 ### Motivazione
 
-1. **Compatibilità Genropy**: `align`, `empty` mappano direttamente da `gnrclasses.py`
+1. **Display**: `align`, `empty` supportano rendering in UI e tabelle
 2. **SQL generation**: `sql_type` permette di generare schema DDL
 3. **Multi-target**: stessi metadati servono Python, JS, SQL
 4. **Estensibilità**: attributi opzionali per casi specifici
 
 ---
 
-## 5. Compatibilità con Genropy
+## 5. Type Codes Mnemonici
 
 ### Decisione
 
-I tipi core di TYTX **devono** essere compatibili con quelli definiti in `gnrclasses.py`.
+I codici tipo sono **mnemonici** per facilitare la memorizzazione.
 
-### Mapping Genropy → TYTX
+### Type Codes
 
-| Genropy Key | TYTX Code | Python Type | Note |
-|-------------|-----------|-------------|------|
-| `T` | `T` | str | Testo |
-| `L` | `I` | int | Intero (TYTX usa `I` per chiarezza) |
-| `R` | `F` | float | Float |
-| `B` | `B` | bool | Booleano |
-| `D` | `d` | date | Data |
-| `DH` | `dt` | datetime | DateTime |
-| `H` | `t` | time | Time |
-| `N` | `N` | Decimal | Decimal |
-| `JS` | `J` | list/dict | JSON |
-| `NN` | `NN` | None | Null |
+| Code | Python Type | Note |
+|------|-------------|------|
+| `T` | str | **T**ext |
+| `L` | int | **L**ong integer |
+| `R` | float | **R**eal number |
+| `B` | bool | **B**oolean |
+| `D` | date | **D**ate |
+| `DHZ` | datetime | **D**ate **H**our **Z**ulu (UTC) |
+| `DH` | datetime | **D**ate **H**our (naive, deprecated) |
+| `H` | time | **H**our |
+| `N` | Decimal | **N**umeric |
+| `JS` | list/dict | **J**ava**S**cript object |
 
 ### Motivazione
 
-1. **Migrazione graduale**: progetti Genropy esistenti possono adottare TYTX
-2. **Interoperabilità**: dati scambiati tra sistemi vecchi e nuovi
-3. **Conoscenza esistente**: sviluppatori Genropy già conoscono i codici
+1. **Memorizzazione facile**: ogni codice è un acronimo del tipo
+2. **Compattezza**: codici brevi per payload compatti
+3. **Leggibilità**: facile capire il tipo guardando il codice
 
 ---
 
@@ -223,7 +218,6 @@ python -m genro_tytx.codegen json > spec/types.json
 export const DecimalType = {
   name: "decimal",
   code: "N",
-  aliases: ["NUMERIC", "DECIMAL"],
   sqlType: "DECIMAL",
 
   parse(value) {
@@ -239,7 +233,6 @@ export const MoneyType = {
   ...DecimalType,
   name: "money",
   code: "MNY",
-  aliases: [],
   precision: 2,
   format: "€ #,##0.00",
   sqlType: "DECIMAL(15,2)"
@@ -330,7 +323,7 @@ class MoneyType(DecimalType):
 
 ### Principio
 
-TYTX espone un'**API moderna e pulita**. Il wrapper gnrclasses aggiunge **solo** i metodi legacy necessari per retrocompatibilità con Genropy esistente.
+TYTX espone un'**API moderna e pulita**. Wrapper opzionali possono aggiungere metodi legacy per retrocompatibilità con sistemi esistenti.
 
 ### API Pubblica TYTX (Moderna)
 
@@ -372,17 +365,17 @@ class MyType(DataType):
 | `registry.get_for_value(value)` | Ottiene tipo per valore Python |
 | `registry.is_typed(text)` | Verifica se stringa è `value::type` |
 
-### Wrapper gnrclasses (Solo Legacy)
+### Wrapper Legacy (Opzionale)
 
-Il wrapper **NON è parte di TYTX core**. Vive in un modulo separato `genro_tytx.compat` e aggiunge solo metodi legacy:
+Eventuali wrapper **NON sono parte di TYTX core**. Possono vivere in moduli separati `genro_tytx.compat` e aggiungere solo metodi legacy:
 
 ```python
-# genro_tytx/compat/gnrclasses.py
+# genro_tytx/compat/legacy.py
 
 from genro_tytx import registry
 
-class GnrClassCatalog:
-    """Wrapper legacy per compatibilità Genropy."""
+class LegacyCatalog:
+    """Wrapper legacy per compatibilità con sistemi esistenti."""
 
     # Metodi legacy che delegano a TYTX
     def fromTypedText(self, txt):
@@ -397,7 +390,7 @@ class GnrClassCatalog:
         """Legacy: aggiunge virgolette."""
         return f'"{s}"' if '"' not in s else f"'{s}'"
 
-    def addClass(self, cls, key, aliases=None, altcls=None,
+    def addClass(self, cls, key, altcls=None,
                  align='L', empty=None, typegetter=None):
         """Legacy: registra tipo con sintassi vecchia."""
         # Converte in formato TYTX e delega
@@ -442,29 +435,18 @@ class GnrClassCatalog:
 1. **TYTX è pulito**: API minimale, nomi chiari, senza legacy
 2. **Wrapper è opzionale**: progetti nuovi non lo importano
 3. **Separazione netta**: `genro_tytx` vs `genro_tytx.compat`
-4. **Migrazione graduale**: Genropy usa wrapper, poi migra a TYTX diretto
-
-### Uso in Genropy
-
-```python
-# gnr/core/gnrclasses.py (nuovo)
-
-# Importa il wrapper che espone la stessa API
-from genro_tytx.compat.gnrclasses import GnrClassCatalog
-
-# Tutto il resto del codice Genropy continua a funzionare senza modifiche
-```
+4. **Migrazione graduale**: sistemi esistenti usano wrapper, poi migrano a TYTX diretto
 
 ### Test di Compatibilità
 
 ```python
 # tests/test_compat.py
 
-from genro_tytx.compat import GnrClassCatalog
+from genro_tytx.compat import LegacyCatalog
 
-def test_gnrclasscatalog_compat():
-    """Verifica che wrapper esponga stessa API di gnrclasses originale."""
-    cc = GnrClassCatalog()
+def test_legacy_catalog_compat():
+    """Verifica che wrapper esponga API legacy."""
+    cc = LegacyCatalog()
 
     # Metodi legacy funzionano
     res = cc.isTypedText("foobar::HTML")
@@ -485,12 +467,11 @@ def test_gnrclasscatalog_compat():
 ## 11. Prossimi Passi
 
 1. **Aggiornare `base.py`**: aggiungere attributi standard (`sql_type`, `align`, `empty`, etc.)
-2. **Aggiornare `builtin.py`**: allineare ai tipi Genropy (codici L, R, DH, etc.)
-3. **Creare `compat/gnrclasses.py`**: wrapper compatibile
-4. **Copiare test**: portare `gnrclasses_test.py` come test di compatibilità
-5. **Creare `codegen.py`**: generatore JS e JSON
-6. **Creare struttura `plugins/`**: primo plugin `money.py`
-7. **Test cross-language**: Python serializza → JS deserializza
+2. **Aggiornare `builtin.py`**: aggiornare tipi (codici L, R, DHZ, etc.)
+3. **Creare `compat/legacy.py`**: wrapper compatibile (opzionale)
+4. **Creare `codegen.py`**: generatore JS e JSON
+5. **Creare struttura `plugins/`**: primo plugin `money.py`
+6. **Test cross-language**: Python serializza → JS deserializza
 
 ---
 

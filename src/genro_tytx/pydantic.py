@@ -58,14 +58,14 @@ def _check_pydantic() -> None:
     if _pydantic_available is None:
         try:
             import pydantic  # noqa: F401
+
             _pydantic_available = True
         except ImportError:
             _pydantic_available = False
 
     if not _pydantic_available:
         raise ImportError(
-            "pydantic is required for TytxModel. "
-            "Install it with: pip install genro-tytx[pydantic]"
+            "pydantic is required for TytxModel. Install it with: pip install genro-tytx[pydantic]"
         )
 
 

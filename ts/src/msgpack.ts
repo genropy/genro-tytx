@@ -16,18 +16,34 @@ import { asTypedJson, fromJson } from './json.js';
 export const TYTX_EXT_TYPE = 42;
 
 /**
+ * Optional loader override (used in tests).
+ */
+let msgpackLoader: (() => typeof import('@msgpack/msgpack')) | null = null;
+
+/**
  * Check if @msgpack/msgpack is available.
  */
 function getMsgpack(): typeof import('@msgpack/msgpack') {
-  try {
+  const loader = msgpackLoader ?? (() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('@msgpack/msgpack');
+  });
+
+  try {
+    return loader();
   } catch {
     throw new Error(
       '@msgpack/msgpack is required for MessagePack support. ' +
       'Install it with: npm install @msgpack/msgpack'
     );
   }
+}
+
+/**
+ * Override MessagePack loader (testing only).
+ */
+export function __setMsgpackLoader(loader: (() => typeof import('@msgpack/msgpack')) | null): void {
+  msgpackLoader = loader;
 }
 
 /**

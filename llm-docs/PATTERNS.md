@@ -122,39 +122,42 @@ process_value("123::BOGUS")  # → "123::BOGUS" (unknown type)
 
 ---
 
-## Pattern: Genropy Compatibility
+## Pattern: Mnemonic Type Codes
 
-**Problem**: Use Genropy-compatible type codes
-**Solution**: Primary codes match Genropy, aliases for flexibility
-**Use Case**: Genropy interoperability, migration
+**Problem**: Use intuitive, memorable type codes
+**Solution**: Mnemonic codes based on type names
+**Use Case**: Easy to remember and read
 
 ```python
 from genro_tytx import from_text
 
-# Primary integer code (Genropy standard)
-from_text("123::L")      # L (long) → 123
-from_text("123::I")      # I alias → 123
-from_text("123::INT")    # INT alias → 123
+# Integer (L = Long)
+from_text("123::L")      # L → 123
 
-# Primary float code (Genropy standard)
-from_text("1.5::R")      # R (real) → 1.5
-from_text("1.5::F")      # F alias → 1.5
+# Float (R = Real)
+from_text("1.5::R")      # R → 1.5
 
-# Primary decimal code (Genropy standard)
-from_text("100::N")      # N (numeric) → Decimal("100")
+# Decimal (N = Numeric)
+from_text("100::N")      # N → Decimal("100")
 
-# Primary date code (Genropy standard)
+# Date (D = Date)
 from_text("2025-01-15::D")  # D → date
 
-# Primary datetime code (Genropy standard)
-from_text("2025-01-15T10:00::DH")   # DH → datetime
-from_text("2025-01-15T10:00::DHZ")  # DHZ alias → datetime
+# DateTime (DHZ = Date Hour Zulu)
+from_text("2025-01-15T10:00:00Z::DHZ")  # DHZ → datetime (canonical)
+from_text("2025-01-15T10:00::DH")       # DH → datetime (deprecated, naive)
 
-# Primary string code (Genropy standard)
-from_text("hello::T")    # T (text) → "hello"
+# String (T = Text)
+from_text("hello::T")    # T → "hello"
+
+# Time (H = Hour)
+from_text("10:30:00::H")  # H → time
+
+# JSON (JS = JavaScript object)
+from_text('{"a":1}::JS')  # JS → dict
 ```
 
-**Test:** `tests/test_core.py::TestTypeAttributes::test_genropy_compatible_aliases`
+**Test:** `tests/test_core.py::TestTypeAttributes::test_type_codes`
 
 ---
 

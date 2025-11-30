@@ -28,7 +28,6 @@ import pytest
 
 import genro_tytx as tytx
 
-
 FIXTURES_PATH = Path(__file__).parent / "fixtures" / "cross_language.json"
 
 
@@ -83,7 +82,9 @@ class TestTypedText:
             value = _create_value(case["input"])
             expected = case["expected"]
             result = tytx.as_typed_text(value)
-            assert result == expected, f"as_typed_text({value!r}) = {result!r}, expected {expected!r}"
+            assert result == expected, (
+                f"as_typed_text({value!r}) = {result!r}, expected {expected!r}"
+            )
 
 
 class TestFromText:
@@ -167,7 +168,7 @@ class TestJsonRoundtrip:
         elif isinstance(expected, list):
             assert isinstance(result, list), f"{name}: expected list, got {type(result)}"
             assert len(result) == len(expected), f"{name}: length mismatch"
-            for i, (r, e) in enumerate(zip(result, expected)):
+            for i, (r, e) in enumerate(zip(result, expected, strict=True)):
                 self._assert_equal_typed(r, e, f"{name}[{i}]")
         elif isinstance(expected, date) and not isinstance(expected, datetime):
             assert isinstance(result, date), f"{name}: expected date, got {type(result)}"

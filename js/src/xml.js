@@ -1,141 +1,232 @@
+/**
+ * XML utilities for TYTX Protocol.
+ *
+ * Provides functions for XML serialization with typed values.
+ *
+ * Structure convention (aligned with Python implementation):
+ *     Each XML element maps to: {"tag": {"attrs": {...}, "value": ...}}
+ *     - attrs: dict of attributes (can be typed with ::type)
+ *     - value: scalar (string or typed), dict of children, or list (repeated elements)
+ *
+ * Usage:
+ *     // Typed XML (TYTX format - reversible)
+ *     as_typed_xml(data)  // → '<price>99.50::N</price>'
+ *     from_xml(xml_str)   // → {"price": {"attrs": {}, "value": Decimal("99.50")}}
+ *
+ *     // Standard XML (for external systems)
+ *     as_xml(data)  // → '<price>99.50</price>'
+ */
+
 const { registry } = require('./index');
 
 /**
- * Simple XML Parser/Serializer for TYTX
- * Note: This is a lightweight implementation for demonstration/transport.
- * For production in Browser, use DOMParser. For Node, use a robust library if needed.
- * Here we implement a basic serializer and a simplified parser.
+ * Convert a dictionary to an XML string with typed values (TYTX format).
+ *
+ * @param {Object} data - The dictionary to convert. Structure: {"tag": {"attrs": {...}, "value": ...}}
+ * @param {string|null} rootTag - Optional root tag name. If provided, data is treated as content of this root.
+ * @returns {string} XML string with typed values (e.g., "99.50::N").
  */
+function as_typed_xml(data, rootTag = null) {
+    return _toXml(data, rootTag, true);
+}
 
-function dictToXml(data, rootTag = null) {
+/**
+ * Convert a dictionary to a standard XML string (without type suffixes).
+ *
+ * @param {Object} data - The dictionary to convert. Structure: {"tag": {"attrs": {...}, "value": ...}}
+ * @param {string|null} rootTag - Optional root tag name. If provided, data is treated as content of this root.
+ * @returns {string} Standard XML string.
+ */
+function as_xml(data, rootTag = null) {
+    return _toXml(data, rootTag, false);
+}
+
+/**
+ * Internal XML builder.
+ */
+function _toXml(data, rootTag, typed) {
     if (rootTag === null) {
         const keys = Object.keys(data);
-        if (keys.length !== 1) throw new Error("Data must have exactly one root key if rootTag is not provided");
+        if (keys.length !== 1) {
+            throw new Error("Data must have exactly one root key if rootTag is not provided");
+        }
         rootTag = keys[0];
         data = data[rootTag];
     }
 
-    return buildElement(rootTag, data);
+    return _buildElement(rootTag, data, typed);
 }
 
-function buildElement(tag, content) {
-    let xml = `<${tag}`;
-    let children = '';
-    let text = '';
+/**
+ * Build an XML element from dict content.
+ * Expects content to have 'attrs' and 'value' keys.
+ */
+function _buildElement(tag, content, typed) {
+    // Validate structure
+    if (typeof content !== 'object' || content === null ||
+        !('attrs' in content) || !('value' in content)) {
+        throw new Error(`Content must have 'attrs' and 'value' keys, got: ${typeof content}`);
+    }
 
-    if (typeof content === 'object' && content !== null && !Array.isArray(content) && !(content instanceof Date)) {
-        // Dict/Object
-        for (const [key, value] of Object.entries(content)) {
-            if (key.startsWith('@')) {
-                // Attribute
-                const attrName = key.substring(1);
-                const attrVal = registry.serialize(value);
-                xml += ` ${attrName}="${escapeXml(attrVal)}"`;
-            } else if (key === '#text') {
-                text = registry.serialize(value);
-            } else if (Array.isArray(value)) {
-                // List of children
-                value.forEach(item => {
-                    children += buildElement(key, item);
-                });
-            } else {
-                // Single child
-                children += buildElement(key, value);
-            }
-        }
-    } else if (Array.isArray(content)) {
-        // Should be handled by parent, but if called directly:
-        return content.map(item => buildElement(tag, item)).join('');
-    } else {
-        // Simple content
-        text = registry.serialize(content);
+    let xml = `<${tag}`;
+
+    // Set attributes
+    const attrs = content.attrs || {};
+    for (const [attrName, attrValue] of Object.entries(attrs)) {
+        const serialized = typed
+            ? registry.as_typed_text(attrValue)
+            : registry.as_text(attrValue);
+        xml += ` ${attrName}="${_escapeXml(serialized)}"`;
     }
 
     xml += '>';
-    if (text) xml += escapeXml(text);
-    if (children) xml += children;
-    xml += `</${tag}>`;
 
+    const value = content.value;
+
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        // Value is dict of children
+        for (const [childTag, childContent] of Object.entries(value)) {
+            if (childTag === '#text') {
+                // Mixed content text
+                const textVal = typed
+                    ? registry.as_typed_text(childContent)
+                    : registry.as_text(childContent);
+                xml += _escapeXml(textVal);
+            } else if (Array.isArray(childContent)) {
+                // List of same-tag children
+                for (const item of childContent) {
+                    xml += _buildElement(childTag, item, typed);
+                }
+            } else {
+                // Single child
+                xml += _buildElement(childTag, childContent, typed);
+            }
+        }
+    } else if (Array.isArray(value)) {
+        // List of same-tag children (unusual at root level, but supported)
+        for (const item of value) {
+            xml += _buildElement(tag, item, typed);
+        }
+    } else if (value !== null && value !== undefined) {
+        // Scalar value
+        const textVal = typed
+            ? registry.as_typed_text(value)
+            : registry.as_text(value);
+        xml += _escapeXml(textVal);
+    }
+
+    xml += `</${tag}>`;
     return xml;
 }
 
-function escapeXml(unsafe) {
+/**
+ * Escape XML special characters.
+ */
+function _escapeXml(unsafe) {
     return String(unsafe).replace(/[<>&'"]/g, function (c) {
         switch (c) {
             case '<': return '&lt;';
             case '>': return '&gt;';
             case '&': return '&amp;';
-            case '\'': return '&apos;';
+            case "'": return '&apos;';
             case '"': return '&quot;';
         }
     });
 }
 
-// Simplified XML Parser (Regex based - NOT robust for all XML, but sufficient for simple data transport)
-// For robust parsing in Node without deps, it's complex. 
-// In Browser environment, DOMParser is available.
-// This is a placeholder for a proper parser or assumes Browser env.
-// For the purpose of this task, we will implement a basic parser that handles the structure we generate.
-
-function xmlToDict(xmlString) {
-    // This is a very naive parser. In a real scenario, use a library.
-    // But since we want zero-deps in toolbox, we might need to rely on environment.
-
+/**
+ * Convert an XML string to a dictionary, hydrating typed values.
+ *
+ * Typed strings (e.g., "99.50::N") are converted to JS objects.
+ * Non-typed values are returned as strings.
+ *
+ * @param {string} xmlString - XML string to parse.
+ * @returns {Object} Dictionary with structure: {"tag": {"attrs": {...}, "value": ...}}
+ */
+function from_xml(xmlString) {
     // Check if we are in browser
     if (typeof DOMParser !== 'undefined') {
         const parser = new DOMParser();
         const doc = parser.parseFromString(xmlString, "text/xml");
-        return parseDomElement(doc.documentElement);
+        const root = doc.documentElement;
+        return { [root.tagName]: _parseElement(root) };
     }
 
-    // Node.js fallback (Very limited, just for testing our specific format)
-    // Matches <tag attr="...">content</tag>
-    // This is fragile and strictly for the demo/test environment provided.
-
-    // We will throw error for now in Node if not simple
-    throw new Error("XML Parsing requires DOMParser (Browser) or a library in Node.js");
+    // Node.js environment - need xmldom or similar
+    // For now, throw error suggesting to use a library
+    throw new Error("XML Parsing requires DOMParser (Browser) or xmldom package in Node.js");
 }
 
-function parseDomElement(elem) {
-    const result = {};
+/**
+ * Parse an XML element to dict with attrs/value structure.
+ */
+function _parseElement(elem) {
+    const attrs = {};
+    const children = {};
 
-    // Attributes
+    // Parse attributes
     for (let i = 0; i < elem.attributes.length; i++) {
         const attr = elem.attributes[i];
-        result[`@${attr.name}`] = registry.hydrate(attr.value);
+        attrs[attr.name] = registry.from_text(attr.value);
     }
 
-    // Children
+    // Parse children
     let hasChildren = false;
-    const childrenMap = {};
     for (let i = 0; i < elem.children.length; i++) {
         hasChildren = true;
         const child = elem.children[i];
-        const childVal = parseDomElement(child);
-        if (childrenMap[child.tagName]) {
-            if (!Array.isArray(childrenMap[child.tagName])) {
-                childrenMap[child.tagName] = [childrenMap[child.tagName]];
+        const childVal = _parseElement(child);
+
+        if (child.tagName in children) {
+            // Convert to array if multiple same-tag children
+            if (!Array.isArray(children[child.tagName])) {
+                children[child.tagName] = [children[child.tagName]];
             }
-            childrenMap[child.tagName].push(childVal);
+            children[child.tagName].push(childVal);
         } else {
-            childrenMap[child.tagName] = childVal;
+            children[child.tagName] = childVal;
         }
     }
-    Object.assign(result, childrenMap);
 
-    // Text
-    const text = elem.textContent.trim();
-    if (text && !hasChildren) {
-        if (elem.attributes.length === 0) {
-            return registry.hydrate(text);
+    // Parse text content
+    let text = '';
+    for (let i = 0; i < elem.childNodes.length; i++) {
+        const node = elem.childNodes[i];
+        if (node.nodeType === 3) { // TEXT_NODE
+            text += node.textContent;
         }
-        result['#text'] = registry.hydrate(text);
+    }
+    text = text.trim();
+
+    // Determine value
+    let value;
+    if (hasChildren) {
+        // Has children - value is dict of children
+        value = children;
+        if (text) {
+            // Has both children and text (mixed content)
+            value['#text'] = registry.from_text(text);
+        }
+    } else if (text) {
+        // Only text content
+        value = registry.from_text(text);
+    } else {
+        // Empty element
+        value = null;
     }
 
-    return { [elem.tagName]: result };
+    return { attrs, value };
 }
 
+// Legacy aliases for backward compatibility
+const dictToXml = as_typed_xml;
+const xmlToDict = from_xml;
+
 module.exports = {
+    as_typed_xml,
+    as_xml,
+    from_xml,
+    // Legacy aliases
     dictToXml,
     xmlToDict
 };

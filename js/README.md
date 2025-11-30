@@ -50,19 +50,20 @@ from_json('{"price":"99.99::N","date":"2025-01-15::D"}');
 // → { price: 99.99, date: Date }
 ```
 
-## Type Codes (Genropy-Compatible)
+## Type Codes
 
-| Code | Aliases | JS Type | Example |
-|------|---------|---------|---------|
-| `L` | `I`, `INT`, `INTEGER`, `LONG` | `number` | `"123::L"` |
-| `R` | `F`, `REAL`, `FLOAT` | `number` | `"1.5::R"` |
-| `N` | `NUMERIC`, `DECIMAL` | `number`/`Big` | `"100.50::N"` |
-| `B` | `BOOL`, `BOOLEAN` | `boolean` | `"true::B"` |
-| `T` | `S`, `TEXT`, `STRING` | `string` | `"hello::T"` |
-| `D` | `DATE` | `Date` | `"2025-01-15::D"` |
-| `DH` | `DT`, `DHZ`, `DATETIME` | `Date` | `"2025-01-15T10:00::DH"` |
-| `H` | `TIME`, `HZ` | `string` | `"10:30:00::H"` |
-| `JS` | `JSON` | `object` | `'{"a":1}::JS'` |
+| Code | Name | JS Type | Example |
+|------|------|---------|---------|
+| `L` | Long integer | `number` | `"123::L"` |
+| `R` | Real number | `number` | `"1.5::R"` |
+| `N` | Numeric | `number`/`Big` | `"100.50::N"` |
+| `B` | Boolean | `boolean` | `"true::B"` |
+| `T` | Text | `string` | `"hello::T"` |
+| `D` | Date | `Date` | `"2025-01-15::D"` |
+| `DHZ` | DateTime | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
+| `DH` | Naive DateTime (deprecated) | `Date` | `"2025-01-15T10:00::DH"` |
+| `H` | Hour | `string` | `"10:30:00::H"` |
+| `JS` | JavaScript object | `object` | `'{"a":1}::JS'` |
 
 ## API Reference
 

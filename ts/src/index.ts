@@ -66,21 +66,23 @@ export {
   StrType,
   DateType,
   DateTimeType,
+  NaiveDateTimeType,
   TimeType,
   JsonType,
+  __setBigLoader,
 } from './registry.js';
 
 // JSON utilities
-export { asTypedJson, asJson, fromJson, hydrateObject } from './json.js';
+export { asTypedJson, asJson, fromJson, hydrateObject, hydrateArray } from './json.js';
 
 // MessagePack utilities
-export { TYTX_EXT_TYPE, packb, unpackb } from './msgpack.js';
+export { TYTX_EXT_TYPE, packb, unpackb, __setMsgpackLoader } from './msgpack.js';
 
 // Model
 export { TytxModel } from './model.js';
 
 // Version
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.5';
 
 // Convenience re-exports from registry
 import { registry } from './registry.js';

@@ -157,21 +157,21 @@ Currently:
 - **Python**: Full implementation
 - **JavaScript**: Full implementation (included in package)
 
-### Is TYTX compatible with Genropy?
+### What type codes does TYTX use?
 
-Yes! TYTX uses Genropy-compatible type codes as primary codes:
+TYTX uses mnemonic type codes:
 
-| Code | Type | Aliases |
-|------|------|---------|
-| `L` | integer | `I`, `INT`, `INTEGER`, `LONG` |
-| `R` | float | `F`, `FLOAT`, `REAL` |
-| `N` | decimal | `NUMERIC`, `DECIMAL` |
-| `D` | date | `DATE` |
-| `DH` | datetime | `DT`, `DHZ`, `DATETIME` |
-| `H` | time | `TIME`, `HZ` |
-| `T` | string | `S`, `STRING`, `TEXT` |
-| `B` | boolean | `BOOL`, `BOOLEAN` |
-| `JS` | json | `JSON` |
+| Code | Name | Python Type |
+|------|------|-------------|
+| `L` | integer | `int` |
+| `R` | float | `float` |
+| `N` | decimal | `Decimal` |
+| `D` | date | `date` |
+| `DHZ` | datetime | `datetime` |
+| `H` | time | `time` |
+| `T` | str | `str` |
+| `B` | bool | `bool` |
+| `JS` | json | `dict`/`list` |
 
 ## Troubleshooting
 

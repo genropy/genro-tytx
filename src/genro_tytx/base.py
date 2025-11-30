@@ -8,8 +8,7 @@ class DataType(ABC):
 
     Class Attributes:
         name: Human-readable name of the type (e.g., "integer", "decimal")
-        code: Short code used in TYTX syntax (e.g., "I", "N", "D")
-        aliases: Alternative codes/names that map to this type
+        code: Short code used in TYTX syntax (e.g., "L", "N", "D")
         python_type: The Python type this DataType handles (e.g., int, Decimal)
         sql_type: SQL type for database schema generation (e.g., "INTEGER", "DECIMAL")
         align: Display alignment - "L" (left), "R" (right), "C" (center)
@@ -21,7 +20,6 @@ class DataType(ABC):
     code: ClassVar[str]
 
     # Optional attributes with defaults
-    aliases: ClassVar[list[str]] = []
     python_type: ClassVar[type | None] = None
     js_type: ClassVar[str] = "string"
     sql_type: ClassVar[str] = "VARCHAR"
@@ -43,9 +41,7 @@ class DataType(ABC):
         """
         raise NotImplementedError
 
-    def format(
-        self, value: Any, fmt: str | bool | None = None, locale: str | None = None
-    ) -> str:
+    def format(self, value: Any, fmt: str | bool | None = None, locale: str | None = None) -> str:
         """
         Format python object to localized string representation.
 

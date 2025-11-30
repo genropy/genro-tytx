@@ -1,8 +1,8 @@
 # TYTX Type Codes Registry
 
-**Version**: 1.1
-**Updated**: 2025-01-29
-**Note**: Type codes are aligned with Genropy framework standards.
+**Version**: 2.0
+**Updated**: 2025-11-30
+**Note**: Type codes use mnemonic single-letter conventions.
 
 This document defines all registered type codes for the TYTX protocol.
 
@@ -12,71 +12,63 @@ This document defines all registered type codes for the TYTX protocol.
 |------|---------|
 | `TYTX` | Global marker for typed payloads |
 
-## Built-in Type Codes (Genropy-compatible)
+## Built-in Type Codes
 
 ### Numeric Types
 
-| Code | Aliases | Python | JavaScript | Format | Example |
-|------|---------|--------|------------|--------|---------|
-| `L` | `I`, `INT`, `INTEGER`, `LONG`, `LONGINT` | `int` | `number` | Decimal string | `"123::L"` |
-| `R` | `F`, `REAL`, `FLOAT` | `float` | `number` | Scientific notation OK | `"3.14::R"` |
-| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `number` (string) | Decimal string | `"100.50::N"` |
+| Code | Python | JavaScript | Format | Example |
+|------|--------|------------|--------|---------|
+| `L` | `int` | `number` | Decimal string | `"123::L"` |
+| `R` | `float` | `number` | Scientific notation OK | `"3.14::R"` |
+| `N` | `Decimal` | `number` (string) | Decimal string | `"100.50::N"` |
 
 ### Date/Time Types
 
-| Code | Aliases | Python | JavaScript | Format | Example |
-|------|---------|--------|------------|--------|---------|
-| `D` | `DATE` | `date` | `Date` | ISO 8601 date | `"2025-01-15::D"` |
-| `DH` | `DT`, `DHZ`, `DATETIME`, `timestamp` | `datetime` | `Date` | ISO 8601 datetime | `"2025-01-15T10:30:00::DH"` |
-| `H` | `TIME`, `HZ` | `time` | `string` | ISO 8601 time | `"10:30:00::H"` |
+| Code | Python | JavaScript | Format | Example |
+|------|--------|------------|--------|---------|
+| `D` | `date` | `Date` | ISO 8601 date | `"2025-01-15::D"` |
+| `DHZ` | `datetime` | `Date` | ISO 8601 datetime (UTC) | `"2025-01-15T10:30:00Z::DHZ"` |
+| `DH` | `datetime` | `Date` | ISO 8601 datetime (naive, deprecated) | `"2025-01-15T10:30:00::DH"` |
+| `H` | `time` | `string` | ISO 8601 time | `"10:30:00::H"` |
+
+> **Note**: `DHZ` is the canonical code for datetime (timezone-aware). `DH` is deprecated for new code but supported for backward compatibility.
 
 ### Boolean Types
 
-| Code | Aliases | Python | JavaScript | Format | Example |
-|------|---------|--------|------------|--------|---------|
-| `B` | `BOOL`, `BOOLEAN` | `bool` | `boolean` | `true` / `false` | `"true::B"` |
+| Code | Python | JavaScript | Format | Example |
+|------|--------|------------|--------|---------|
+| `B` | `bool` | `boolean` | `true` / `false` | `"true::B"` |
 
 ### String Types
 
-| Code | Aliases | Python | JavaScript | Format | Example |
-|------|---------|--------|------------|--------|---------|
-| `T` | `TEXT`, `S`, `STRING`, `P`, `A` | `str` | `string` | UTF-8 string | `"hello::T"` |
+| Code | Python | JavaScript | Format | Example |
+|------|--------|------------|--------|---------|
+| `T` | `str` | `string` | UTF-8 string | `"hello::T"` |
 
 ### Structured Types
 
-| Code | Aliases | Python | JavaScript | Format | Example |
-|------|---------|--------|------------|--------|---------|
-| `JS` | `JSON`, `J` | `dict`/`list` | `object`/`array` | JSON encoded | `'{"a":1}::JS'` |
+| Code | Python | JavaScript | Format | Example |
+|------|--------|------------|--------|---------|
+| `JS` | `dict`/`list` | `object`/`array` | JSON encoded | `'{"a":1}::JS'` |
 
 ## Type Code Conventions
 
-### Genropy Standard Codes
+### Mnemonic Codes
 
-The primary codes follow the Genropy framework conventions:
+Each code is a mnemonic for the type it represents:
 
-| Code | Genropy Meaning |
-|------|-----------------|
+| Code | Meaning |
+|------|---------|
 | `L` | **L**ong integer |
 | `R` | **R**eal (float) |
 | `N` | **N**umeric (decimal) |
 | `D` | **D**ate |
-| `DH` | **D**ate with **H**our (datetime) |
+| `DHZ` | **D**ate with **H**our, **Z**ulu/UTC (datetime, canonical) |
+| `DH` | **D**ate with **H**our (datetime, naive, deprecated) |
 | `H` | **H**our (time) |
 | `T` | **T**ext (string) |
 | `B` | **B**oolean |
 | `JS` | **J**ava**S**cript object (JSON) |
-
-### Aliases for Compatibility
-
-Aliases are provided for compatibility with common conventions:
-
-- `I`, `INT`, `INTEGER` → `L` (integer)
-- `F`, `FLOAT` → `R` (float)
-- `DECIMAL` → `N` (decimal)
-- `DT`, `DHZ`, `DATETIME` → `DH` (datetime)
-- `TIME`, `HZ` → `H` (time)
-- `S`, `STRING` → `T` (text)
-- `JSON`, `J` → `JS` (json)
 
 ## Registering Custom Types
 
@@ -90,7 +82,6 @@ import uuid
 class UUIDType(DataType):
     name = "uuid"
     code = "U"
-    aliases = ["UUID"]
     python_type = uuid.UUID
     sql_type = "UUID"
 
@@ -114,7 +105,6 @@ const { registry } = require('genro-tytx');
 const UUIDType = {
     name: 'uuid',
     code: 'U',
-    aliases: ['UUID'],
     js_type: 'string',
 
     parse(value) {
@@ -132,15 +122,32 @@ registry.register(UUIDType);
 // "550e8400-e29b-41d4-a716-446655440000::U" → "550e8400-..."
 ```
 
+## Typed Arrays
+
+Compact format for homogeneous arrays applies a single type to all leaf values:
+
+```text
+[1,2,3]::L           → [1, 2, 3]  (all ints)
+[[1,2],[3,4]]::L     → [[1, 2], [3, 4]]  (nested, all ints)
+[1.5,2.5,3.5]::R     → [1.5, 2.5, 3.5]  (all floats)
+["2025-01-15"]::D    → [date(2025, 1, 15)]  (all dates)
+```
+
+Serialization with `compact_array=True` (Python) or `compactArray=true` (JS):
+
+- Values are serialized as strings in JSON array format
+- Single type suffix applies to all leaf values
+- Heterogeneous arrays fall back to element-by-element typing
+
 ## MessagePack Extension Type
 
 TYTX reserves MessagePack ExtType code **42** for typed payloads.
 
 ```python
-# ExtType(42, b'{"price": "100::N"}::TYTX')
+# ExtType(42, b'{"price": "100::N"}')
 ```
 
-The content is always a UTF-8 encoded TYTX string.
+The content is a UTF-8 encoded JSON string with TYTX typed values. No `::TYTX` prefix needed - ExtType(42) itself is the marker.
 
 ## Reserved for Future Use
 

@@ -25,7 +25,7 @@ The core syntax is `value::type_code`.
 
 - `value`: The string representation of the data.
 - `::`: The separator (two colons).
-- `type_code`: A short code (e.g., `I`, `D`, `dt`) or full alias (e.g., `int`, `decimal`) identifying the type.
+- `type_code`: A short code (e.g., `L`, `D`, `DHZ`) or type name (e.g., `int`, `decimal`) identifying the type.
 
 ### Examples
 
@@ -56,18 +56,18 @@ The `::TYTX` suffix indicates the payload contains typed values that need hydrat
 
 ### Built-in Type Codes
 
-| Code | Alias | Python Type | JavaScript Type | Description |
-|------|-------|-------------|-----------------|-------------|
-| `I` | `int` | `int` | `number` / `BigInt` | Integer |
-| `D` | `decimal` | `Decimal` | `Decimal` (decimal.js) | Exact decimal |
-| `d` | `date` | `date` | `Date` | ISO Date |
-| `dt` | `datetime` | `datetime` | `Date` | ISO DateTime |
-| `t` | `time` | `time` | `string` | ISO Time |
-| `B` | `bool` | `bool` | `boolean` | Boolean |
-| `L` | `list` | `list[str]` | `string[]` | Comma-separated list |
-| `T` | `table` | `Table` | `Table` | Tabular data |
-| `U` | `uuid` | `UUID` | `string` | UUID |
-| `b64` | `bytes` | `bytes` | `Uint8Array` | Base64-encoded bytes |
+| Code | Name | Python Type | JavaScript Type | Description |
+|------|------|-------------|-----------------|-------------|
+| `L` | integer | `int` | `number` | Integer |
+| `R` | float | `float` | `number` | Float |
+| `N` | decimal | `Decimal` | `number` / `Big` | Exact decimal |
+| `B` | bool | `bool` | `boolean` | Boolean |
+| `T` | str | `str` | `string` | String/Text |
+| `D` | date | `date` | `Date` | ISO Date |
+| `DHZ` | datetime | `datetime` | `Date` | ISO DateTime (timezone-aware) |
+| `DH` | naive_datetime | `datetime` | `Date` | ISO DateTime (naive, deprecated) |
+| `H` | time | `time` | `Date` | ISO Time |
+| `JS` | json | `dict`/`list` | `object`/`array` | JSON structure |
 
 ### Custom Types
 

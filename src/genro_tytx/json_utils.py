@@ -147,5 +147,3 @@ def from_json(s: str, **kwargs: Any) -> Any:
         Python object with typed values hydrated.
     """
     return _hydrate(json.loads(s, **kwargs))
-
-

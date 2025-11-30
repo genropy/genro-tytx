@@ -140,9 +140,9 @@ restored = from_json(export)
 assert restored["balance"] == Decimal("10000.00")  # Exact match!
 ```
 
-## Type Codes (Genropy-Compatible)
+## Type Codes
 
-TYTX uses type codes aligned with the [Genropy](https://github.com/genropy) framework:
+TYTX uses mnemonic type codes:
 
 | Code | Type | Python | JavaScript | Example |
 |------|------|--------|------------|---------|
@@ -156,7 +156,7 @@ TYTX uses type codes aligned with the [Genropy](https://github.com/genropy) fram
 | `T` | Text | `str` | `string` | `"hello::T"` |
 | `JS` | JSON | `dict`/`list` | `object`/`array` | `'{"a":1}::JS'` |
 
-Aliases are supported for flexibility (e.g., `I` for integer, `F` for float).
+Each type has a unique code for serialization.
 
 ## Key Features
 

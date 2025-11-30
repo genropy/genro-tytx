@@ -199,9 +199,9 @@ Complete API documentation for genro-tytx.
 
    .. py:method:: get(name_or_code: str) -> type[DataType] | None
 
-      Get type class by name, code, or alias.
+      Get type class by name or code.
 
-      :param name_or_code: Type name, code, or alias
+      :param name_or_code: Type name or code
       :return: Type class or None
 
    .. py:method:: get_for_value(value: Any) -> type[DataType] | None
@@ -256,11 +256,6 @@ Complete API documentation for genro-tytx.
 
       Type code (e.g., "L" for integer)
 
-   .. py:attribute:: aliases
-      :type: list[str]
-
-      Alternative codes (default: [])
-
    .. py:attribute:: python_type
       :type: type | None
 
@@ -310,7 +305,7 @@ Complete API documentation for genro-tytx.
       Format value for display with locale support.
 ```
 
-## Built-in Types (Genropy-Compatible)
+## Built-in Types
 
 | Type | Code | Python Type | Module |
 |------|------|-------------|--------|
@@ -320,7 +315,8 @@ Complete API documentation for genro-tytx.
 | `BoolType` | `B` | `bool` | `genro_tytx` |
 | `StrType` | `T` | `str` | `genro_tytx` |
 | `DateType` | `D` | `date` | `genro_tytx` |
-| `DateTimeType` | `DH` | `datetime` | `genro_tytx` |
+| `DateTimeType` | `DHZ` | `datetime` | `genro_tytx` |
+| `NaiveDateTimeType` | `DH` | `datetime` | `genro_tytx` |
 | `TimeType` | `H` | `time` | `genro_tytx` |
 | `JsonType` | `JS` | `dict` | `genro_tytx` |
 

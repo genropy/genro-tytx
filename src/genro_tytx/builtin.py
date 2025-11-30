@@ -42,7 +42,6 @@ class IntType(DataType):
 
     name = "int"
     code = "L"
-    aliases = ["LONG", "LONGINT", "I", "INT", "INTEGER"]
     python_type = int
     js_type = "number"
     sql_type = "INTEGER"
@@ -69,7 +68,6 @@ class FloatType(DataType):
 
     name = "float"
     code = "R"
-    aliases = ["REAL", "FLOAT", "F"]
     python_type = float
     js_type = "number"
     sql_type = "REAL"
@@ -96,7 +94,6 @@ class BoolType(DataType):
 
     name = "bool"
     code = "B"
-    aliases = ["boolean", "BOOL", "BOOLEAN"]
     python_type = bool
     js_type = "boolean"
     sql_type = "BOOLEAN"
@@ -115,7 +112,6 @@ class StrType(DataType):
 
     name = "str"
     code = "T"
-    aliases = ["TEXT", "P", "A", "S", "STRING"]
     python_type = str
     js_type = "string"
     sql_type = "VARCHAR"
@@ -134,7 +130,6 @@ class JsonType(DataType):
 
     name = "json"
     code = "JS"
-    aliases = ["JSON", "J"]
     python_type = dict  # Primary type, also handles list
     js_type = "object"
     sql_type = "JSON"
@@ -153,7 +148,6 @@ class DecimalType(DataType):
 
     name = "decimal"
     code = "N"
-    aliases = ["NUMERIC", "DECIMAL"]
     python_type = Decimal
     js_type = "number"  # JS has no native Decimal
     sql_type = "DECIMAL"
@@ -180,7 +174,6 @@ class DateType(DataType):
 
     name = "date"
     code = "D"
-    aliases = ["DATE"]
     python_type = date
     js_type = "Date"
     sql_type = "DATE"
@@ -284,7 +277,6 @@ class TimeType(DataType):
 
     name = "time"
     code = "H"
-    aliases = ["TIME", "HZ"]
     python_type = time
     js_type = "string"
     sql_type = "TIME"

@@ -135,17 +135,18 @@ from_xml('<root><price>99.99::N</price></root>');
 
 ## Type Codes
 
-| Code | Aliases | JS Type | Example |
-|------|---------|---------|---------|
-| `L` | `I`, `INT`, `INTEGER`, `LONG` | `number` | `"123::L"` |
-| `R` | `F`, `REAL`, `FLOAT` | `number` | `"1.5::R"` |
-| `N` | `NUMERIC`, `DECIMAL` | `number`/`Big` | `"100.50::N"` |
-| `B` | `BOOL`, `BOOLEAN` | `boolean` | `"true::B"` |
-| `T` | `S`, `TEXT`, `STRING` | `string` | `"hello::T"` |
-| `D` | `DATE` | `Date` | `"2025-01-15::D"` |
-| `DH` | `DT`, `DHZ`, `DATETIME` | `Date` | `"2025-01-15T10:00::DH"` |
-| `H` | `TIME`, `HZ` | `string` | `"10:30:00::H"` |
-| `JS` | `JSON` | `object` | `'{"a":1}::JS'` |
+| Code | Name | JS Type | Example |
+|------|------|---------|---------|
+| `L` | int | `number` | `"123::L"` |
+| `R` | float | `number` | `"1.5::R"` |
+| `N` | decimal | `number`/`Big` | `"100.50::N"` |
+| `B` | bool | `boolean` | `"true::B"` |
+| `T` | str | `string` | `"hello::T"` |
+| `D` | date | `Date` | `"2025-01-15::D"` |
+| `DHZ` | datetime | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
+| `DH` | naive_datetime | `Date` | `"2025-01-15T10:00::DH"` (deprecated) |
+| `H` | time | `Date` | `"10:30:00::H"` |
+| `JS` | json | `object` | `'{"a":1}::JS'` |
 
 ## Decimal Library Support
 
@@ -178,7 +179,6 @@ const { registry } = require('genro-tytx');
 const UUIDType = {
     name: 'uuid',
     code: 'U',
-    aliases: ['UUID'],
     js_type: 'string',
 
     parse(value) {
@@ -202,11 +202,11 @@ from_text("550e8400-e29b-41d4-a716-446655440000::U");
 
 ### registry.get(code)
 
-Get a type by code or alias.
+Get a type by code or name.
 
 ```javascript
 registry.get("L");     // → IntType
-registry.get("INT");   // → IntType (alias)
+registry.get("int");   // → IntType
 registry.get("X");     // → null (unknown)
 ```
 

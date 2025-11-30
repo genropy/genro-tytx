@@ -22,7 +22,7 @@ from genro_tytx import from_text
 from decimal import Decimal
 from datetime import date, datetime, time
 
-# Parse with embedded type (Genropy-compatible codes)
+# Parse with embedded type code
 from_text("123::L")                    # → 123 (L = Long/int)
 from_text("100.50::N")                 # → Decimal("100.50") (N = Numeric)
 from_text("3.14::R")                   # → 3.14 (R = Real/float)
@@ -145,19 +145,19 @@ as_typed_json(data)           // → '{"price":"99.99::R","count":"42::L"}'
 from_json('{"x": "10::L"}')   // → {x: 10}
 ```
 
-## Type Codes Reference (Genropy-Compatible)
+## Type Codes Reference
 
-| Code | Aliases | Python Type | Example |
-|------|---------|-------------|---------|
-| `L` | `I`, `INT`, `INTEGER`, `LONG` | `int` | `"123::L"` |
-| `R` | `F`, `FLOAT`, `REAL` | `float` | `"1.5::R"` |
-| `N` | `NUMERIC`, `DECIMAL` | `Decimal` | `"100.50::N"` |
-| `B` | `BOOL`, `BOOLEAN` | `bool` | `"true::B"` |
-| `T` | `S`, `TEXT`, `STRING` | `str` | `"hello::T"` |
-| `D` | `DATE` | `date` | `"2025-01-15::D"` |
-| `DH` | `DT`, `DHZ`, `DATETIME` | `datetime` | `"2025-01-15T10:00::DH"` |
-| `H` | `TIME`, `HZ` | `time` | `"10:30:00::H"` |
-| `JS` | `JSON` | `dict`/`list` | `'{"a":1}::JS'` |
+| Code | Name | Python Type | Example |
+|------|------|-------------|---------|
+| `L` | integer | `int` | `"123::L"` |
+| `R` | float | `float` | `"1.5::R"` |
+| `N` | decimal | `Decimal` | `"100.50::N"` |
+| `B` | bool | `bool` | `"true::B"` |
+| `T` | str | `str` | `"hello::T"` |
+| `D` | date | `date` | `"2025-01-15::D"` |
+| `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
+| `H` | time | `time` | `"10:30:00::H"` |
+| `JS` | json | `dict`/`list` | `'{"a":1}::JS'` |
 
 ## Next Steps
 

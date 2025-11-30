@@ -18,7 +18,7 @@ Parse typed string to Python object.
 
 **Examples:**
 ```python
-# Embedded type (Genropy-compatible codes)
+# Embedded type code
 from_text("123::L")           # → 123
 from_text("100.50::N")        # → Decimal("100.50")
 from_text("2025-01-15::D")    # → date(2025, 1, 15)
@@ -84,10 +84,14 @@ as_text(date(2025, 1, 15), format="%d/%m/%Y", locale="en_US")  # → "15/01/2025
 ### as_typed_text
 
 ```python
-as_typed_text(value: Any) -> str
+as_typed_text(value: Any, compact_array: bool = False) -> str
 ```
 
 Serialize Python value with type suffix.
+
+**Parameters:**
+- `value`: Python value to serialize
+- `compact_array`: If True, produce compact array format `[1,2,3]::L` for homogeneous arrays
 
 **Returns:** String with `::type_code` suffix (strings return as-is)
 
@@ -97,10 +101,14 @@ as_typed_text(123)                    # → "123::L"
 as_typed_text(1.5)                    # → "1.5::R"
 as_typed_text(Decimal("100.50"))      # → "100.50::N"
 as_typed_text(date(2025, 1, 15))      # → "2025-01-15::D"
-as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::DH"
+as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00Z::DHZ"
 as_typed_text(True)                   # → "true::B"
 as_typed_text({"a": 1})               # → '{"a": 1}::JS'
 as_typed_text("hello")                # → "hello" (no suffix for strings)
+
+# Typed arrays (compact format)
+as_typed_text([1, 2, 3], compact_array=True)  # → '["1","2","3"]::L'
+as_typed_text([[1,2],[3,4]], compact_array=True)  # → '[["1","2"],["3","4"]]::L'
 ```
 
 **Test:** `tests/test_core.py::TestAsTypedText`
@@ -288,13 +296,12 @@ from_xml("<order><item>Widget</item><price>25.00::N</price></order>")
 registry.get(name_or_code: str) -> type[DataType] | None
 ```
 
-Get type class by name, code, or alias.
+Get type class by name or code.
 
 **Examples:**
 ```python
 registry.get("L")         # → IntType
 registry.get("int")       # → IntType
-registry.get("INTEGER")   # → IntType
 registry.get("N")         # → DecimalType
 registry.get("UNKNOWN")   # → None
 ```
@@ -381,7 +388,6 @@ Each type has these class attributes:
 |-----------|-------------|
 | `name` | Human-readable name |
 | `code` | TYTX type code |
-| `aliases` | Alternative codes |
 | `python_type` | Python type class |
 | `sql_type` | SQL type for schema |
 | `align` | Display alignment (`L`/`R`/`C`) |
@@ -391,8 +397,7 @@ Each type has these class attributes:
 ### IntType
 
 ```python
-IntType.code = "L"  # Genropy: L for long/int
-IntType.aliases = ["LONG", "LONGINT", "I", "INT", "INTEGER"]
+IntType.code = "L"  # L = Long integer
 IntType.python_type = int
 IntType.sql_type = "INTEGER"
 IntType.align = "R"
@@ -402,8 +407,7 @@ IntType.empty = 0
 ### FloatType
 
 ```python
-FloatType.code = "R"  # Genropy: R for real/float
-FloatType.aliases = ["REAL", "FLOAT", "F"]
+FloatType.code = "R"  # R = Real number
 FloatType.python_type = float
 FloatType.sql_type = "REAL"
 FloatType.align = "R"
@@ -413,8 +417,7 @@ FloatType.empty = 0.0
 ### DecimalType
 
 ```python
-DecimalType.code = "N"  # Genropy: N for numeric/decimal
-DecimalType.aliases = ["NUMERIC", "DECIMAL"]
+DecimalType.code = "N"  # N = Numeric
 DecimalType.python_type = Decimal
 DecimalType.sql_type = "DECIMAL"
 DecimalType.align = "R"
@@ -425,7 +428,6 @@ DecimalType.empty = Decimal("0")
 
 ```python
 BoolType.code = "B"
-BoolType.aliases = ["boolean", "BOOL", "BOOLEAN"]
 BoolType.python_type = bool
 BoolType.empty = False
 ```
@@ -433,8 +435,7 @@ BoolType.empty = False
 ### StrType
 
 ```python
-StrType.code = "T"  # Genropy: T for text
-StrType.aliases = ["TEXT", "P", "A", "S", "STRING"]
+StrType.code = "T"  # T = Text
 StrType.python_type = str
 StrType.sql_type = "VARCHAR"
 StrType.align = "L"
@@ -444,8 +445,7 @@ StrType.empty = ""
 ### DateType
 
 ```python
-DateType.code = "D"  # Genropy: D for date
-DateType.aliases = ["DATE"]
+DateType.code = "D"  # D = Date
 DateType.python_type = date
 DateType.sql_type = "DATE"
 DateType.empty = None
@@ -455,19 +455,24 @@ DateType.default_format = "%x"  # Locale date
 ### DateTimeType
 
 ```python
-DateTimeType.code = "DH"  # Genropy: DH for datetime
-DateTimeType.aliases = ["DATETIME", "DT", "DHZ", "timestamp"]
+DateTimeType.code = "DHZ"  # DHZ = Date Hour Zulu (timezone-aware, canonical)
 DateTimeType.python_type = datetime
 DateTimeType.sql_type = "TIMESTAMP"
 DateTimeType.empty = None
 DateTimeType.default_format = "%c"  # Locale date + time
 ```
 
+### NaiveDateTimeType (deprecated)
+
+```python
+NaiveDateTimeType.code = "DH"  # Deprecated: use DHZ for new code
+NaiveDateTimeType.python_type = None  # Not auto-detected
+```
+
 ### TimeType
 
 ```python
-TimeType.code = "H"  # Genropy: H for time (hour)
-TimeType.aliases = ["TIME", "HZ"]
+TimeType.code = "H"  # H = Hour
 TimeType.python_type = time
 TimeType.sql_type = "TIME"
 TimeType.empty = None
@@ -477,8 +482,7 @@ TimeType.default_format = "%X"  # Locale time
 ### JsonType
 
 ```python
-JsonType.code = "JS"  # Genropy: JS for JSON
-JsonType.aliases = ["JSON"]
+JsonType.code = "JS"  # JS = JavaScript object
 JsonType.python_type = dict
 JsonType.js_type = "object"
 ```
@@ -494,7 +498,7 @@ The JavaScript implementation mirrors Python API:
 ```javascript
 import { from_text, as_typed_text, as_json, from_json } from 'genro-tytx';
 
-// Parse (Genropy-compatible codes)
+// Parse typed strings
 from_text("123::L")           // → 123
 from_text("100.50::N")        // → "100.50" (string, JS has no Decimal)
 from_text("2025-01-15::D")    // → Date object

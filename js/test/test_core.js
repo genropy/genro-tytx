@@ -93,11 +93,12 @@ describe('from_text', () => {
         assert.strictEqual(from_text('42', 'L'), 42);
     });
 
-    test('aliases work', () => {
-        assert.strictEqual(from_text('42::INTEGER'), 42);
-        assert.strictEqual(from_text('42::I'), 42);  // I is now alias for L
+    test('type names work', () => {
+        // Type names (lowercase) work as alternatives to codes
         assert.strictEqual(from_text('42::int'), 42);
-        assert.strictEqual(from_text('true::BOOLEAN'), true);
+        assert.strictEqual(from_text('true::bool'), true);
+        assert.strictEqual(from_text('3.14::float'), 3.14);
+        assert.strictEqual(from_text('hello::str'), 'hello');
     });
 });
 
@@ -365,10 +366,14 @@ describe('registry', () => {
         assert.strictEqual(intType.code, 'L');
     });
 
-    test('get returns type by alias', () => {
-        const intType = registry.get('INTEGER');
+    test('get returns type by name (lowercase)', () => {
+        const intType = registry.get('int');
         assert.ok(intType);
         assert.strictEqual(intType.code, 'L');
+
+        const boolType = registry.get('bool');
+        assert.ok(boolType);
+        assert.strictEqual(boolType.code, 'B');
     });
 
     test('get returns null for unknown', () => {
@@ -599,5 +604,101 @@ describe('TytxModel', () => {
         assert.ok(restored instanceof Order);
         assert.strictEqual(Number(restored.price), 99.99);
         assert.strictEqual(restored.quantity, 5);
+    });
+});
+
+// =============================================================================
+// Typed Arrays Tests
+// =============================================================================
+
+describe('typed arrays', () => {
+    describe('from_text (parse)', () => {
+        test('parses integer array', () => {
+            const result = from_text('[1,2,3]::L');
+            assert.deepStrictEqual(result, [1, 2, 3]);
+        });
+
+        test('parses nested integer array', () => {
+            const result = from_text('[[1,2],[3,4]]::L');
+            assert.deepStrictEqual(result, [[1, 2], [3, 4]]);
+        });
+
+        test('parses float array', () => {
+            const result = from_text('[1.5,2.5,3.5]::R');
+            assert.deepStrictEqual(result, [1.5, 2.5, 3.5]);
+        });
+
+        test('parses boolean array', () => {
+            const result = from_text('[true,false,true]::B');
+            assert.deepStrictEqual(result, [true, false, true]);
+        });
+
+        test('parses date array', () => {
+            const result = from_text('["2025-01-15","2025-01-16"]::D');
+            assert.strictEqual(result.length, 2);
+            assert.ok(result[0] instanceof Date);
+            assert.ok(result[1] instanceof Date);
+            assert.strictEqual(result[0].toISOString().slice(0, 10), '2025-01-15');
+            assert.strictEqual(result[1].toISOString().slice(0, 10), '2025-01-16');
+        });
+    });
+
+    describe('as_typed_text (serialize)', () => {
+        test('serializes integer array with compact_array', () => {
+            const result = as_typed_text([1, 2, 3], true);
+            assert.strictEqual(result, '["1","2","3"]::L');
+        });
+
+        test('serializes nested integer array with compact_array', () => {
+            const result = as_typed_text([[1, 2], [3, 4]], true);
+            assert.strictEqual(result, '[["1","2"],["3","4"]]::L');
+        });
+
+        test('serializes float array with compact_array', () => {
+            const result = as_typed_text([1.5, 2.5, 3.5], true);
+            assert.strictEqual(result, '["1.5","2.5","3.5"]::R');
+        });
+
+        test('serializes boolean array with compact_array', () => {
+            const result = as_typed_text([true, false, true], true);
+            assert.strictEqual(result, '["true","false","true"]::B');
+        });
+
+        test('serializes empty array', () => {
+            const result = as_typed_text([], true);
+            assert.strictEqual(result, '[]');
+        });
+
+        test('heterogeneous array falls back to individual typing', () => {
+            const result = as_typed_text([1, 'hello', true], true);
+            // Should be JSON array with individual typing
+            const parsed = JSON.parse(result);
+            assert.strictEqual(parsed[0], '1::L');
+            assert.strictEqual(parsed[1], 'hello');
+            assert.strictEqual(parsed[2], 'true::B');
+        });
+    });
+
+    describe('roundtrip', () => {
+        test('integer array roundtrip', () => {
+            const original = [1, 2, 3];
+            const serialized = as_typed_text(original, true);
+            const restored = from_text(serialized);
+            assert.deepStrictEqual(restored, original);
+        });
+
+        test('nested array roundtrip', () => {
+            const original = [[1, 2], [3, 4]];
+            const serialized = as_typed_text(original, true);
+            const restored = from_text(serialized);
+            assert.deepStrictEqual(restored, original);
+        });
+
+        test('float array roundtrip', () => {
+            const original = [1.5, 2.5, 3.5];
+            const serialized = as_typed_text(original, true);
+            const restored = from_text(serialized);
+            assert.deepStrictEqual(restored, original);
+        });
     });
 });

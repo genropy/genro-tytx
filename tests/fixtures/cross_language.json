@@ -121,5 +121,30 @@
         }
       }
     ]
+  },
+
+  "typed_arrays": {
+    "_comment": "Compact array format: [values]::TYPE applies type to all leaf values",
+    "from_text": {
+      "_comment": "from_text(typed_array_string) -> parsed array",
+      "cases": [
+        {"input": "[1,2,3]::L", "expected": {"type": "int_array", "value": [1, 2, 3]}},
+        {"input": "[[1,2],[3,4]]::L", "expected": {"type": "int_array_nested", "value": [[1, 2], [3, 4]]}},
+        {"input": "[1.5,2.5,3.5]::R", "expected": {"type": "float_array", "value": [1.5, 2.5, 3.5]}},
+        {"input": "[true,false,true]::B", "expected": {"type": "bool_array", "value": [true, false, true]}},
+        {"input": "[\"2025-01-15\",\"2025-01-16\"]::D", "expected": {"type": "date_array", "value": ["2025-01-15", "2025-01-16"]}}
+      ]
+    },
+    "as_typed_text": {
+      "_comment": "as_typed_text(array, compact_array=true) -> typed array string",
+      "cases": [
+        {"input": {"type": "int_array", "value": [1, 2, 3]}, "expected": "[\"1\",\"2\",\"3\"]::L"},
+        {"input": {"type": "int_array_nested", "value": [[1, 2], [3, 4]]}, "expected": "[[\"1\",\"2\"],[\"3\",\"4\"]]::L"},
+        {"input": {"type": "float_array", "value": [1.5, 2.5, 3.5]}, "expected": "[\"1.5\",\"2.5\",\"3.5\"]::R"},
+        {"input": {"type": "bool_array", "value": [true, false, true]}, "expected": "[\"true\",\"false\",\"true\"]::B"},
+        {"input": {"type": "date_array", "value": ["2025-01-15", "2025-01-16"]}, "expected": "[\"2025-01-15\",\"2025-01-16\"]::D"},
+        {"input": {"type": "empty_array", "value": []}, "expected": "[]"}
+      ]
+    }
   }
 }

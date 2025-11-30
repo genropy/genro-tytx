@@ -44,12 +44,11 @@ function isDecimalInstance(value) {
 
 /**
  * Integer type - whole numbers.
- * Genropy: L for long/int
+ * L = Long integer
  */
 const IntType = {
     name: 'int',
     code: 'L',
-    aliases: ['LONG', 'LONGINT', 'I', 'INT', 'INTEGER'],
     js_type: 'number',
 
     parse(value) {
@@ -70,12 +69,11 @@ const IntType = {
 
 /**
  * Float type - decimal numbers with limited precision.
- * Genropy: R for real/float
+ * R = Real number
  */
 const FloatType = {
     name: 'float',
     code: 'R',
-    aliases: ['REAL', 'FLOAT', 'F'],
     js_type: 'number',
 
     parse(value) {
@@ -103,7 +101,6 @@ const FloatType = {
 const BoolType = {
     name: 'bool',
     code: 'B',
-    aliases: ['boolean', 'BOOL', 'BOOLEAN'],
     js_type: 'boolean',
 
     parse(value) {
@@ -118,12 +115,11 @@ const BoolType = {
 
 /**
  * String/text type.
- * Genropy: T for text
+ * T = Text
  */
 const StrType = {
     name: 'str',
     code: 'T',
-    aliases: ['TEXT', 'P', 'A', 'S', 'STRING'],
     js_type: 'string',
 
     parse(value) {
@@ -137,12 +133,11 @@ const StrType = {
 
 /**
  * JSON type - serialized object/array structures.
- * Genropy: JS for json
+ * JS = JavaScript object
  */
 const JsonType = {
     name: 'json',
     code: 'JS',
-    aliases: ['JSON', 'J'],
     js_type: 'object',
 
     parse(value) {
@@ -157,12 +152,11 @@ const JsonType = {
 /**
  * Decimal type - exact decimal numbers (for money, etc.).
  * Uses big.js or decimal.js if available, otherwise native Number.
- * Genropy: N for numeric/decimal
+ * N = Numeric
  */
 const DecimalType = {
     name: 'decimal',
     code: 'N',
-    aliases: ['NUMERIC', 'DECIMAL'],
     js_type: DecimalLib ? decimalLibName : 'number',
 
     parse(value) {
@@ -194,7 +188,7 @@ const DecimalType = {
 
 /**
  * Date type - calendar date without time.
- * Genropy: D for date
+ * D = Date
  *
  * In JS, dates are stored as Date objects at midnight UTC.
  * This ensures consistent behavior across timezones.
@@ -202,7 +196,6 @@ const DecimalType = {
 const DateType = {
     name: 'date',
     code: 'D',
-    aliases: ['DATE', 'd', 'date'],
     js_type: 'Date',
 
     parse(value) {
@@ -233,7 +226,7 @@ const DateType = {
 
 /**
  * DateTime type - date with time (timezone-aware).
- * Genropy: DHZ for datetime
+ * DHZ = Date Hour Zulu (timezone-aware)
  *
  * DHZ preserves timezone information. When serialized, always outputs
  * with Z suffix for UTC. This allows cross-timezone operations:
@@ -242,7 +235,6 @@ const DateType = {
 const DateTimeType = {
     name: 'datetime',
     code: 'DHZ',
-    aliases: [],
     js_type: 'Date',
 
     parse(value) {
@@ -279,7 +271,7 @@ const DateTimeType = {
 
 /**
  * Naive DateTime type - date with time (no timezone).
- * Genropy: DH for naive datetime
+ * DH = Date Hour (deprecated)
  *
  * DEPRECATED: Use DateTimeType (DHZ) instead.
  *
@@ -289,7 +281,6 @@ const DateTimeType = {
 const NaiveDateTimeType = {
     name: 'naive_datetime',
     code: 'DH',
-    aliases: [],
     js_type: 'Date',
 
     parse(value) {
@@ -325,7 +316,7 @@ const NaiveDateTimeType = {
 
 /**
  * Time type - time without date.
- * Genropy: H for time (hour)
+ * H = Hour
  *
  * In JS, time is stored as Date on epoch (1970-01-01) UTC.
  * This allows smart detection: any Date with year=1970, month=0, day=1
@@ -334,7 +325,6 @@ const NaiveDateTimeType = {
 const TimeType = {
     name: 'time',
     code: 'H',
-    aliases: ['TIME', 'HZ'],
     js_type: 'Date',
 
     parse(value) {

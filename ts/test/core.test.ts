@@ -2,7 +2,7 @@
  * Core tests for TYTX TypeScript implementation.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   registry,
   fromJson,
@@ -15,8 +15,11 @@ import {
   hydrateObject,
   packb,
   unpackb,
+  __setMsgpackLoader,
   TYTX_EXT_TYPE,
   TypeRegistry,
+  hydrateArray,
+  __setBigLoader,
 } from '../src/index.js';
 
 describe('registry', () => {
@@ -154,9 +157,11 @@ describe('type utilities', () => {
     });
 
     it('rejects non-typed strings', () => {
+      expect(isTypedString(123 as never)).toBe(false);
       expect(isTypedString('hello')).toBe(false);
       expect(isTypedString('::L')).toBe(false);
       expect(isTypedString('')).toBe(false);
+      expect(isTypedString('value::')).toBe(false);
     });
   });
 
@@ -251,6 +256,100 @@ describe('TytxModel', () => {
       expect(Number(payment.amount)).toBe(500);
     });
   });
+
+  it('_getProperties ignores functions', () => {
+    class WithFn extends TytxModel {
+      value = 1;
+      fn() {
+        return 2;
+      }
+    }
+    const obj = new WithFn();
+    const props = obj['_getProperties']();
+    expect(props).toEqual({ value: 1 });
+  });
+
+  it('fetchTytx uses fetch and hydrates json', async () => {
+    const payload = { price: '1::L' };
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue(payload),
+    });
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetch;
+
+    const order = await Order.fetchTytx('http://example.test');
+    expect(order.price).toBe(1);
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it('fetchTytxArray validates array', async () => {
+    const payload = [{ price: '1::L' }];
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue(payload),
+    });
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetch;
+
+    const orders = await Order.fetchTytxArray('http://example.test');
+    expect(orders[0].price).toBe(1);
+  });
+
+  it('fetchTytxArray throws on non-array', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({ not: 'array' }),
+    });
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetch;
+
+    await expect(Order.fetchTytxArray('http://example.test')).rejects.toThrow(
+      /Expected array response/
+    );
+  });
+
+  it('fetchTytxMsgpack and fetchTytxMsgpackArray hydrate', async () => {
+    const item = new Order();
+    item.price = 5;
+    item.quantity = 1;
+    item.name = 'X';
+    const packedOne = item.toTytxMsgpack();
+    const packedMany = packb([{ price: 2, quantity: 1, name: 'Y' }]);
+
+    const mockFetchOne = vi.fn().mockResolvedValue({
+      arrayBuffer: vi.fn().mockResolvedValue(
+        packedOne.buffer.slice(packedOne.byteOffset, packedOne.byteOffset + packedOne.byteLength)
+      ),
+    });
+    const mockFetchMany = vi.fn().mockResolvedValue({
+      arrayBuffer: vi.fn().mockResolvedValue(
+        packedMany.buffer.slice(packedMany.byteOffset, packedMany.byteOffset + packedMany.byteLength)
+      ),
+    });
+
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetchOne;
+    const restored = await Order.fetchTytxMsgpack('http://example.test');
+    expect(restored.price).toBe(5);
+
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetchMany;
+    const restoredMany = await Order.fetchTytxMsgpackArray('http://example.test');
+    expect(restoredMany[0].price).toBe(2);
+  });
+
+  it('fetchTytxMsgpackArray throws on non-array', async () => {
+    const packed = packb({ not: 'array' });
+    const mockFetch = vi.fn().mockResolvedValue({
+      arrayBuffer: vi.fn().mockResolvedValue(
+        packed.buffer.slice(packed.byteOffset, packed.byteOffset + packed.byteLength)
+      ),
+    });
+    // @ts-expect-error override global fetch
+    globalThis.fetch = mockFetch;
+
+    await expect(Order.fetchTytxMsgpackArray('http://example.test')).rejects.toThrow(
+      /Expected array response/
+    );
+  });
 });
 
 describe('additional registry tests', () => {
@@ -283,6 +382,11 @@ describe('additional registry tests', () => {
     expect(result).toBe('42::UNKNOWN');
   });
 
+  it('parses with explicit unknown type code returns original', () => {
+    const result = registry.fromText('42', 'ZZ' as never);
+    expect(result).toBe('42');
+  });
+
   it('asText handles null and undefined', () => {
     expect(registry.asText(null as never)).toBe('null');
     expect(registry.asText(undefined as never)).toBe('undefined');
@@ -302,6 +406,19 @@ describe('additional registry tests', () => {
     expect(registry.asTypedText([1, 2, 3])).toBe('[1,2,3]::JS');
   });
 
+  it('asText handles date/time/datetime branches', () => {
+    const time = new Date('1970-01-01T10:00:00Z');
+    expect(registry.asText(time)).toBe('10:00:00');
+
+    const date = new Date('2025-01-15T00:00:00Z');
+    expect(registry.asText(date)).toBe('2025-01-15');
+
+    const dt = new Date('2025-01-15T10:00:00Z');
+    expect(registry.asText(dt)).toContain('T10:00:00');
+
+    expect(registry.asText(123)).toBe('123');
+  });
+
   it('isTyped checks if string has known type', () => {
     expect(registry.isTyped('42::L')).toBe(true);
     expect(registry.isTyped('hello')).toBe(false);
@@ -317,6 +434,130 @@ describe('additional registry tests', () => {
   it('TypeRegistry can be instantiated', () => {
     const reg = new TypeRegistry();
     expect(reg.fromText('42::L')).toBe(42);
+  });
+
+  it('compact array serialization and mixed fallback', () => {
+    // homogeneous ints -> compact (values serialized as strings for consistency)
+    const compact = registry.asTypedText([1, 2, 3], true);
+    expect(compact).toBe('["1","2","3"]::L');
+
+    // mixed types -> falls back to element typing
+    const mixed = registry.asTypedText([1, 'a'], true);
+    expect(mixed).toContain('::L');
+    expect(mixed).toContain('a');
+    expect(mixed.startsWith('[')).toBe(true);
+  });
+
+  it('parse typed array recursively', () => {
+    const reg = new TypeRegistry();
+    const result = reg.fromText('[[1,2],[3,4]]::L') as number[][];
+    expect(result).toEqual([[1, 2], [3, 4]]);
+  });
+
+  it('compact array empty and missing type mapping fallback', () => {
+    expect(registry.asTypedText([], true)).toBe('[]');
+
+    const reg = new TypeRegistry();
+    // @ts-expect-error private access for test
+    reg['codeToType'].delete('L');
+    const fallback = reg.asTypedText([1, 2], true);
+    expect(fallback).toContain('::L');
+  });
+
+  it('compact array detects mixed numeric types and datetime/time leaves', () => {
+    // mixed int/float -> not homogeneous
+    const mixedNumeric = registry.asTypedText([1, 1.5], true);
+    expect(mixedNumeric).toContain('::L');
+    expect(mixedNumeric).toContain('::R');
+
+    const times = [new Date('1970-01-01T10:00:00Z'), new Date('1970-01-01T11:00:00Z')];
+    const compactTimes = registry.asTypedText(times, true);
+    expect(compactTimes.endsWith('::H')).toBe(true);
+
+    const dates = [new Date('2025-01-01T00:00:00Z')];
+    const compactDates = registry.asTypedText(dates, true);
+    expect(compactDates.endsWith('::D')).toBe(true);
+
+    const datetimes = [new Date('2025-01-01T10:00:00Z'), new Date('2025-01-02T12:00:00Z')];
+    const compactDh = registry.asTypedText(datetimes, true);
+    expect(compactDh.endsWith('::DHZ')).toBe(true);
+
+    const nested = registry.asTypedText([[1, 2], [3, 4]], true);
+    expect(nested).toContain('::L');
+    expect(nested.startsWith('[')).toBe(true);
+
+    const nestedMixed = registry.asTypedText([[1, 'x']], true);
+    expect(nestedMixed).toContain('::L');
+    expect(nestedMixed).toContain('x');
+
+    const timeTyped = registry.asTypedText(new Date('1970-01-01T10:00:00Z'));
+    expect(timeTyped.endsWith('::H')).toBe(true);
+
+    const bools = registry.asTypedText([true, false], true);
+    expect(bools.endsWith('::B')).toBe(true);
+  });
+
+  it('naive datetime type serialization', () => {
+    const type = registry.get('DH');
+    expect(type).toBeDefined();
+    const dt = new Date('2025-01-01T10:00:00Z');
+    expect(type?.parse('2025-01-01T10:00:00')).toBeInstanceOf(Date);
+    expect(type?.serialize(dt)).toBe('2025-01-01T10:00:00');
+  });
+
+  it('DateTimeType isType handles midnight/epoch/non-midnight', () => {
+    const type = registry.get('DHZ');
+    expect(type?.isType?.(new Date('2025-01-01T00:00:00Z'))).toBe(false);
+    expect(type?.isType?.(new Date('1970-01-01T00:00:00Z'))).toBe(false);
+    expect(type?.isType?.(new Date('2025-01-01T10:00:00Z'))).toBe(true);
+  });
+
+  it('JsonType isType and DecimalType fallback without big.js', () => {
+    const jsonType = registry.get('JS');
+    expect(jsonType?.isType?.({ a: 1 })).toBe(true);
+    expect(jsonType?.isType?.(null)).toBe(false);
+
+    __setBigLoader(() => {
+      throw new Error('no big');
+    });
+    const decimalType = registry.get('N');
+    expect(decimalType?.parse('1.23')).toBe(1.23);
+    __setBigLoader(null);
+  });
+
+  it('built-in isType helpers', () => {
+    const intType = registry.get('L');
+    expect(intType?.isType?.(1)).toBe(true);
+    expect(intType?.isType?.(1.5)).toBe(false);
+    expect(intType?.isType?.('1' as never)).toBe(false);
+
+    const floatType = registry.get('R');
+    expect(floatType?.isType?.(1.5)).toBe(true);
+    expect(floatType?.isType?.(1)).toBe(false);
+
+    const decimalType = registry.get('N');
+    expect(decimalType?.isType?.(1.2)).toBe(true);
+    expect(decimalType?.isType?.(BigInt(1))).toBe(true);
+    expect(decimalType?.isType?.('1' as never)).toBe(false);
+
+    const boolType = registry.get('B');
+    expect(boolType?.isType?.(true)).toBe(true);
+    expect(boolType?.isType?.('true' as never)).toBe(false);
+
+    const dateType = registry.get('D');
+    expect(dateType?.isType?.(new Date('2025-01-01T00:00:00Z'))).toBe(true);
+    expect(dateType?.isType?.(new Date('1970-01-01T00:00:00Z'))).toBe(false);
+    expect(dateType?.isType?.('2025-01-01' as never)).toBe(false);
+
+    const dtType = registry.get('DHZ');
+    expect(dtType?.isType?.('not-a-date' as never)).toBe(false);
+
+    const timeType = registry.get('H');
+    expect(timeType?.isType?.('10:00:00' as never)).toBe(false);
+
+    const bigintCode = (registry as unknown as { getTypeCodeForValue: (v: unknown) => string | null })
+      .getTypeCodeForValue(BigInt(2));
+    expect(bigintCode).toBe('L');
   });
 });
 
@@ -348,9 +589,21 @@ describe('additional JSON tests', () => {
     expect(parsed).toEqual([1, 2, 3]);
   });
 
+  it('asJson serializes dates without typing', () => {
+    const date = new Date(Date.UTC(2025, 0, 15, 12, 0, 0));
+    const json = asJson({ date });
+    const parsed = JSON.parse(json);
+    expect(parsed.date).toBe(date.toISOString());
+  });
+
   it('fromJson handles arrays', () => {
     const result = fromJson<number[]>('["1::L","2::L","3::L"]');
     expect(result).toEqual([1, 2, 3]);
+  });
+
+  it('hydrateArray hydrates nested typed values', () => {
+    const result = hydrateArray(['1::L', ['2::L']]);
+    expect(result).toEqual([1, [2]]);
   });
 });
 
@@ -400,7 +653,19 @@ describe('MessagePack tests', () => {
     const unpacked = unpackb<typeof data>(arrayBuffer);
     expect(unpacked.value).toBe(42);
   });
+
+  it('packb throws when msgpack missing', () => {
+    // Force loader to throw to hit error branch
+    __setMsgpackLoader(() => {
+      throw new Error('missing');
+    });
+
+    expect(() => packb({ a: 1 })).toThrow(/@msgpack\/msgpack is required/);
+
+    __setMsgpackLoader(null);
+  });
 });
+
 
 describe('TytxModel MessagePack', () => {
   class Item extends TytxModel {

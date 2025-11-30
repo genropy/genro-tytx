@@ -14,7 +14,6 @@ import { isTypedString, extractTypeCode, extractValue } from './types.js';
 const IntType: DataType<number> = {
   code: 'L',
   name: 'int',
-  aliases: ['I', 'INT', 'INTEGER', 'LONG'],
   jsType: 'number',
   parse: (value: string) => parseInt(value, 10),
   serialize: (value: number) => String(Math.trunc(value)),
@@ -25,7 +24,6 @@ const IntType: DataType<number> = {
 const FloatType: DataType<number> = {
   code: 'R',
   name: 'float',
-  aliases: ['F', 'REAL', 'FLOAT'],
   jsType: 'number',
   parse: (value: string) => parseFloat(value),
   serialize: (value: number) => String(value),
@@ -33,17 +31,19 @@ const FloatType: DataType<number> = {
     typeof value === 'number' && !Number.isInteger(value),
 };
 
+let bigLoader: (() => unknown) | null = null;
+
 const DecimalType: DataType<number | bigint> = {
   code: 'N',
   name: 'decimal',
-  aliases: ['NUMERIC', 'DECIMAL'],
   jsType: 'number | Big',
-  parse: (value: string) => {
+  parse: (value: string): number | bigint => {
     // Try to use big.js if available
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Big = require('big.js');
-      return new Big(value);
+      const Big = (bigLoader ?? (() => require('big.js'))) as () => unknown;
+      const BigCtor = Big() as { new (v: string): number | bigint };
+      return new BigCtor(value);
     } catch {
       return parseFloat(value);
     }
@@ -56,7 +56,6 @@ const DecimalType: DataType<number | bigint> = {
 const BoolType: DataType<boolean> = {
   code: 'B',
   name: 'bool',
-  aliases: ['BOOL', 'BOOLEAN'],
   jsType: 'boolean',
   parse: (value: string) => {
     const lower = value.toLowerCase();
@@ -69,7 +68,6 @@ const BoolType: DataType<boolean> = {
 const StrType: DataType<string> = {
   code: 'T',
   name: 'str',
-  aliases: ['S', 'TEXT', 'STRING'],
   jsType: 'string',
   parse: (value: string) => value,
   serialize: (value: string) => value,
@@ -83,7 +81,6 @@ const StrType: DataType<string> = {
 const DateType: DataType<Date> = {
   code: 'D',
   name: 'date',
-  aliases: ['DATE', 'd', 'date'],
   jsType: 'Date',
   parse: (value: string) => new Date(value + 'T00:00:00.000Z'),
   serialize: (value: Date) => {
@@ -115,7 +112,6 @@ const DateType: DataType<Date> = {
 const DateTimeType: DataType<Date> = {
   code: 'DHZ',
   name: 'datetime',
-  aliases: [],
   jsType: 'Date',
   parse: (value: string) => new Date(value),
   serialize: (value: Date) => {
@@ -150,7 +146,6 @@ const DateTimeType: DataType<Date> = {
 const NaiveDateTimeType: DataType<Date> = {
   code: 'DH',
   name: 'naive_datetime',
-  aliases: [],
   jsType: 'Date',
   parse: (value: string) => new Date(value),
   serialize: (value: Date) => {
@@ -172,7 +167,6 @@ const NaiveDateTimeType: DataType<Date> = {
 const TimeType: DataType<Date> = {
   code: 'H',
   name: 'time',
-  aliases: ['TIME', 'HZ'],
   jsType: 'Date',
   parse: (value: string) => new Date('1970-01-01T' + value + 'Z'),
   serialize: (value: Date) => {
@@ -193,7 +187,6 @@ const TimeType: DataType<Date> = {
 const JsonType: DataType<object> = {
   code: 'JS',
   name: 'json',
-  aliases: ['JSON'],
   jsType: 'object',
   parse: (value: string) => JSON.parse(value) as object,
   serialize: (value: object) => JSON.stringify(value),
@@ -237,9 +230,6 @@ export class TypeRegistry {
   register(type: DataType): void {
     this.types.set(type.name, type);
     this.codeToType.set(type.code, type);
-    for (const alias of type.aliases) {
-      this.codeToType.set(alias, type);
-    }
   }
 
   /**
@@ -251,6 +241,7 @@ export class TypeRegistry {
 
   /**
    * Parse typed string to value.
+   * Supports typed arrays: "[1,2,3]::L" applies type to all leaf values.
    */
   fromText(value: string, typeCode?: TypeCode): TytxValue {
     if (typeCode) {
@@ -266,7 +257,31 @@ export class TypeRegistry {
     const rawValue = extractValue(value);
     const type = this.get(code);
 
-    return type ? (type.parse(rawValue) as TytxValue) : value;
+    if (type) {
+      // Check if it's a typed array: starts with '['
+      if (rawValue.startsWith('[')) {
+        return this.parseTypedArray(rawValue, type) as TytxValue;
+      }
+      return type.parse(rawValue) as TytxValue;
+    }
+
+    return value;
+  }
+
+  /**
+   * Parse a typed array, applying the type to all leaf values.
+   */
+  private parseTypedArray(jsonStr: string, type: DataType): unknown[] {
+    const data = JSON.parse(jsonStr) as unknown[];
+
+    const applyType = (item: unknown): unknown => {
+      if (Array.isArray(item)) {
+        return item.map(applyType);
+      }
+      return type.parse(String(item));
+    };
+
+    return applyType(data) as unknown[];
   }
 
   /**
@@ -295,10 +310,23 @@ export class TypeRegistry {
    * - Date (::D): midnight UTC (hours, minutes, seconds, ms all 0)
    * - Time (::H): epoch date (1970-01-01) - "first date in the world"
    * - DateTime (::DHZ): all other cases (timezone-aware)
+   *
+   * @param value - Value to serialize
+   * @param compactArray - If true, produce compact format "[1,2,3]::L" for homogeneous arrays
    */
-  asTypedText(value: TytxValue): string {
+  asTypedText(value: TytxValue, compactArray = false): string {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
+
+    // Handle compact array format
+    if (compactArray && Array.isArray(value)) {
+      const result = this.tryCompactArray(value);
+      if (result !== null) {
+        return result;
+      }
+      // Fallback: type each element individually
+      return this.serializeArrayElements(value);
+    }
 
     // Date/DateTime/Time - smart detection using UTC
     if (value instanceof Date) {
@@ -341,6 +369,91 @@ export class TypeRegistry {
   }
 
   /**
+   * Get type code for a leaf value.
+   */
+  private getTypeCodeForValue(value: unknown): string | null {
+    if (value instanceof Date) {
+      if (TimeType.isType(value)) return 'H';
+      if (DateType.isType(value)) return 'D';
+      return 'DHZ';
+    }
+    if (typeof value === 'boolean') return 'B';
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? 'L' : 'R';
+    }
+    if (typeof value === 'bigint') return 'L';
+    return null; // strings and other types
+  }
+
+  /**
+   * Collect all unique type codes from leaf values.
+   */
+  private collectLeafTypes(value: unknown): Set<string | null> {
+    if (Array.isArray(value)) {
+      const result = new Set<string | null>();
+      for (const item of value) {
+        for (const t of this.collectLeafTypes(item)) {
+          result.add(t);
+        }
+      }
+      return result;
+    }
+    return new Set([this.getTypeCodeForValue(value)]);
+  }
+
+  /**
+   * Serialize leaf values using a specific type.
+   */
+  private serializeLeaf(value: unknown, type: DataType): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.serializeLeaf(item, type));
+    }
+    return type.serialize(value as never);
+  }
+
+  /**
+   * Try to serialize array in compact format.
+   */
+  private tryCompactArray(value: unknown[]): string | null {
+    if (value.length === 0) {
+      return '[]';
+    }
+
+    const leafTypes = this.collectLeafTypes(value);
+
+    // If there are any null (strings), array is not fully typed - fallback
+    if (leafTypes.has(null)) {
+      return null;
+    }
+
+    if (leafTypes.size !== 1) {
+      return null; // Not homogeneous
+    }
+
+    const typeCode = [...leafTypes][0]!;
+    const type = this.get(typeCode);
+    if (!type) {
+      return null;
+    }
+
+    const serialized = this.serializeLeaf(value, type);
+    return JSON.stringify(serialized) + '::' + typeCode;
+  }
+
+  /**
+   * Serialize array with each element typed individually.
+   */
+  private serializeArrayElements(value: unknown[]): string {
+    const serializeItem = (item: unknown): unknown => {
+      if (Array.isArray(item)) {
+        return item.map(serializeItem);
+      }
+      return this.asTypedText(item as TytxValue);
+    };
+    return JSON.stringify(value.map(serializeItem));
+  }
+
+  /**
    * Check if string has type suffix.
    */
   isTyped(value: string): boolean {
@@ -354,6 +467,13 @@ export class TypeRegistry {
  * Default registry instance.
  */
 export const registry = new TypeRegistry();
+
+/**
+ * Override Big loader (testing only).
+ */
+export function __setBigLoader(loader: (() => unknown) | null): void {
+  bigLoader = loader;
+}
 
 /**
  * Re-export built-in types for custom type creation.

@@ -80,7 +80,6 @@ def format(
 |-----------|----------|---------|-------------|
 | `name` | Yes | - | Human-readable name |
 | `code` | Yes | - | Type code (e.g., `"U"`) |
-| `aliases` | No | `[]` | Alternative codes |
 | `python_type` | No | `None` | Python type class |
 | `sql_type` | No | `"VARCHAR"` | SQL column type |
 | `align` | No | `"L"` | Display alignment |
@@ -135,7 +134,6 @@ class MoneyType(DataType):
 
     name = "money"
     code = "M"
-    aliases = ["currency"]
     python_type = tuple  # (amount, currency)
     sql_type = "DECIMAL"
     align = "R"
@@ -177,29 +175,6 @@ from_text("100.00 EUR::M")
 
 as_typed_text((Decimal("99.99"), "USD"))
 # → "99.99 USD::M"
-```
-
-## Type with Aliases
-
-```python
-class PhoneType(DataType):
-    name = "phone"
-    code = "P"
-    aliases = ["tel", "telephone", "PHONE"]
-    python_type = str
-    sql_type = "VARCHAR(20)"
-
-    def parse(self, value: str) -> str:
-        # Normalize phone number
-        return "".join(c for c in value if c.isdigit() or c == "+")
-
-    def serialize(self, value: str) -> str:
-        return value
-
-# Both work
-from_text("+1234567890::P")
-from_text("+1234567890::tel")
-from_text("+1234567890::PHONE")
 ```
 
 ## Type Without python_type

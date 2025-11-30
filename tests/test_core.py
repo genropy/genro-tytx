@@ -35,7 +35,6 @@ class TestFromText:
 
     def test_from_text_typed_json(self):
         assert from_text('{"a":1}::JS') == {"a": 1}
-        assert from_text('{"a":1}::J') == {"a": 1}  # J alias
 
     def test_from_text_typed_decimal(self):
         assert from_text("123.45::N") == Decimal("123.45")
@@ -45,6 +44,7 @@ class TestFromText:
 
     def test_from_text_typed_datetime(self):
         from datetime import timezone
+
         # DHZ is the canonical code (timezone-aware) - returns UTC datetime
         result = from_text("2025-01-15T10:00:00Z::DHZ")
         assert result == datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
@@ -175,32 +175,29 @@ class TestTypeAttributes:
         assert DateTimeType.empty is None
         assert DateTimeType.code == "DHZ"
 
-    def test_genropy_compatible_aliases(self):
-        """Test that Genropy-compatible aliases work."""
-        # Integer aliases (Genropy uses L for long/int)
-        assert from_text("123::INT") == 123
-        assert from_text("123::INTEGER") == 123
-        assert from_text("123::LONG") == 123
+    def test_mnemonic_type_codes(self):
+        """Test that mnemonic type codes work."""
+        from datetime import timezone
 
-        # Float aliases (Genropy uses R for real)
+        # Integer (L)
+        assert from_text("123::L") == 123
+
+        # Float (R)
         assert from_text("1.5::R") == 1.5
-        assert from_text("1.5::REAL") == 1.5
 
-        # Boolean
-        assert from_text("true::BOOL") is True
-        assert from_text("true::BOOLEAN") is True
+        # Boolean (B)
+        assert from_text("true::B") is True
 
-        # String/Text (Genropy uses T, A, P)
+        # String/Text (T)
         assert from_text("hello::T") == "hello"
-        assert from_text("hello::TEXT") == "hello"
 
-        # Decimal (Genropy uses N for numeric)
+        # Decimal (N)
         assert from_text("100.50::N") == Decimal("100.50")
-        assert from_text("100.50::NUMERIC") == Decimal("100.50")
 
         # DateTime (DHZ is canonical, DH is deprecated)
-        from datetime import timezone
-        assert from_text("2025-01-15T10:00:00Z::DHZ") == datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+        assert from_text("2025-01-15T10:00:00Z::DHZ") == datetime(
+            2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc
+        )
         assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
 
 
@@ -401,6 +398,7 @@ class TestJSONUtils:
     def test_json_roundtrip(self):
         """Round-trip: as_typed_json then from_json returns original values."""
         from datetime import timezone
+
         original = {
             "price": Decimal("123.45"),
             "date": date(2025, 6, 15),
@@ -449,16 +447,20 @@ class TestEdgeCases:
 
     def test_as_text_unknown_type(self):
         """as_text with unknown type uses str()."""
+
         class CustomType:
             pass
+
         obj = CustomType()
         result = as_text(obj)
         assert "CustomType" in result
 
     def test_as_typed_text_unknown_type(self):
         """as_typed_text with unknown type uses str()."""
+
         class CustomType:
             pass
+
         obj = CustomType()
         result = as_typed_text(obj)
         assert "CustomType" in result
@@ -480,7 +482,7 @@ class TestEdgeCases:
                         {"attrs": {}, "value": "first"},
                         {"attrs": {}, "value": "second"},
                     ]
-                }
+                },
             }
         }
         xml = as_typed_xml(data)
@@ -631,6 +633,7 @@ class TestEdgeCases:
     def test_format_with_locale_int(self):
         """Test integer formatting with locale."""
         from genro_tytx import IntType
+
         it = IntType()
         result = it.format(1234567, "%d")
         assert isinstance(result, str)
@@ -638,6 +641,7 @@ class TestEdgeCases:
     def test_format_with_locale_decimal(self):
         """Test Decimal formatting with locale."""
         from genro_tytx import DecimalType
+
         dt = DecimalType()
         result = dt.format(Decimal("1234.56"), "%.2f")
         assert isinstance(result, str)
@@ -645,6 +649,7 @@ class TestEdgeCases:
     def test_format_with_locale_date(self):
         """Test date formatting with locale."""
         from genro_tytx import DateType
+
         dt = DateType()
         result = dt.format(date(2025, 1, 15), "%Y-%m-%d")
         assert result == "2025-01-15"
@@ -652,6 +657,7 @@ class TestEdgeCases:
     def test_format_with_locale_datetime(self):
         """Test datetime formatting with locale."""
         from genro_tytx import DateTimeType
+
         dtt = DateTimeType()
         result = dtt.format(datetime(2025, 1, 15, 10, 30), "%Y-%m-%d %H:%M")
         assert result == "2025-01-15 10:30"
@@ -659,6 +665,7 @@ class TestEdgeCases:
     def test_format_true_without_default(self):
         """format=True on type without default_format."""
         from genro_tytx import StrType
+
         st = StrType()
         # StrType has no default_format, should fall back to serialize
         result = st.format("hello", True)
@@ -667,6 +674,7 @@ class TestEdgeCases:
     def test_json_type_serialize(self):
         """JsonType serialize produces JSON string."""
         from genro_tytx import JsonType
+
         jt = JsonType()
         result = jt.serialize({"a": 1})
         assert result == '{"a": 1}'
@@ -674,6 +682,7 @@ class TestEdgeCases:
     def test_json_type_parse(self):
         """JsonType parse returns dict/list."""
         from genro_tytx import JsonType
+
         jt = JsonType()
         result = jt.parse('{"a": 1}')
         assert result == {"a": 1}
@@ -681,6 +690,7 @@ class TestEdgeCases:
     def test_float_format_with_locale(self):
         """FloatType format with locale."""
         from genro_tytx import FloatType
+
         ft = FloatType()
         result = ft.format(1234.56, "%.2f")
         assert isinstance(result, str)
@@ -695,6 +705,7 @@ class TestEdgeCases:
     def test_xml_invalid_content_raises(self):
         """XML build with invalid content raises ValueError."""
         import pytest
+
         data = {"root": "not a dict with attrs/value"}
         with pytest.raises(ValueError):
             as_typed_xml(data)
@@ -702,6 +713,7 @@ class TestEdgeCases:
     def test_xml_multiple_roots_raises(self):
         """XML with multiple roots and no root_tag raises ValueError."""
         import pytest
+
         data = {"a": {"attrs": {}, "value": "x"}, "b": {"attrs": {}, "value": "y"}}
         with pytest.raises(ValueError):
             as_typed_xml(data)
@@ -743,18 +755,21 @@ class TestEdgeCases:
     def test_bool_type_attributes(self):
         """BoolType has correct attributes."""
         from genro_tytx import BoolType
+
         assert BoolType.python_type is bool
         assert BoolType.empty is False
 
     def test_json_type_attributes(self):
         """JsonType has correct attributes."""
         from genro_tytx import JsonType
+
         assert JsonType.python_type is dict
         assert JsonType.js_type == "object"
 
     def test_float_type_attributes(self):
         """FloatType has correct attributes."""
         from genro_tytx import FloatType
+
         assert FloatType.python_type is float
         assert FloatType.empty == 0.0
         assert FloatType.align == "R"
@@ -785,7 +800,7 @@ class TestEdgeCases:
                         {"attrs": {"n": 2}, "value": "b"},
                         {"attrs": {"n": 3}, "value": "c"},
                     ]
-                }
+                },
             }
         }
         xml = as_xml(data)
@@ -794,6 +809,7 @@ class TestEdgeCases:
     def test_format_with_explicit_locale(self):
         """Test formatting with explicit locale parameter."""
         from genro_tytx import DateType
+
         dt = DateType()
         # Use a simple format that doesn't depend on locale
         result = dt.format(date(2025, 1, 15), "%d-%m-%Y", locale="C")
@@ -802,7 +818,12 @@ class TestEdgeCases:
     def test_as_text_list(self):
         """as_text with list value."""
         result = as_text([1, 2, 3])
-        assert result == '{"a": 1}' or "1, 2, 3" in result or "[1, 2, 3]" in result or result == '[1, 2, 3]'
+        assert (
+            result == '{"a": 1}'
+            or "1, 2, 3" in result
+            or "[1, 2, 3]" in result
+            or result == "[1, 2, 3]"
+        )
 
     def test_as_typed_text_list(self):
         """as_typed_text with list value serializes as JSON."""
@@ -819,7 +840,7 @@ class TestEdgeCases:
                 "value": [
                     {"attrs": {"id": 1}, "value": "a"},
                     {"attrs": {"id": 2}, "value": "b"},
-                ]
+                ],
             }
         }
         xml = as_xml(data)
@@ -834,6 +855,7 @@ class TestEdgeCases:
     def test_datatype_base_format_with_locale_default(self):
         """Test DataType._format_with_locale default implementation."""
         from genro_tytx import StrType
+
         st = StrType()
         # StrType doesn't override _format_with_locale, so uses base
         result = st._format_with_locale("hello", "%s", "en_US")
@@ -853,6 +875,7 @@ class TestEdgeCases:
     def test_format_int_with_locale(self):
         """IntType format with explicit locale."""
         from genro_tytx import IntType
+
         it = IntType()
         # Test format with None locale (uses system)
         result = it.format(1234, "%d", None)
@@ -861,6 +884,7 @@ class TestEdgeCases:
     def test_format_decimal_with_locale(self):
         """DecimalType format with explicit locale."""
         from genro_tytx import DecimalType
+
         dt = DecimalType()
         result = dt.format(Decimal("1234.56"), "%.2f", None)
         assert isinstance(result, str)
@@ -872,6 +896,7 @@ class TestMsgpackUtils:
     def test_msgpack_import_error(self):
         """Test ImportError when msgpack not installed."""
         import sys
+
         import pytest
 
         # Save original msgpack module if present
@@ -883,10 +908,12 @@ class TestMsgpackUtils:
 
         # Also need to reset the module's cached state
         from genro_tytx import msgpack_utils
+
         msgpack_utils._msgpack_available = None
 
         # Mock the import to fail
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -908,8 +935,9 @@ class TestMsgpackUtils:
     def test_msgpack_packb_unpackb_roundtrip(self):
         """Test round-trip with msgpack pack/unpack."""
         from datetime import timezone
+
         pytest = __import__("pytest")
-        msgpack = pytest.importorskip("msgpack")
+        pytest.importorskip("msgpack")
 
         from genro_tytx.msgpack_utils import packb, unpackb
 
@@ -959,7 +987,7 @@ class TestMsgpackUtils:
     def test_msgpack_primitives_only(self):
         """Test that primitives don't use ExtType."""
         pytest = __import__("pytest")
-        msgpack = pytest.importorskip("msgpack")
+        pytest.importorskip("msgpack")
 
         from genro_tytx.msgpack_utils import packb, unpackb
 
@@ -976,7 +1004,7 @@ class TestMsgpackUtils:
         pytest = __import__("pytest")
         msgpack = pytest.importorskip("msgpack")
 
-        from genro_tytx.msgpack_utils import tytx_encoder, tytx_decoder
+        from genro_tytx.msgpack_utils import tytx_decoder, tytx_encoder
 
         data = {"price": Decimal("50.00")}
 
@@ -1045,8 +1073,9 @@ class TestMsgpackUtils:
         pytest = __import__("pytest")
         pytest.importorskip("msgpack")
 
-        from genro_tytx.msgpack_utils import _has_tytx_types
         from datetime import time
+
+        from genro_tytx.msgpack_utils import _has_tytx_types
 
         # Types that should be detected
         assert _has_tytx_types(Decimal("10")) is True
@@ -1105,6 +1134,7 @@ class TestPydanticMsgpack:
     def test_tytx_model_msgpack_with_datetime(self):
         """Test TytxModel msgpack with datetime field."""
         from datetime import timezone
+
         pytest = __import__("pytest")
         pytest.importorskip("pydantic")
         pytest.importorskip("msgpack")
@@ -1163,6 +1193,7 @@ class TestPydanticMsgpack:
     def test_tytx_model_msgpack_import_error(self):
         """Test ImportError when msgpack not installed for TytxModel."""
         import sys
+
         pytest = __import__("pytest")
         pytest.importorskip("pydantic")
 
@@ -1182,10 +1213,12 @@ class TestPydanticMsgpack:
 
         # Reset msgpack_utils cached state
         from genro_tytx import msgpack_utils
+
         msgpack_utils._msgpack_available = None
 
         # Mock the import to fail
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -1203,3 +1236,124 @@ class TestPydanticMsgpack:
             msgpack_utils._msgpack_available = None
             if original_msgpack:
                 sys.modules["msgpack"] = original_msgpack
+
+
+class TestTypedArrays:
+    """Tests for typed arrays feature (compact_array parameter)."""
+
+    def test_from_text_typed_array_int(self):
+        """Parse typed array of integers."""
+        result = from_text("[1,2,3]::L")
+        assert result == [1, 2, 3]
+        assert all(isinstance(x, int) for x in result)
+
+    def test_from_text_typed_array_nested(self):
+        """Parse nested typed array."""
+        result = from_text("[[1,2],[3,4]]::L")
+        assert result == [[1, 2], [3, 4]]
+        assert all(isinstance(x, int) for row in result for x in row)
+
+    def test_from_text_typed_array_float(self):
+        """Parse typed array of floats."""
+        result = from_text("[1.5,2.5,3.5]::R")
+        assert result == [1.5, 2.5, 3.5]
+        assert all(isinstance(x, float) for x in result)
+
+    def test_from_text_typed_array_decimal(self):
+        """Parse typed array of decimals."""
+        result = from_text("[1.5,2.5,3.5]::N")
+        assert result == [Decimal("1.5"), Decimal("2.5"), Decimal("3.5")]
+        assert all(isinstance(x, Decimal) for x in result)
+
+    def test_from_text_typed_array_bool(self):
+        """Parse typed array of booleans."""
+        result = from_text("[true,false,true]::B")
+        assert result == [True, False, True]
+        assert all(isinstance(x, bool) for x in result)
+
+    def test_from_text_typed_array_date(self):
+        """Parse typed array of dates."""
+        result = from_text('["2025-01-15","2025-01-16"]::D')
+        assert result == [date(2025, 1, 15), date(2025, 1, 16)]
+        assert all(isinstance(x, date) for x in result)
+
+    def test_as_typed_text_compact_array_int(self):
+        """Serialize homogeneous int array with compact_array=True."""
+        result = as_typed_text([1, 2, 3], compact_array=True)
+        # Values are serialized as strings for consistency with other types
+        assert result == '["1","2","3"]::L'
+
+    def test_as_typed_text_compact_array_nested(self):
+        """Serialize nested homogeneous array with compact_array=True."""
+        result = as_typed_text([[1, 2], [3, 4]], compact_array=True)
+        assert result == '[["1","2"],["3","4"]]::L'
+
+    def test_as_typed_text_compact_array_float(self):
+        """Serialize homogeneous float array with compact_array=True."""
+        result = as_typed_text([1.5, 2.5, 3.5], compact_array=True)
+        assert result == '["1.5","2.5","3.5"]::R'
+
+    def test_as_typed_text_compact_array_decimal(self):
+        """Serialize homogeneous decimal array with compact_array=True."""
+        result = as_typed_text([Decimal("1.5"), Decimal("2.5")], compact_array=True)
+        assert result == '["1.5","2.5"]::N'
+
+    def test_as_typed_text_compact_array_bool(self):
+        """Serialize homogeneous bool array with compact_array=True."""
+        result = as_typed_text([True, False, True], compact_array=True)
+        assert result == '["true","false","true"]::B'
+
+    def test_as_typed_text_compact_array_date(self):
+        """Serialize homogeneous date array with compact_array=True."""
+        result = as_typed_text([date(2025, 1, 15), date(2025, 1, 16)], compact_array=True)
+        assert result == '["2025-01-15","2025-01-16"]::D'
+
+    def test_as_typed_text_compact_array_empty(self):
+        """Empty array returns [] without type."""
+        result = as_typed_text([], compact_array=True)
+        assert result == "[]"
+
+    def test_as_typed_text_compact_array_heterogeneous_fallback(self):
+        """Heterogeneous array falls back to element-by-element typing."""
+        result = as_typed_text([1, "hello", 2], compact_array=True)
+        # Should type each element individually
+        assert result == '["1::L","hello","2::L"]'
+
+    def test_as_typed_text_compact_array_mixed_types_fallback(self):
+        """Mixed numeric types (int and float) falls back to element-by-element."""
+        result = as_typed_text([1, 2.5, 3], compact_array=True)
+        # L and R are different types, so fallback
+        assert result == '["1::L","2.5::R","3::L"]'
+
+    def test_as_typed_text_without_compact_array(self):
+        """Without compact_array, arrays become JSON."""
+        result = as_typed_text([1, 2, 3])
+        assert result == "[1, 2, 3]::JS"
+
+    def test_roundtrip_typed_array_int(self):
+        """Roundtrip test for typed int array."""
+        original = [1, 2, 3]
+        serialized = as_typed_text(original, compact_array=True)
+        restored = from_text(serialized)
+        assert restored == original
+
+    def test_roundtrip_typed_array_nested(self):
+        """Roundtrip test for nested typed array."""
+        original = [[1, 2], [3, 4]]
+        serialized = as_typed_text(original, compact_array=True)
+        restored = from_text(serialized)
+        assert restored == original
+
+    def test_roundtrip_typed_array_float(self):
+        """Roundtrip test for typed float array."""
+        original = [1.5, 2.5, 3.5]
+        serialized = as_typed_text(original, compact_array=True)
+        restored = from_text(serialized)
+        assert restored == original
+
+    def test_roundtrip_typed_array_decimal(self):
+        """Roundtrip test for typed decimal array."""
+        original = [Decimal("1.5"), Decimal("2.5")]
+        serialized = as_typed_text(original, compact_array=True)
+        restored = from_text(serialized)
+        assert restored == original

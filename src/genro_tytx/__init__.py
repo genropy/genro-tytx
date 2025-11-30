@@ -17,9 +17,11 @@ TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats
 
 Public API:
     # Text conversion
-    from_text("100::D")       → Decimal("100")
+    from_text("100::N")       → Decimal("100")
+    from_text("[1,2,3]::L")   → [1, 2, 3]  # typed arrays
     as_text(Decimal("100"))   → "100"
-    as_typed_text(Decimal("100")) → "100::D"
+    as_typed_text(Decimal("100")) → "100::N"
+    as_typed_text([1,2,3], compact_array=True) → '["1","2","3"]::L'
 
     # JSON conversion
     as_json(data)             → standard JSON (for external systems)
@@ -30,6 +32,13 @@ Public API:
     as_xml(data)              → standard XML (for external systems)
     as_typed_xml(data)        → XML with ::type (TYTX format)
     from_xml(xml_str)         → dict with attrs/value structure
+
+Type codes:
+    L  - int (long)           DHZ - datetime (timezone-aware, canonical)
+    R  - float (real)         DH  - datetime (naive, deprecated)
+    N  - Decimal (numeric)    H   - time
+    B  - bool                 D   - date
+    T  - str (text)           JS  - JSON object
 """
 
 from .base import DataType
@@ -41,6 +50,7 @@ from .builtin import (
     FloatType,
     IntType,
     JsonType,
+    NaiveDateTimeType,
     StrType,
     TimeType,
 )
@@ -61,7 +71,7 @@ from_text = registry.from_text
 as_text = registry.as_text
 as_typed_text = registry.as_typed_text
 
-__version__ = "0.2.0"
+__version__ = "0.2.5"
 __all__ = [
     "__version__",
     # Text API
@@ -88,6 +98,7 @@ __all__ = [
     "FloatType",
     "IntType",
     "JsonType",
+    "NaiveDateTimeType",
     "StrType",
     "TimeType",
 ]
