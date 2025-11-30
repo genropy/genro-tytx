@@ -1,6 +1,10 @@
 /**
  * MessagePack utilities for TYTX TypeScript implementation.
  *
+ * TYTX uses MessagePack ExtType code 42 for typed payloads.
+ * The content is a UTF-8 encoded JSON string with typed values.
+ * No TYTX:: prefix needed - ExtType(42) itself is the marker.
+ *
  * @module msgpack
  */
 
@@ -54,8 +58,9 @@ export function packb(obj: unknown): Uint8Array {
   const msgpack = getMsgpack();
 
   if (hasTytxTypes(obj)) {
-    const tytxStr = asTypedJson(obj) + '::TYTX';
-    const data = new TextEncoder().encode(tytxStr);
+    // No TYTX:: prefix needed - ExtType(42) itself is the marker
+    const jsonStr = asTypedJson(obj);
+    const data = new TextEncoder().encode(jsonStr);
     const ext = new msgpack.ExtData(TYTX_EXT_TYPE, data);
     return msgpack.encode(ext);
   }
@@ -80,10 +85,7 @@ export function unpackb<T = unknown>(packed: Uint8Array | ArrayBuffer): T {
     type: TYTX_EXT_TYPE,
     encode: () => new Uint8Array(0), // Not used for decoding
     decode: (data: Uint8Array) => {
-      const tytxStr = new TextDecoder().decode(data);
-      const jsonStr = tytxStr.endsWith('::TYTX')
-        ? tytxStr.slice(0, -6)
-        : tytxStr;
+      const jsonStr = new TextDecoder().decode(data);
       return fromJson(jsonStr);
     },
   });

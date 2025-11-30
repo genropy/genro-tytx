@@ -16,7 +16,8 @@
 MessagePack utilities for TYTX Protocol.
 
 TYTX uses MessagePack ExtType code 42 for typed payloads.
-The content is a UTF-8 encoded TYTX JSON string.
+The content is a UTF-8 encoded JSON string with typed values.
+No TYTX:: prefix needed - ExtType(42) itself is the marker.
 
 Usage:
     pip install genro-tytx[msgpack]
@@ -127,7 +128,7 @@ def tytx_encoder(obj: Any) -> Any:
     from .json_utils import as_typed_json
 
     if _has_tytx_types(obj):
-        tytx_str = as_typed_json(obj) + "::TYTX"
+        tytx_str = as_typed_json(obj)
         return msgpack.ExtType(TYTX_EXT_TYPE, tytx_str.encode("utf-8"))
 
     raise TypeError(f"Object of type {type(obj).__name__} is not MessagePack serializable")
@@ -158,8 +159,7 @@ def tytx_decoder(code: int, data: bytes) -> Any:
     import msgpack
 
     if code == TYTX_EXT_TYPE:
-        tytx_str = data.decode("utf-8")
-        json_str = tytx_str[:-6] if tytx_str.endswith("::TYTX") else tytx_str
+        json_str = data.decode("utf-8")
 
         from .json_utils import from_json
 

@@ -1014,27 +1014,14 @@ class TestMsgpackUtils:
         assert result.code == 99
         assert result.data == b"some data"
 
-    def test_msgpack_tytx_marker_removal(self):
-        """Test that ::TYTX marker is properly removed during decode."""
-        pytest = __import__("pytest")
-        msgpack = pytest.importorskip("msgpack")
-
-        from genro_tytx.msgpack_utils import tytx_decoder
-
-        # Simulate raw TYTX ExtType data
-        tytx_data = b'{"price": "99.99::N"}::TYTX'
-        result = tytx_decoder(42, tytx_data)
-
-        assert result["price"] == Decimal("99.99")
-
-    def test_msgpack_without_tytx_marker(self):
-        """Test decode when ::TYTX marker is missing (backward compat)."""
+    def test_msgpack_json_decode(self):
+        """Test that ExtType(42) decodes JSON with typed values."""
         pytest = __import__("pytest")
         pytest.importorskip("msgpack")
 
         from genro_tytx.msgpack_utils import tytx_decoder
 
-        # Data without ::TYTX suffix
+        # ExtType(42) contains JSON with typed values (no TYTX:: prefix)
         data = b'{"price": "99.99::N"}'
         result = tytx_decoder(42, data)
 

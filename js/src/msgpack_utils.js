@@ -2,7 +2,8 @@
  * MessagePack utilities for TYTX Protocol.
  *
  * TYTX uses MessagePack ExtType code 42 for typed payloads.
- * The content is a UTF-8 encoded TYTX JSON string.
+ * The content is a UTF-8 encoded JSON string with typed values.
+ * No TYTX:: prefix needed - ExtType(42) itself is the marker.
  *
  * Usage:
  *     npm install @msgpack/msgpack
@@ -87,14 +88,11 @@ function _createExtensionCodec() {
         type: TYTX_EXT_TYPE,
         encode: (obj) => {
             // This is called by the custom encoder, not directly
-            const tytxStr = as_typed_json(obj) + '::TYTX';
-            return new TextEncoder().encode(tytxStr);
+            const jsonStr = as_typed_json(obj);
+            return new TextEncoder().encode(jsonStr);
         },
         decode: (data) => {
-            const tytxStr = new TextDecoder().decode(data);
-            const jsonStr = tytxStr.endsWith('::TYTX')
-                ? tytxStr.slice(0, -6)
-                : tytxStr;
+            const jsonStr = new TextDecoder().decode(data);
             return from_json(jsonStr);
         }
     });
@@ -141,17 +139,17 @@ function packb(obj) {
     extensionCodec.register({
         type: TYTX_EXT_TYPE,
         encode: (input) => {
-            const tytxStr = as_typed_json(input) + '::TYTX';
-            return new TextEncoder().encode(tytxStr);
+            const jsonStr = as_typed_json(input);
+            return new TextEncoder().encode(jsonStr);
         },
         decode: codec.decode
     });
 
     // We need to intercept objects with TYTX types
     if (_hasTytxTypes(obj)) {
-        // Encode as ExtType
-        const tytxStr = as_typed_json(obj) + '::TYTX';
-        const data = new TextEncoder().encode(tytxStr);
+        // Encode as ExtType - no TYTX:: prefix needed, ExtType(42) is the marker
+        const jsonStr = as_typed_json(obj);
+        const data = new TextEncoder().encode(jsonStr);
         const ext = new msgpack.ExtData(TYTX_EXT_TYPE, data);
         return msgpack.encode(ext);
     }
