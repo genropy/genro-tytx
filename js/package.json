@@ -16,6 +16,7 @@
     "docs": "jsdoc -c jsdoc.json"
   },
   "devDependencies": {
+    "@msgpack/msgpack": "^3.1.2",
     "jsdoc": "^4.0.0"
   },
   "keywords": [
@@ -24,6 +25,7 @@
     "protocol",
     "json",
     "xml",
+    "msgpack",
     "genro",
     "tytx",
     "decimal"
@@ -45,6 +47,7 @@
     "big.js": "^6.0.0"
   },
   "peerDependencies": {
+    "@msgpack/msgpack": ">=3.0.0",
     "big.js": ">=6.0.0",
     "decimal.js": ">=10.0.0"
   },
@@ -53,6 +56,9 @@
       "optional": true
     },
     "decimal.js": {
+      "optional": true
+    },
+    "@msgpack/msgpack": {
       "optional": true
     }
   }

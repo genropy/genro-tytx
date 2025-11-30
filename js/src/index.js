@@ -3,19 +3,19 @@
  *
  * Public API:
  *     // Text conversion
- *     from_text("100::D")       ’ 100 (Number)
- *     as_text(100)              ’ "100"
- *     as_typed_text(100)        ’ "100::I"
+ *     from_text("100::D")       ï¿½ 100 (Number)
+ *     as_text(100)              ï¿½ "100"
+ *     as_typed_text(100)        ï¿½ "100::I"
  *
  *     // JSON conversion
- *     as_json(data)             ’ standard JSON (for external systems)
- *     as_typed_json(data)       ’ JSON with ::type (TYTX format)
- *     from_json(json_str)       ’ object with hydrated values
+ *     as_json(data)             ï¿½ standard JSON (for external systems)
+ *     as_typed_json(data)       ï¿½ JSON with ::type (TYTX format)
+ *     from_json(json_str)       ï¿½ object with hydrated values
  *
  *     // XML conversion
- *     as_xml(data)              ’ standard XML (for external systems)
- *     as_typed_xml(data)        ’ XML with ::type (TYTX format)
- *     from_xml(xml_str)         ’ object with attrs/value structure
+ *     as_xml(data)              ï¿½ standard XML (for external systems)
+ *     as_typed_xml(data)        ï¿½ XML with ::type (TYTX format)
+ *     from_xml(xml_str)         ï¿½ object with attrs/value structure
  *
  * @module genro-tytx
  * @version 0.1.0
@@ -43,6 +43,9 @@ const {
     DateType,
     DateTimeType
 } = require('./types');
+
+// Import TytxModel
+const { TytxModel } = require('./tytx_model');
 
 // Public API functions (bound to registry)
 const from_text = registry.from_text.bind(registry);
@@ -83,5 +86,8 @@ module.exports = {
     ListType,
     DecimalType,
     DateType,
-    DateTimeType
+    DateTimeType,
+
+    // Model base class
+    TytxModel
 };

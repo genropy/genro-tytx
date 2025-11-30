@@ -8,7 +8,7 @@ JavaScript implementation of TYTX (Typed Text) protocol.
 npm install genro-tytx
 ```
 
-### Optional: Decimal Support
+### Optional Dependencies
 
 For precise decimal arithmetic (recommended for financial applications):
 
@@ -18,7 +18,13 @@ npm install big.js       # Lightweight (8KB) - recommended
 npm install decimal.js   # Full-featured (32KB)
 ```
 
-TYTX automatically detects and uses whichever library is installed.
+For MessagePack binary serialization:
+
+```bash
+npm install @msgpack/msgpack
+```
+
+TYTX automatically detects and uses whichever libraries are installed.
 
 ## Quick Start
 
@@ -78,11 +84,72 @@ from_json('{"price":"99.99::N","date":"2025-01-15::D"}');
 - `as_xml(data)` - Serialize to standard XML
 - `from_xml(xml_str)` - Parse XML with type hydration
 
+### MessagePack Functions
+
+Requires `@msgpack/msgpack`:
+
+```javascript
+const { packb, unpackb } = require('genro-tytx/src/msgpack_utils');
+
+const data = { price: 99.99, date: new Date('2025-01-15') };
+
+// Pack to MessagePack bytes
+const packed = packb(data);
+
+// Unpack with types restored
+const restored = unpackb(packed);
+// restored.date is a Date object
+```
+
+- `packb(data)` - Pack to MessagePack bytes with TYTX types
+- `unpackb(packed)` - Unpack MessagePack bytes with type hydration
+- `TYTX_EXT_TYPE` - ExtType code 42 (TYTX marker)
+
 ### Registry
 
 - `registry.register(type)` - Register custom type
 - `registry.get(code)` - Get type by code
 - `registry.is_typed(value)` - Check if string has type suffix
+
+### TytxModel
+
+Base class for creating TYTX-aware models:
+
+```javascript
+const { TytxModel } = require('genro-tytx');
+
+class Order extends TytxModel {}
+
+// Create from TYTX JSON
+const order = Order.fromTytx('{"price": "99.99::N", "date": "2025-01-15::D"}');
+console.log(order.price);  // 99.99 (number or Big)
+console.log(order.date);   // Date object
+
+// Serialize to TYTX JSON
+const newOrder = new Order();
+newOrder.price = 149.99;
+newOrder.date = new Date();
+newOrder.toTytx();  // '{"price":"149.99::R","date":"2025-01-15::D"}'
+
+// Fetch from API (single object or array)
+const orders = await Order.fetchTytx('/api/orders');
+orders.forEach(o => console.log(o.price, o.date));
+
+// MessagePack support (requires @msgpack/msgpack)
+const packed = order.toTytxMsgpack();
+const restored = Order.fromTytxMsgpack(packed);
+```
+
+**TytxModel Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `toTytx()` | Serialize instance to TYTX JSON string |
+| `toTytxMsgpack()` | Serialize instance to MessagePack bytes |
+| `static fromTytx(json)` | Create instance from TYTX JSON string or object |
+| `static fromTytxMsgpack(packed)` | Create instance from MessagePack bytes |
+| `static fetchTytx(url, init?)` | Fetch and deserialize from URL |
+| `static fetchTytxMsgpack(url, init?)` | Fetch MessagePack and deserialize |
 
 ## Decimal Library Detection
 

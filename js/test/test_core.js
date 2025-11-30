@@ -396,3 +396,196 @@ describe('edge cases', () => {
         assert.strictEqual(from_text('no::B'), false);
     });
 });
+
+// MessagePack tests (only run if @msgpack/msgpack is installed)
+describe('msgpack_utils', () => {
+    let msgpackUtils;
+    let msgpackAvailable = false;
+
+    // Try to load msgpack utilities
+    try {
+        require('@msgpack/msgpack');
+        msgpackUtils = require('../src/msgpack_utils');
+        msgpackAvailable = true;
+    } catch (e) {
+        // @msgpack/msgpack not installed, skip tests
+    }
+
+    test('TYTX_EXT_TYPE is 42', { skip: !msgpackAvailable }, () => {
+        assert.strictEqual(msgpackUtils.TYTX_EXT_TYPE, 42);
+    });
+
+    test('_hasTytxTypes detects Date', { skip: !msgpackAvailable }, () => {
+        assert.strictEqual(msgpackUtils._hasTytxTypes(new Date()), true);
+        assert.strictEqual(msgpackUtils._hasTytxTypes({ date: new Date() }), true);
+        assert.strictEqual(msgpackUtils._hasTytxTypes([new Date()]), true);
+    });
+
+    test('_hasTytxTypes detects numbers', { skip: !msgpackAvailable }, () => {
+        assert.strictEqual(msgpackUtils._hasTytxTypes(42), true);
+        assert.strictEqual(msgpackUtils._hasTytxTypes(3.14), true);
+        assert.strictEqual(msgpackUtils._hasTytxTypes({ price: 99.99 }), true);
+    });
+
+    test('_hasTytxTypes returns false for plain objects', { skip: !msgpackAvailable }, () => {
+        assert.strictEqual(msgpackUtils._hasTytxTypes('hello'), false);
+        assert.strictEqual(msgpackUtils._hasTytxTypes({ name: 'test' }), false);
+        assert.strictEqual(msgpackUtils._hasTytxTypes(null), false);
+    });
+
+    test('packb/unpackb roundtrip with numbers', { skip: !msgpackAvailable }, () => {
+        const data = { price: 99.99, count: 42 };
+        const packed = msgpackUtils.packb(data);
+        assert.ok(packed instanceof Uint8Array);
+
+        const restored = msgpackUtils.unpackb(packed);
+        assert.strictEqual(Number(restored.price), 99.99);
+        assert.strictEqual(restored.count, 42);
+    });
+
+    test('packb/unpackb roundtrip with Date', { skip: !msgpackAvailable }, () => {
+        const testDate = new Date('2025-01-15T10:30:00.000Z');
+        const data = { date: testDate, name: 'Test' };
+        const packed = msgpackUtils.packb(data);
+        const restored = msgpackUtils.unpackb(packed);
+
+        assert.ok(restored.date instanceof Date);
+        assert.strictEqual(restored.date.toISOString(), testDate.toISOString());
+        assert.strictEqual(restored.name, 'Test');
+    });
+
+    test('packb/unpackb nested structures', { skip: !msgpackAvailable }, () => {
+        const data = {
+            order: {
+                items: [
+                    { name: 'Widget', price: 25.00 },
+                    { name: 'Gadget', price: 75.50 }
+                ],
+                total: 100.50,
+                date: new Date('2025-06-15')
+            }
+        };
+
+        const packed = msgpackUtils.packb(data);
+        const restored = msgpackUtils.unpackb(packed);
+
+        assert.strictEqual(Number(restored.order.total), 100.50);
+        assert.strictEqual(Number(restored.order.items[0].price), 25.00);
+        assert.ok(restored.order.date instanceof Date);
+    });
+
+    test('_getMsgpack throws if not installed', { skip: msgpackAvailable }, () => {
+        // This test only runs if msgpack is NOT installed
+        const { _getMsgpack } = require('../src/msgpack_utils');
+        assert.throws(() => _getMsgpack(), /msgpack is required/);
+    });
+});
+
+// =============================================================================
+// TytxModel Tests
+// =============================================================================
+
+describe('TytxModel', () => {
+    const { TytxModel } = require('../src/index');
+
+    // Define a test model
+    class Order extends TytxModel {}
+
+    test('fromTytx creates instance from JSON string', () => {
+        const json = '{"price": "99.99::N", "quantity": "5::L", "name": "Widget"}';
+        const order = Order.fromTytx(json);
+
+        assert.ok(order instanceof Order);
+        assert.strictEqual(Number(order.price), 99.99);
+        assert.strictEqual(order.quantity, 5);
+        assert.strictEqual(order.name, 'Widget');
+    });
+
+    test('fromTytx creates instance from object', () => {
+        const data = { price: '99.99::N', date: '2025-01-15::D' };
+        const order = Order.fromTytx(data);
+
+        assert.ok(order instanceof Order);
+        assert.strictEqual(Number(order.price), 99.99);
+        assert.ok(order.date instanceof Date);
+    });
+
+    test('toTytx serializes instance to JSON string', () => {
+        const order = new Order();
+        order.price = 99.99;
+        order.quantity = 5;
+        order.active = true;
+
+        const json = order.toTytx();
+        const parsed = JSON.parse(json);
+
+        assert.ok(parsed.price.endsWith('::R') || parsed.price.endsWith('::N'));
+        assert.strictEqual(parsed.quantity, '5::L');
+        assert.strictEqual(parsed.active, 'true::B');
+    });
+
+    test('toTytx handles Date objects', () => {
+        const order = new Order();
+        order.date = new Date('2025-01-15');
+
+        const json = order.toTytx();
+        const parsed = JSON.parse(json);
+
+        assert.ok(parsed.date.includes('2025-01-15'));
+        assert.ok(parsed.date.endsWith('::D') || parsed.date.endsWith('::DH'));
+    });
+
+    test('roundtrip preserves values', () => {
+        const order = new Order();
+        order.price = 123.45;
+        order.count = 10;
+        order.active = false;
+        order.name = 'Test';
+
+        const json = order.toTytx();
+        const restored = Order.fromTytx(json);
+
+        assert.strictEqual(Number(restored.price), 123.45);
+        assert.strictEqual(restored.count, 10);
+        assert.strictEqual(restored.active, false);
+        assert.strictEqual(restored.name, 'Test');
+    });
+
+    test('inheritance works correctly', () => {
+        class Payment extends TytxModel {}
+
+        const payment = Payment.fromTytx('{"amount": "500.00::N"}');
+        assert.ok(payment instanceof Payment);
+        assert.ok(payment instanceof TytxModel);
+        assert.strictEqual(Number(payment.amount), 500);
+    });
+
+    // MessagePack tests for TytxModel
+    let msgpackAvailable = false;
+    try {
+        require('@msgpack/msgpack');
+        msgpackAvailable = true;
+    } catch (e) {}
+
+    test('toTytxMsgpack serializes to bytes', { skip: !msgpackAvailable }, () => {
+        const order = new Order();
+        order.price = 99.99;
+        order.date = new Date('2025-01-15');
+
+        const packed = order.toTytxMsgpack();
+        assert.ok(packed instanceof Uint8Array);
+    });
+
+    test('fromTytxMsgpack restores instance', { skip: !msgpackAvailable }, () => {
+        const order = new Order();
+        order.price = 99.99;
+        order.quantity = 5;
+
+        const packed = order.toTytxMsgpack();
+        const restored = Order.fromTytxMsgpack(packed);
+
+        assert.ok(restored instanceof Order);
+        assert.strictEqual(Number(restored.price), 99.99);
+        assert.strictEqual(restored.quantity, 5);
+    });
+});
