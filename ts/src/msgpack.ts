@@ -28,6 +28,9 @@ function getMsgpack(): typeof import('@msgpack/msgpack') {
 
 /**
  * Check if object contains types that need TYTX encoding.
+ *
+ * MessagePack natively handles: int, float, bool, str, bytes, null, array, map.
+ * Only Date needs TYTX encoding (msgpack doesn't have native Date support).
  */
 function hasTytxTypes(obj: unknown): boolean {
   if (obj instanceof Date) return true;
@@ -35,7 +38,7 @@ function hasTytxTypes(obj: unknown): boolean {
   if (obj !== null && typeof obj === 'object') {
     return Object.values(obj).some(hasTytxTypes);
   }
-  if (typeof obj === 'number') return true;
+  // Numbers, booleans, strings are msgpack-native - no TYTX needed
   return false;
 }
 

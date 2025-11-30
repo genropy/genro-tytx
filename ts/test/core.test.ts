@@ -89,11 +89,12 @@ describe('registry', () => {
 
 describe('JSON utilities', () => {
   describe('asTypedJson', () => {
-    it('types numbers', () => {
+    it('preserves JSON-native numbers without markers', () => {
+      // JSON natively supports numbers, so they don't need TYTX markers
       const json = asTypedJson({ price: 99.99, count: 5 });
       const parsed = JSON.parse(json);
-      expect(parsed.price).toMatch(/::R$/);
-      expect(parsed.count).toBe('5::L');
+      expect(parsed.price).toBe(99.99);
+      expect(parsed.count).toBe(5);
     });
 
     it('types dates', () => {
@@ -106,12 +107,14 @@ describe('JSON utilities', () => {
       expect(parsed.date).toMatch(/::DH$/);
     });
 
-    it('handles nested objects', () => {
+    it('handles nested objects with native types', () => {
+      // Numbers are JSON-native, no markers needed
       const json = asTypedJson({
         order: { price: 100, quantity: 2 },
       });
       const parsed = JSON.parse(json);
-      expect(parsed.order.price).toBe('100::L');
+      expect(parsed.order.price).toBe(100);
+      expect(parsed.order.quantity).toBe(2);
     });
   });
 
@@ -208,7 +211,7 @@ describe('TytxModel', () => {
   });
 
   describe('toTytx', () => {
-    it('serializes instance to JSON string', () => {
+    it('serializes instance to JSON string with native types preserved', () => {
       const order = new Order();
       order.price = 99.99;
       order.quantity = 5;
@@ -217,7 +220,9 @@ describe('TytxModel', () => {
       const json = order.toTytx();
       const parsed = JSON.parse(json);
 
-      expect(parsed.quantity).toBe('5::L');
+      // JSON-native types don't get markers
+      expect(parsed.quantity).toBe(5);
+      expect(parsed.price).toBe(99.99);
       expect(parsed.name).toBe('Widget');
     });
   });
@@ -331,10 +336,11 @@ describe('additional JSON tests', () => {
     expect(JSON.parse(json).value).toBe(null);
   });
 
-  it('handles arrays', () => {
+  it('handles arrays with native types', () => {
+    // Numbers are JSON-native, no markers needed
     const json = asTypedJson([1, 2, 3]);
     const parsed = JSON.parse(json);
-    expect(parsed).toEqual(['1::L', '2::L', '3::L']);
+    expect(parsed).toEqual([1, 2, 3]);
   });
 
   it('fromJson handles arrays', () => {

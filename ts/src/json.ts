@@ -29,13 +29,16 @@ function hydrate(obj: unknown): TytxValue {
 
 /**
  * Recursively serialize values to typed strings.
+ *
+ * JSON-native types (number, boolean, string, null) pass through unchanged.
+ * Only Date objects get type markers (they're not JSON-native).
  */
 function serialize(obj: unknown, typed: boolean): unknown {
   if (obj === null || obj === undefined) {
     return obj;
   }
 
-  // Handle Date objects
+  // Handle Date objects - not JSON-native, needs marker
   if (obj instanceof Date) {
     return typed ? registry.asTypedText(obj) : obj.toISOString();
   }
@@ -54,14 +57,7 @@ function serialize(obj: unknown, typed: boolean): unknown {
     return result;
   }
 
-  // Handle primitives that need typing
-  if (typed && typeof obj === 'number') {
-    return registry.asTypedText(obj);
-  }
-  if (typed && typeof obj === 'boolean') {
-    return registry.asTypedText(obj);
-  }
-
+  // JSON-native types (number, boolean, string): pass through unchanged
   return obj;
 }
 

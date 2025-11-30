@@ -3,16 +3,24 @@ JSON utilities for TYTX Protocol.
 
 Provides encoder/decoder functions for JSON serialization with typed values.
 
+JSON-native types (int, float, bool, str, null) are NOT marked with type codes
+because JSON already preserves their type. Only non-native types (Decimal, date,
+datetime, time) receive type markers.
+
 Usage:
     # Typed JSON (TYTX format - reversible)
-    as_typed_json(data)  # → '{"price": "99.50::D"}'
-    from_json(json_str)  # → {"price": Decimal("99.50")}
+    as_typed_json({"count": 5, "price": Decimal("99.50")})
+    # → '{"count": 5, "price": "99.50::N"}'
+
+    from_json(json_str)  # → {"count": 5, "price": Decimal("99.50")}
 
     # Standard JSON (for external systems - may lose precision)
     as_json(data)  # → '{"price": 99.5}'
 """
 
 import json
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 
 from .registry import registry
@@ -20,22 +28,22 @@ from .registry import registry
 
 def _typed_encoder(obj: Any) -> str:
     """
-    JSON encoder for non-native types (typed output).
+    JSON encoder for non-native types.
 
-    Use with json.dumps(data, default=_typed_encoder).
+    Called by json.dumps only for types JSON doesn't handle natively.
+    Returns typed string (e.g., "99.50::N" for Decimal).
 
     Args:
-        obj: Python object to encode.
+        obj: Python object to encode (Decimal, date, datetime, time).
 
     Returns:
-        Typed string representation (e.g., "123.45::D").
+        Typed string representation.
 
     Raises:
         TypeError: If object is not serializable.
     """
-    typed = registry.as_typed_text(obj)
-    if typed != str(obj):
-        return typed
+    if isinstance(obj, (Decimal, datetime, date, time)):
+        return registry.as_typed_text(obj)
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
