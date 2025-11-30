@@ -30,6 +30,7 @@ def test_check_pydantic_import_error(monkeypatch):
 
 def test_model_dump_and_validate_hydrates_dict_and_bytes():
     """model_dump_json/model_validate_tytx cover dict, bytes and nested hydration."""
+    pytest.importorskip("pydantic")
     TytxModel = gp.TytxModel
 
     class Payload(TytxModel):
