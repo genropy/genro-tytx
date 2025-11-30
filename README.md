@@ -2,7 +2,7 @@
 
 **TYTX (Typed Text)** - A protocol for exchanging typed data over text-based formats.
 
-[![PyPI version](https://badge.fury.io/py/genro-tytx.svg)](https://badge.fury.io/py/genro-tytx)
+[![PyPI version](https://img.shields.io/pypi/v/genro-tytx)](https://pypi.org/project/genro-tytx/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml)
