@@ -2,7 +2,7 @@
  * Type registry for TYTX TypeScript implementation.
  *
  * Uses unified maps for both built-in and custom types.
- * Custom types use X_ prefix to avoid collisions.
+ * Custom types use ~ prefix to avoid collisions.
  *
  * @module registry
  */
@@ -13,7 +13,17 @@ import { isTypedString, extractTypeCode, extractValue } from './types.js';
 /**
  * Prefix for custom extension types.
  */
-export const X_PREFIX = 'X_';
+export const CUSTOM_PREFIX = '~';
+
+/**
+ * Prefix for struct schema types.
+ */
+export const STRUCT_PREFIX = '@';
+
+/**
+ * Prefix for typed arrays.
+ */
+export const ARRAY_PREFIX = '#';
 
 /**
  * Interface for classes that can be registered with TYTX.
@@ -21,7 +31,7 @@ export const X_PREFIX = 'X_';
  * providing explicit serialize/parse functions.
  */
 export interface TytxSerializable {
-  /** Serialize this instance to a TYTX string (without the ::X_CODE suffix) */
+  /** Serialize this instance to a TYTX string (without the ::~CODE suffix) */
   as_typed_text(): string;
 }
 
@@ -43,6 +53,33 @@ export interface ExtensionType<T = unknown> {
   cls: TytxSerializableClass<T> | (new (...args: unknown[]) => T);
   serialize: (value: T) => string;
   parse: (s: string) => T;
+}
+
+/**
+ * Schema type for struct registration.
+ * - string[]: positional types ['T', 'L', 'N'] or homogeneous ['N']
+ * - Record<string, string>: keyed types {name: 'T', balance: 'N'}
+ * - string: ordered types "x:R,y:R" (named → object) or "R,R" (anonymous → array)
+ */
+export type StructSchema = string[] | Record<string, string> | string;
+
+/**
+ * Parsed string schema field.
+ */
+interface StringSchemaField {
+  name: string;
+  typeCode: string;
+}
+
+/**
+ * Struct type for schema-based hydration.
+ */
+interface StructType {
+  code: string;
+  name: string;
+  schema: StructSchema;
+  stringFields: StringSchemaField[] | null;
+  stringHasNames: boolean;
 }
 
 /**
@@ -229,6 +266,7 @@ export class TypeRegistry {
   private readonly types: Map<string, DataType | ExtensionType> = new Map();
   private readonly codeToType: Map<string, DataType | ExtensionType> = new Map();
   private readonly constructors: Map<new (...args: unknown[]) => unknown, ExtensionType> = new Map();
+  private readonly structs: Map<string, StructType> = new Map();
 
   constructor() {
     this.registerBuiltins();
@@ -262,13 +300,13 @@ export class TypeRegistry {
   }
 
   /**
-   * Register a custom extension type with X_ prefix.
+   * Register a custom extension type with ~ prefix.
    *
    * If serialize/parse are not provided, the class must implement:
    * - as_typed_text(): instance method for serialization
    * - static from_typed_text(s: string): static method for parsing
    *
-   * @param code - Type code (will be prefixed with X_)
+   * @param code - Type code (will be prefixed with ~)
    * @param cls - Constructor function (required for auto-detection)
    * @param serialize - Function to convert value to string (optional)
    * @param parse - Function to convert string to value (optional)
@@ -307,7 +345,7 @@ export class TypeRegistry {
     }
 
     const extType: ExtensionType<T> = {
-      code: X_PREFIX + code,
+      code: CUSTOM_PREFIX + code,
       name: 'x_' + code.toLowerCase(),
       cls: cls,
       serialize: actualSerialize,
@@ -322,10 +360,10 @@ export class TypeRegistry {
 
   /**
    * Remove a previously registered custom extension type.
-   * @param code - Type code without X_ prefix
+   * @param code - Type code without ~ prefix
    */
   unregister_class(code: string): void {
-    const fullCode = X_PREFIX + code;
+    const fullCode = CUSTOM_PREFIX + code;
     const extType = this.codeToType.get(fullCode) as ExtensionType | undefined;
     if (extType) {
       this.codeToType.delete(fullCode);
@@ -334,6 +372,78 @@ export class TypeRegistry {
         this.constructors.delete(extType.cls);
       }
     }
+  }
+
+  /**
+   * Register a struct schema for schema-based hydration.
+   *
+   * @param code - Struct code (will be prefixed with @)
+   * @param schema - Type schema:
+   *   - string[]: positional ['T', 'L', 'N'] or homogeneous ['N']
+   *   - Record<string, string>: keyed {name: 'T', balance: 'N'}
+   *   - string: ordered "x:R,y:R" (named → object) or "R,R" (anonymous → array)
+   */
+  register_struct(code: string, schema: StructSchema): void {
+    let stringFields: StringSchemaField[] | null = null;
+    let stringHasNames = false;
+
+    // Parse string schema
+    if (typeof schema === 'string') {
+      const parsed = this.parseStringSchema(schema);
+      stringFields = parsed.fields;
+      stringHasNames = parsed.hasNames;
+    }
+
+    const structType: StructType = {
+      code: STRUCT_PREFIX + code,
+      name: `struct_${code.toLowerCase()}`,
+      schema,
+      stringFields,
+      stringHasNames,
+    };
+
+    this.structs.set(code, structType);
+  }
+
+  /**
+   * Parse a string schema definition.
+   */
+  private parseStringSchema(schema: string): { fields: StringSchemaField[]; hasNames: boolean } {
+    const fields: StringSchemaField[] = [];
+    let hasNames = false;
+
+    for (const part of schema.split(',')) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.includes(':')) {
+        const [name, typeCode] = trimmed.split(':').map((s) => s.trim());
+        fields.push({ name, typeCode });
+        hasNames = true;
+      } else {
+        fields.push({ name: '', typeCode: trimmed });
+      }
+    }
+
+    return { fields, hasNames };
+  }
+
+  /**
+   * Remove a previously registered struct schema.
+   * @param code - Struct code without @ prefix
+   */
+  unregister_struct(code: string): void {
+    this.structs.delete(code);
+  }
+
+  /**
+   * Get a struct schema by code.
+   * @param code - Struct code without @ prefix
+   * @returns Schema or undefined if not found
+   */
+  get_struct(code: string): StructSchema | undefined {
+    const structType = this.structs.get(code);
+    return structType?.schema;
   }
 
   /**
@@ -352,7 +462,9 @@ export class TypeRegistry {
 
   /**
    * Parse typed string to value.
-   * Supports typed arrays: "[1,2,3]::L" applies type to all leaf values.
+   * Supports typed arrays: "[1,2,3]::#L" applies type to all leaf values.
+   * Supports struct schemas: '{"a":1}::@CODE' applies schema to data.
+   * Supports array of structs: '[...]::@#CODE' applies schema to each element.
    */
   fromText(value: string, typeCode?: TypeCode): TytxValue {
     if (typeCode) {
@@ -366,6 +478,41 @@ export class TypeRegistry {
 
     const code = extractTypeCode(value);
     const rawValue = extractValue(value);
+
+    // Handle # prefix for typed arrays (each element #i is of type X)
+    // Supports both ::#L (built-in) and ::#@ROW (struct)
+    if (code.startsWith(ARRAY_PREFIX)) {
+      const baseTypeCode = code.slice(ARRAY_PREFIX.length);
+
+      // Check if it's a struct reference (#@STRUCT)
+      if (baseTypeCode.startsWith(STRUCT_PREFIX)) {
+        const structCode = baseTypeCode.slice(STRUCT_PREFIX.length);
+        const structType = this.structs.get(structCode);
+        if (structType) {
+          return this.parseStructArray(rawValue, structType) as TytxValue;
+        }
+        return value;
+      }
+
+      // Regular typed array (#L, #N, etc.)
+      const type = this.get(baseTypeCode);
+      if (type) {
+        return this.parseTypedArray(rawValue, type) as TytxValue;
+      }
+      return value;
+    }
+
+    // Handle @ prefix (struct)
+    if (code.startsWith(STRUCT_PREFIX)) {
+      const structCode = code.slice(STRUCT_PREFIX.length);
+      const structType = this.structs.get(structCode);
+      if (structType) {
+        const data = JSON.parse(rawValue) as unknown;
+        return this.applySchema(data, structType) as TytxValue;
+      }
+      return value;
+    }
+
     const type = this.get(code);
 
     if (type) {
@@ -393,6 +540,160 @@ export class TypeRegistry {
     };
 
     return applyType(data) as unknown[];
+  }
+
+  /**
+   * Parse an array of structs, applying the struct schema to each element.
+   */
+  private parseStructArray(jsonStr: string, structType: StructType): unknown[] {
+    const data = JSON.parse(jsonStr) as unknown[];
+    return data.map((item) => this.applySchema(item, structType));
+  }
+
+  /**
+   * Apply schema to hydrate data.
+   */
+  private applySchema(data: unknown, structType: StructType): unknown {
+    // String schema: use parsed fields
+    if (structType.stringFields !== null) {
+      return this.applyStringSchema(data, structType);
+    }
+    // Dict schema (object)
+    if (!Array.isArray(structType.schema) && typeof structType.schema === 'object') {
+      return this.applyDictSchema(data, structType.schema);
+    }
+    // List schema (array)
+    if (Array.isArray(structType.schema)) {
+      return this.applyListSchema(data, structType.schema);
+    }
+    return data;
+  }
+
+  /**
+   * Apply string schema to data (array input).
+   */
+  private applyStringSchema(data: unknown, structType: StructType): unknown {
+    if (!Array.isArray(data)) {
+      return data;
+    }
+    return this.applyStringSchemaToSingleRecord(data, structType);
+  }
+
+  /**
+   * Apply string schema to a single array record.
+   */
+  private applyStringSchemaToSingleRecord(
+    data: unknown[],
+    structType: StructType,
+  ): Record<string, unknown> | unknown[] {
+    const fields = structType.stringFields!;
+    const resultList: unknown[] = [];
+
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      if (i < data.length) {
+        resultList.push(this.hydrateValue(data[i], field.typeCode));
+      } else {
+        resultList.push(null);
+      }
+    }
+
+    // If schema has names, return object; otherwise return array
+    if (structType.stringHasNames) {
+      const result: Record<string, unknown> = {};
+      for (let i = 0; i < fields.length; i++) {
+        result[fields[i].name] = resultList[i];
+      }
+      return result;
+    }
+    return resultList;
+  }
+
+  /**
+   * Apply dict schema to data.
+   */
+  private applyDictSchema(data: unknown, schema: Record<string, string>): unknown {
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      return data;
+    }
+    const result: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+    for (const [key, typeCode] of Object.entries(schema)) {
+      if (key in result) {
+        result[key] = this.hydrateValue(result[key], typeCode);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Apply list schema to data.
+   */
+  private applyListSchema(data: unknown, schema: string[]): unknown {
+    if (!Array.isArray(data)) {
+      return data;
+    }
+
+    if (schema.length === 1) {
+      // Homogeneous: apply single type to all elements
+      const typeCode = schema[0];
+      return data.map((item) => this.applyHomogeneous(item, typeCode));
+    } else {
+      // Positional: apply type at index i to data[i]
+      // If data is array of arrays, apply positionally to each sub-array
+      if (data.length > 0 && Array.isArray(data[0])) {
+        return data.map((item) => this.applyPositional(item as unknown[], schema));
+      }
+      return this.applyPositional(data, schema);
+    }
+  }
+
+  /**
+   * Apply homogeneous type recursively.
+   */
+  private applyHomogeneous(item: unknown, typeCode: string): unknown {
+    if (Array.isArray(item)) {
+      return item.map((i) => this.applyHomogeneous(i, typeCode));
+    }
+    return this.hydrateValue(item, typeCode);
+  }
+
+  /**
+   * Apply positional schema to a single array.
+   */
+  private applyPositional(data: unknown[], schema: string[]): unknown[] {
+    const result: unknown[] = [];
+    for (let i = 0; i < data.length; i++) {
+      if (i < schema.length) {
+        result.push(this.hydrateValue(data[i], schema[i]));
+      } else {
+        result.push(data[i]);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Hydrate a single value using type code.
+   */
+  private hydrateValue(value: unknown, typeCode: string): unknown {
+    // Check if it's a struct reference (recursive)
+    if (typeCode.startsWith(STRUCT_PREFIX)) {
+      const structCode = typeCode.slice(STRUCT_PREFIX.length);
+      const structType = this.structs.get(structCode);
+      if (structType) {
+        return this.applySchema(value, structType);
+      }
+      return value;
+    }
+
+    // Regular type
+    const type = this.get(typeCode);
+    if (type) {
+      const strValue = typeof value === 'string' ? value : String(value);
+      return type.parse(strValue);
+    }
+
+    return value;
   }
 
   /**

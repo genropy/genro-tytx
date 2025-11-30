@@ -695,3 +695,214 @@ describe('TytxModel MessagePack', () => {
     expect(restored.name).toBe('Widget');
   });
 });
+
+// =============================================================================
+// Struct Schema Tests
+// =============================================================================
+
+describe('struct schemas', () => {
+  describe('register_struct', () => {
+    it('registers dict schema', () => {
+      registry.register_struct('TEST_DICT', { name: 'T', value: 'L' });
+      const schema = registry.get_struct('TEST_DICT');
+      expect(schema).toEqual({ name: 'T', value: 'L' });
+      registry.unregister_struct('TEST_DICT');
+    });
+
+    it('registers list schema', () => {
+      registry.register_struct('TEST_LIST', ['T', 'L', 'N']);
+      const schema = registry.get_struct('TEST_LIST');
+      expect(schema).toEqual(['T', 'L', 'N']);
+      registry.unregister_struct('TEST_LIST');
+    });
+
+    it('registers string schema', () => {
+      registry.register_struct('TEST_STR', 'x:R,y:R');
+      const schema = registry.get_struct('TEST_STR');
+      expect(schema).toBe('x:R,y:R');
+      registry.unregister_struct('TEST_STR');
+    });
+
+    it('unregister removes struct', () => {
+      registry.register_struct('TEMP', ['L']);
+      expect(registry.get_struct('TEMP')).not.toBeUndefined();
+      registry.unregister_struct('TEMP');
+      expect(registry.get_struct('TEMP')).toBeUndefined();
+    });
+  });
+
+  describe('dict schema', () => {
+    it('applies types to matching keys', () => {
+      registry.register_struct('CUSTOMER', { name: 'T', balance: 'N', age: 'L' });
+      try {
+        const result = registry.fromText('{"name": "Acme", "balance": "100.50", "age": "25"}::@CUSTOMER') as Record<string, unknown>;
+        expect(result.name).toBe('Acme');
+        expect((result.balance as { toString(): string }).toString()).toBe('100.5');
+        expect(result.age).toBe(25);
+      } finally {
+        registry.unregister_struct('CUSTOMER');
+      }
+    });
+
+    it('extra keys pass through unchanged', () => {
+      registry.register_struct('ITEM', { price: 'N' });
+      try {
+        const result = registry.fromText('{"price": "99.99", "note": "test"}::@ITEM') as Record<string, unknown>;
+        expect((result.price as { toString(): string }).toString()).toBe('99.99');
+        expect(result.note).toBe('test');
+      } finally {
+        registry.unregister_struct('ITEM');
+      }
+    });
+  });
+
+  describe('list schema positional', () => {
+    it('applies type at index i to data[i]', () => {
+      registry.register_struct('ROW', ['T', 'L', 'N']);
+      try {
+        const result = registry.fromText('["Product", 2, "100.50"]::@ROW') as unknown[];
+        expect(result[0]).toBe('Product');
+        expect(result[1]).toBe(2);
+        expect((result[2] as { toString(): string }).toString()).toBe('100.5');
+      } finally {
+        registry.unregister_struct('ROW');
+      }
+    });
+
+    it('array of rows applies positional to each', () => {
+      registry.register_struct('ROW', ['T', 'L', 'N']);
+      try {
+        const result = registry.fromText('[["A", 1, "10"], ["B", 2, "20"]]::@ROW') as unknown[][];
+        expect(result[0][0]).toBe('A');
+        expect(result[0][1]).toBe(1);
+        expect((result[0][2] as { toString(): string }).toString()).toBe('10');
+        expect(result[1][0]).toBe('B');
+        expect(result[1][1]).toBe(2);
+        expect((result[1][2] as { toString(): string }).toString()).toBe('20');
+      } finally {
+        registry.unregister_struct('ROW');
+      }
+    });
+  });
+
+  describe('list schema homogeneous', () => {
+    it('single type applies to all elements', () => {
+      registry.register_struct('PRICES', ['N']);
+      try {
+        const result = registry.fromText('[100, 200, "50.25"]::@PRICES') as unknown[];
+        expect((result[0] as { toString(): string }).toString()).toBe('100');
+        expect((result[1] as { toString(): string }).toString()).toBe('200');
+        expect((result[2] as { toString(): string }).toString()).toBe('50.25');
+      } finally {
+        registry.unregister_struct('PRICES');
+      }
+    });
+
+    it('empty array returns empty', () => {
+      registry.register_struct('NUMS', ['L']);
+      try {
+        const result = registry.fromText('[]::@NUMS');
+        expect(result).toEqual([]);
+      } finally {
+        registry.unregister_struct('NUMS');
+      }
+    });
+
+    it('nested 2D array applies to leaves', () => {
+      registry.register_struct('MATRIX', ['L']);
+      try {
+        const result = registry.fromText('[[1, 2], [3, 4]]::@MATRIX');
+        expect(result).toEqual([[1, 2], [3, 4]]);
+      } finally {
+        registry.unregister_struct('MATRIX');
+      }
+    });
+  });
+
+  describe('string schema', () => {
+    it('named fields produce dict output', () => {
+      registry.register_struct('POINT', 'x:R,y:R');
+      try {
+        const result = registry.fromText('["3.7", "7.3"]::@POINT');
+        expect(result).toEqual({ x: 3.7, y: 7.3 });
+      } finally {
+        registry.unregister_struct('POINT');
+      }
+    });
+
+    it('anonymous fields produce list output', () => {
+      registry.register_struct('COORDS', 'R,R');
+      try {
+        const result = registry.fromText('["3.7", "7.3"]::@COORDS');
+        expect(result).toEqual([3.7, 7.3]);
+      } finally {
+        registry.unregister_struct('COORDS');
+      }
+    });
+
+    it('preserves field order', () => {
+      registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N');
+      try {
+        const result = registry.fromText('["Widget", "10", "99.99"]::@CSV_ROW') as Record<string, unknown>;
+        expect(result.name).toBe('Widget');
+        expect(result.qty).toBe(10);
+        expect((result.price as { toString(): string }).toString()).toBe('99.99');
+        expect(Object.keys(result)).toEqual(['name', 'qty', 'price']);
+      } finally {
+        registry.unregister_struct('CSV_ROW');
+      }
+    });
+
+    it('handles spaces in definition', () => {
+      registry.register_struct('POINT2', 'x : R , y : R');
+      try {
+        const result = registry.fromText('["1.0", "2.0"]::@POINT2');
+        expect(result).toEqual({ x: 1.0, y: 2.0 });
+      } finally {
+        registry.unregister_struct('POINT2');
+      }
+    });
+  });
+
+  describe('array of structs (#@)', () => {
+    it('batch mode with named string schema', () => {
+      registry.register_struct('ROW', 'name:T,qty:L,price:N');
+      try {
+        const result = registry.fromText('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW') as Record<string, unknown>[];
+        expect(result.length).toBe(2);
+        expect(result[0].name).toBe('A');
+        expect(result[0].qty).toBe(1);
+        expect((result[0].price as { toString(): string }).toString()).toBe('10');
+        expect(result[1].name).toBe('B');
+        expect(result[1].qty).toBe(2);
+        expect((result[1].price as { toString(): string }).toString()).toBe('20');
+      } finally {
+        registry.unregister_struct('ROW');
+      }
+    });
+
+    it('batch mode with anonymous string schema', () => {
+      registry.register_struct('PAIR', 'R,R');
+      try {
+        const result = registry.fromText('[["1.5", "2.5"], ["3.5", "4.5"]]::#@PAIR');
+        expect(result).toEqual([[1.5, 2.5], [3.5, 4.5]]);
+      } finally {
+        registry.unregister_struct('PAIR');
+      }
+    });
+
+    it('batch mode with dict schema', () => {
+      registry.register_struct('ITEM', { name: 'T', value: 'L' });
+      try {
+        const result = registry.fromText('[{"name": "A", "value": "1"}, {"name": "B", "value": "2"}]::#@ITEM') as Record<string, unknown>[];
+        expect(result.length).toBe(2);
+        expect(result[0].name).toBe('A');
+        expect(result[0].value).toBe(1);
+        expect(result[1].name).toBe('B');
+        expect(result[1].value).toBe(2);
+      } finally {
+        registry.unregister_struct('ITEM');
+      }
+    });
+  });
+});

@@ -62,6 +62,37 @@ fromJson<{ price: number; active: boolean }>(
 | `H` | `TIME`, `HZ` | `string` | `"10:30:00::H"` |
 | `JS` | `JSON` | `object` | `'{"a":1}::JS'` |
 
+## Type Prefixes
+
+| Prefix | Category | Example |
+|--------|----------|---------|
+| (none) | Built-in | `::L`, `::D`, `::N` |
+| `~` | Custom class | `::~UUID`, `::~INV` |
+| `@` | Struct schema | `::@CUSTOMER`, `::@ROW` |
+| `#` | Typed array | `::#L`, `::#N`, `::#@ROW` |
+
+## Struct Schemas
+
+```typescript
+import { registry, from_text } from 'genro-tytx-ts';
+
+// Dict schema
+registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
+
+registry.fromText('{"name": "Acme", "balance": "100"}::@CUSTOMER');
+// → { name: "Acme", balance: 100 }
+
+// String schema for CSV-like data
+registry.register_struct('POINT', 'x:R,y:R');
+
+registry.fromText('["3.7", "7.3"]::@POINT');
+// → { x: 3.7, y: 7.3 }
+
+// Array of structs
+registry.fromText('[["1", "2"], ["3", "4"]]::#@POINT');
+// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+```
+
 ## TytxModel
 
 Type-safe model base class:

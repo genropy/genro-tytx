@@ -65,6 +65,37 @@ from_json('{"price":"99.99::N","date":"2025-01-15::D"}');
 | `H` | Hour | `string` | `"10:30:00::H"` |
 | `JS` | JavaScript object | `object` | `'{"a":1}::JS'` |
 
+## Type Prefixes
+
+| Prefix | Category | Example |
+|--------|----------|---------|
+| (none) | Built-in | `::L`, `::D`, `::N` |
+| `~` | Custom class | `::~UUID`, `::~INV` |
+| `@` | Struct schema | `::@CUSTOMER`, `::@ROW` |
+| `#` | Typed array | `::#L`, `::#N`, `::#@ROW` |
+
+## Struct Schemas
+
+```javascript
+const { registry, from_text } = require('genro-tytx');
+
+// Dict schema
+registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
+
+from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER');
+// → { name: "Acme", balance: 100 }
+
+// String schema for CSV-like data
+registry.register_struct('POINT', 'x:R,y:R');
+
+from_text('["3.7", "7.3"]::@POINT');
+// → { x: 3.7, y: 7.3 }
+
+// Array of structs
+from_text('[["1", "2"], ["3", "4"]]::#@POINT');
+// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+```
+
 ## API Reference
 
 ### Text Functions

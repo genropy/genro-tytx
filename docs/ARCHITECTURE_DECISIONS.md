@@ -58,51 +58,111 @@ I codici tipo sono **mnemonici** per facilitare la memorizzazione.
 
 ---
 
-## 3. Custom Types con Prefisso X_
+## 3. Type Code Prefixes
 
 ### Decisione
 
-I tipi custom definiti dall'utente usano il prefisso `X_` per evitare collisioni con i tipi built-in.
+TYTX usa **tre prefissi simbolici** per distinguere categorie di tipi:
+
+| Prefisso | Categoria | Registrazione | Esempio |
+|----------|-----------|---------------|---------|
+| (nessuno) | Built-in | TYTX core | `::L`, `::D`, `::DHZ` |
+| `~` | Custom class | `register_class` | `::~UUID`, `::~INV` |
+| `@` | Struct schema | `register_struct` | `::@CUSTOMER`, `::@ROW` |
+| `#` | Typed array | (inline) | `::#L`, `::#N`, `::#@ROW` |
+
+### Motivazione
+
+1. **Nessuna collisione**: simboli riservati, impossibile conflitto con codici alfanumerici
+2. **Chiaro nel wire format**: si vede subito la categoria del tipo
+3. **Composizione**: `#@ROW` combina array + struct
+4. **Futuro-proof**: TYTX può aggiungere nuovi built-in senza conflitti
+
+---
+
+## 4. Custom Types con Prefisso `~`
+
+### Decisione
+
+I tipi custom definiti dall'utente usano il prefisso `~` (tilde) per evitare collisioni con i tipi built-in.
 
 ### Pattern `register_class`
 
 ```python
 # Python
 registry.register_class(
-    code="UUID",  # diventa "X_UUID"
+    code="UUID",  # diventa "~UUID"
     cls=uuid.UUID,
     serialize=lambda u: str(u),
     parse=lambda s: uuid.UUID(s)
 )
+
+as_typed_text(my_uuid)  # → "550e8400-...::~UUID"
 ```
 
 ```javascript
 // JavaScript
 registry.register_class({
-    code: "UUID",  // diventa "X_UUID"
+    code: "UUID",  // diventa "~UUID"
     cls: null,
     serialize: (u) => String(u),
     parse: (s) => s
 });
+
+from_text("550e8400-...::~UUID");  // → "550e8400-..."
 ```
-
-### Namespace
-
-| Prefisso | Tipo | Esempio | Gestito da |
-|----------|------|---------|------------|
-| (nessuno) | Built-in | `::L`, `::D`, `::DHZ` | TYTX core |
-| `X_` | Custom | `::X_UUID`, `::X_INV` | `register_class` |
 
 ### Motivazione
 
-1. **Nessuna collisione**: impossibile sovrascrivere tipi built-in
-2. **Chiaro nel wire format**: si vede subito che è custom
-3. **Fallback sicuro**: se JS non conosce `X_XXX`, resta stringa
-4. **Futuro-proof**: TYTX può aggiungere nuovi built-in senza conflitti
+1. **Simbolo compatto**: `~` è più leggibile di `X_`
+2. **Convenzione Unix**: `~` evoca "custom/home"
+3. **Fallback sicuro**: se JS non conosce `~XXX`, resta stringa
 
 ---
 
-## 4. Struttura XML con attrs/value
+## 5. Struct Schemas con Prefisso `@`
+
+### Decisione
+
+Gli struct schema usano il prefisso `@` e supportano tre formati di definizione:
+
+| Formato | Esempio | Input | Output |
+|---------|---------|-------|--------|
+| Dict | `{name: 'T', balance: 'N'}` | `{...}` | `{...}` |
+| List | `['T', 'L', 'N']` | `[...]` | `[...]` |
+| String | `'x:R,y:R'` | `[...]` | `{...}` o `[...]` |
+
+### Pattern `register_struct`
+
+```python
+# Dict schema - per oggetti
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+
+# List schema - per tuple posizionali
+registry.register_struct('ROW', ['T', 'L', 'N'])
+
+# String schema - per dati CSV-like
+registry.register_struct('POINT', 'x:R,y:R')
+```
+
+### Array di Struct con `#@`
+
+Il prefisso `#` si combina con `@` per array di struct:
+
+```python
+from_text('[["A", 1], ["B", 2]]::#@ROW')
+# → [["A", 1], ["B", 2]] (con tipi applicati)
+```
+
+### Motivazione
+
+1. **Schema-based**: definisci una volta, usa ovunque
+2. **CSV-ready**: string schema perfetto per dati tabulari
+3. **Composizione**: `#@` combina array + struct elegantemente
+
+---
+
+## 6. Struttura XML con attrs/value
 
 ### Decisione
 
@@ -116,7 +176,7 @@ La struttura XML usa `{"tag": {"attrs": {...}, "value": ...}}` sia in Python che
 
 ---
 
-## 5. MessagePack con ExtType 42
+## 7. MessagePack con ExtType 42
 
 ### Decisione
 
@@ -138,7 +198,7 @@ Il contenuto è JSON con valori TYTX encoded.
 
 ---
 
-## 6. API Pubblica snake_case
+## 8. API Pubblica snake_case
 
 ### Decisione
 
@@ -169,7 +229,7 @@ Tutte le API pubbliche usano **snake_case** sia in Python che JavaScript.
 
 ---
 
-## 7. Zero Dipendenze Core
+## 9. Zero Dipendenze Core
 
 ### Decisione
 
@@ -195,7 +255,7 @@ Il core TYTX non ha dipendenze runtime, solo stdlib.
 
 ---
 
-## 8. Dual Output: Standard e Typed
+## 10. Dual Output: Standard e Typed
 
 ### Decisione
 
@@ -221,7 +281,7 @@ as_typed_json(data)  # '{"price": "100.50::N"}' (TYTX)
 
 ---
 
-## 9. DataType Interno per Built-in
+## 11. DataType Interno per Built-in
 
 ### Decisione
 
@@ -236,7 +296,7 @@ Gli utenti usano `register_class` per tipi custom.
 
 ---
 
-## 10. Fallback Graceful
+## 12. Fallback Graceful
 
 ### Decisione
 
@@ -246,7 +306,8 @@ Tipi sconosciuti vengono restituiti come stringhe, senza errori.
 
 ```python
 from_text("value::UNKNOWN")  # → "value::UNKNOWN" (stringa)
-from_text("value::X_FOO")  # → "value::X_FOO" (se non registrato)
+from_text("value::~FOO")  # → "value::~FOO" (se non registrato)
+from_text("value::@BAR")  # → "value::@BAR" (struct non registrato)
 ```
 
 ### Motivazione

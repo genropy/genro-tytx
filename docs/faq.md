@@ -69,24 +69,65 @@ order = Order(**data)  # Works!
 
 ### How do I add a custom type?
 
-Use `register_class` to register custom extension types (prefixed with `X_`):
+Use `register_class` to register custom extension types (prefixed with `~`):
 
 ```python
 from genro_tytx import registry
 import uuid
 
 registry.register_class(
-    code="UUID",  # becomes "X_UUID" in wire format
+    code="UUID",  # becomes "~UUID" in wire format
     cls=uuid.UUID,
     serialize=lambda u: str(u),
     parse=lambda s: uuid.UUID(s)
 )
 
 # Usage
-from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID")  # → UUID
+from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")  # → UUID
 ```
 
-See the [specification](spec/type-codes.md#custom-types-extension-types) for complete documentation.
+See the [specification](spec/type-codes.md#custom-types--prefix) for complete documentation.
+
+### What are struct schemas?
+
+Struct schemas let you define type patterns for data structures. Instead of typing each field inline, you define a schema once and reference it with `@`:
+
+```python
+from genro_tytx import registry, from_text
+
+# Define a schema
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
+
+# Use it
+from_text('{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER')
+# → {"name": "Acme", "balance": Decimal("100"), "created": date(2025, 1, 15)}
+```
+
+See [structs.md](spec/structs.md) for complete documentation.
+
+### What's the difference between `@` and `#@`?
+
+- `::@STRUCT` applies the schema to a single value
+- `::#@STRUCT` applies the schema to each element of an array (batch mode)
+
+```python
+# Single struct
+from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+
+# Array of structs
+from_text('[["1", "2"], ["3", "4"]]::#@POINT')
+# → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
+```
+
+### What are the different schema types?
+
+| Schema Type | Definition | Best For |
+|-------------|------------|----------|
+| Dict | `{'name': 'T', 'balance': 'N'}` | JSON objects |
+| List positional | `['T', 'L', 'N']` | Fixed-length tuples |
+| List homogeneous | `['N']` | Arrays of same type |
+| String named | `'x:R,y:R'` | CSV data → dict |
+| String anonymous | `'R,R'` | CSV data → list |
 
 ### Why use `::` as separator?
 

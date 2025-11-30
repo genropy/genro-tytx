@@ -1,6 +1,6 @@
 {
   "name": "genro-tytx-ts",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "description": "TYTX (Typed Text) - TypeScript implementation with full type safety",
   "type": "module",
   "main": "./dist/index.js",

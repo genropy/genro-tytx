@@ -226,9 +226,9 @@ Complete API documentation for genro-tytx.
 
    .. py:method:: register_class(code: str, cls: type, serialize: Callable, parse: Callable) -> None
 
-      Register a custom extension type with ``X_`` prefix.
+      Register a custom extension type with ``~`` prefix.
 
-      :param code: Type code (will be prefixed with ``X_``)
+      :param code: Type code (will be prefixed with ``~``)
       :param cls: Python class for auto-detection
       :param serialize: Function to convert value to string
       :param parse: Function to convert string to value
@@ -243,19 +243,77 @@ Complete API documentation for genro-tytx.
              serialize=lambda u: str(u),
              parse=lambda s: uuid.UUID(s)
          )
-         # "550e8400-...::X_UUID"
+         # "550e8400-...::~UUID"
 
    .. py:method:: unregister_class(code: str) -> None
 
       Remove a previously registered custom extension type.
 
-      :param code: Type code without ``X_`` prefix
+      :param code: Type code without ``~`` prefix
 
       **Example:**
 
       .. code-block:: python
 
-         registry.unregister_class("UUID")  # removes X_UUID
+         registry.unregister_class("UUID")  # removes ~UUID
+
+   .. py:method:: register_struct(code: str, schema: dict | list | str) -> None
+
+      Register a struct schema with ``@`` prefix.
+
+      :param code: Struct code (will be prefixed with ``@``)
+      :param schema: Schema definition (dict, list, or string)
+
+      **Schema Types:**
+
+      - **Dict schema**: ``{'name': 'T', 'balance': 'N'}`` - key-based typing
+      - **List positional**: ``['T', 'L', 'N']`` - type by position
+      - **List homogeneous**: ``['N']`` - one type for all elements
+      - **String named**: ``'x:R,y:R'`` - CSV-like → dict output
+      - **String anonymous**: ``'R,R'`` - CSV-like → list output
+
+      **Example:**
+
+      .. code-block:: python
+
+         # Dict schema
+         registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+
+         # String schema for CSV data
+         registry.register_struct('POINT', 'x:R,y:R')
+
+         # Usage
+         from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+
+         # Array of structs
+         from_text('[["1", "2"], ["3", "4"]]::#@POINT')
+         # → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
+
+   .. py:method:: unregister_struct(code: str) -> None
+
+      Remove a previously registered struct.
+
+      :param code: Struct code without ``@`` prefix
+
+      **Example:**
+
+      .. code-block:: python
+
+         registry.unregister_struct("CUSTOMER")  # removes @CUSTOMER
+
+   .. py:method:: get_struct(code: str) -> dict | list | str | None
+
+      Get struct schema by code.
+
+      :param code: Struct code without ``@`` prefix
+      :return: Schema or None if not found
+
+      **Example:**
+
+      .. code-block:: python
+
+         registry.get_struct("CUSTOMER")  # → {'name': 'T', 'balance': 'N'}
+         registry.get_struct("UNKNOWN")   # → None
 
    .. py:method:: from_text(value: str, type_code: str | None = None) -> Any
 

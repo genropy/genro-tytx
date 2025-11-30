@@ -171,13 +171,13 @@ console.log(isDecimalInstance(value));  // true if big.js/decimal.js installed
 
 ### registry.register_class(options)
 
-Register a custom extension type (prefixed with `X_`).
+Register a custom extension type (prefixed with `~`).
 
 ```javascript
 const { registry, from_text } = require('genro-tytx');
 
 registry.register_class({
-    code: 'UUID',  // becomes "X_UUID" in wire format
+    code: 'UUID',  // becomes "~UUID" in wire format
     cls: null,     // JS doesn't have a built-in UUID class
     serialize: (value) => value.toLowerCase(),
     parse: (value) => {
@@ -189,19 +189,79 @@ registry.register_class({
 });
 
 // Now works
-from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID");
+from_text("550e8400-e29b-41d4-a716-446655440000::~UUID");
 ```
 
-See the [specification](../../spec/type-codes.md#custom-types-extension-types) for complete documentation.
+See the [specification](../../spec/type-codes.md#custom-types--prefix) for complete documentation.
+
+### registry.register_struct(code, schema)
+
+Register a struct schema (prefixed with `@`).
+
+```javascript
+const { registry, from_text } = require('genro-tytx');
+
+// Dict schema - keys map to types
+registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
+
+// List positional schema - types by position
+registry.register_struct('ROW', ['T', 'L', 'N']);
+
+// List homogeneous schema - one type for all elements
+registry.register_struct('PRICES', ['N']);
+
+// String schema (named) - CSV-like → dict output
+registry.register_struct('POINT', 'x:R,y:R');
+
+// String schema (anonymous) - CSV-like → list output
+registry.register_struct('COORDS', 'R,R');
+```
+
+Usage:
+
+```javascript
+// Dict schema
+from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER');
+// → { name: "Acme", balance: 100 }
+
+// String schema (named fields)
+from_text('["3.7", "7.3"]::@POINT');
+// → { x: 3.7, y: 7.3 }
+
+// Array of structs with #@
+from_text('[["1", "2"], ["3", "4"]]::#@POINT');
+// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+```
+
+See the [structs specification](../../spec/structs.md) for complete documentation.
+
+### registry.unregister_struct(code)
+
+Remove a previously registered struct.
+
+```javascript
+registry.unregister_struct('CUSTOMER');  // removes @CUSTOMER
+```
+
+### registry.get_struct(code)
+
+Get struct schema by code.
+
+```javascript
+registry.get_struct('CUSTOMER');  // → { name: 'T', balance: 'N' }
+registry.get_struct('UNKNOWN');   // → undefined
+```
 
 ### registry.get(code)
 
 Get a type by code or name.
 
 ```javascript
-registry.get("L");     // → IntType
-registry.get("int");   // → IntType
-registry.get("X");     // → null (unknown)
+registry.get("L");      // → IntType
+registry.get("int");    // → IntType
+registry.get("~UUID");  // → custom type info (if registered)
+registry.get("@ROW");   // → struct type info (if registered)
+registry.get("X");      // → null (unknown)
 ```
 
 ### registry.is_typed(value)
@@ -209,8 +269,10 @@ registry.get("X");     // → null (unknown)
 Check if a string contains a type suffix.
 
 ```javascript
-registry.is_typed("123::L");   // → true
-registry.is_typed("123");      // → false
+registry.is_typed("123::L");        // → true
+registry.is_typed("data::@ROW");    // → true (struct)
+registry.is_typed("arr::#@ROW");    // → true (array of struct)
+registry.is_typed("123");           // → false
 ```
 
 ## Browser Usage

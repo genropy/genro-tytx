@@ -74,25 +74,25 @@ registry.is_typed("hello::BOGUS")  # → False (unknown type)
 
 ### register_class(code, cls, serialize, parse)
 
-Register a custom class with the `X_` prefix:
+Register a custom class with the `~` prefix:
 
 ```python
 from genro_tytx import registry
 import uuid
 
 registry.register_class(
-    code="UUID",  # becomes "X_UUID" in wire format
+    code="UUID",  # becomes "~UUID" in wire format
     cls=uuid.UUID,
     serialize=lambda u: str(u),
     parse=lambda s: uuid.UUID(s)
 )
 
 # Now available
-registry.get("X_UUID")                                    # → type info
-registry.from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID")  # → UUID
+registry.get("~UUID")                                    # → type info
+registry.from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")  # → UUID
 ```
 
-See [type-codes.md](../../spec/type-codes.md#custom-types-extension-types) for complete documentation.
+See [type-codes.md](../../spec/type-codes.md#custom-types--prefix) for complete documentation.
 
 ### unregister_class(code)
 
@@ -101,7 +101,69 @@ Remove a previously registered custom type:
 ```python
 from genro_tytx import registry
 
-registry.unregister_class("UUID")  # removes X_UUID
+registry.unregister_class("UUID")  # removes ~UUID
+```
+
+### register_struct(code, schema)
+
+Register a struct schema with the `@` prefix:
+
+```python
+from genro_tytx import registry
+
+# Dict schema - keys map to types
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
+
+# List positional schema - types by position
+registry.register_struct('ROW', ['T', 'L', 'N'])
+
+# List homogeneous schema - one type for all elements
+registry.register_struct('PRICES', ['N'])
+
+# String schema (named) - CSV-like data → dict output
+registry.register_struct('POINT', 'x:R,y:R')
+
+# String schema (anonymous) - CSV-like data → list output
+registry.register_struct('COORDS', 'R,R')
+```
+
+Usage:
+
+```python
+# Dict schema
+registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
+# → {"name": "Acme", "balance": Decimal("100"), ...}
+
+# String schema (named fields)
+registry.from_text('["3.7", "7.3"]::@POINT')
+# → {"x": 3.7, "y": 7.3}
+
+# Array of structs with #@
+registry.from_text('[["A", "1"], ["B", "2"]]::#@POINT')
+# → [{"x": "A", "y": 1}, {"x": "B", "y": 2}]
+```
+
+See [structs.md](../../spec/structs.md) for complete documentation.
+
+### unregister_struct(code)
+
+Remove a previously registered struct:
+
+```python
+from genro_tytx import registry
+
+registry.unregister_struct("CUSTOMER")  # removes @CUSTOMER
+```
+
+### get_struct(code)
+
+Get struct schema by code:
+
+```python
+from genro_tytx import registry
+
+registry.get_struct("CUSTOMER")  # → {'name': 'T', 'balance': 'N', ...}
+registry.get_struct("UNKNOWN")   # → None
 ```
 
 ### from_text(value, type_code=None)
@@ -172,10 +234,14 @@ my_registry.register_class(
     parse=lambda s: Invoice(*s.split("|"))
 )
 
+# Register struct schemas
+my_registry.register_struct('POINT', 'x:R,y:R')
+
 # Use custom registry
 my_registry.from_text("123::L")              # → 123
 my_registry.from_text("hello::T")            # → "hello::T" (StrType not registered)
-my_registry.from_text("1|100::X_INV")      # → Invoice(1, 100)
+my_registry.from_text("1|100::~INV")         # → Invoice(1, 100)
+my_registry.from_text('["1", "2"]::@POINT')  # → {"x": 1.0, "y": 2.0}
 ```
 
 ## Fallback Behavior

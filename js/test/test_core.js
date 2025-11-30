@@ -702,3 +702,214 @@ describe('typed arrays', () => {
         });
     });
 });
+
+// =============================================================================
+// Struct Schema Tests
+// =============================================================================
+
+describe('struct schemas', () => {
+    describe('register_struct', () => {
+        test('registers dict schema', () => {
+            registry.register_struct('TEST_DICT', { name: 'T', value: 'L' });
+            const schema = registry.get_struct('TEST_DICT');
+            assert.deepStrictEqual(schema, { name: 'T', value: 'L' });
+            registry.unregister_struct('TEST_DICT');
+        });
+
+        test('registers list schema', () => {
+            registry.register_struct('TEST_LIST', ['T', 'L', 'N']);
+            const schema = registry.get_struct('TEST_LIST');
+            assert.deepStrictEqual(schema, ['T', 'L', 'N']);
+            registry.unregister_struct('TEST_LIST');
+        });
+
+        test('registers string schema', () => {
+            registry.register_struct('TEST_STR', 'x:R,y:R');
+            const schema = registry.get_struct('TEST_STR');
+            assert.strictEqual(schema, 'x:R,y:R');
+            registry.unregister_struct('TEST_STR');
+        });
+
+        test('unregister removes struct', () => {
+            registry.register_struct('TEMP', ['L']);
+            assert.ok(registry.get_struct('TEMP') !== null);
+            registry.unregister_struct('TEMP');
+            assert.strictEqual(registry.get_struct('TEMP'), null);
+        });
+    });
+
+    describe('dict schema', () => {
+        test('applies types to matching keys', () => {
+            registry.register_struct('CUSTOMER', { name: 'T', balance: 'N', age: 'L' });
+            try {
+                const result = from_text('{"name": "Acme", "balance": "100.50", "age": "25"}::@CUSTOMER');
+                assert.strictEqual(result.name, 'Acme');
+                assert.strictEqual(result.balance.toString(), '100.5');
+                assert.strictEqual(result.age, 25);
+            } finally {
+                registry.unregister_struct('CUSTOMER');
+            }
+        });
+
+        test('extra keys pass through unchanged', () => {
+            registry.register_struct('ITEM', { price: 'N' });
+            try {
+                const result = from_text('{"price": "99.99", "note": "test"}::@ITEM');
+                assert.strictEqual(result.price.toString(), '99.99');
+                assert.strictEqual(result.note, 'test');
+            } finally {
+                registry.unregister_struct('ITEM');
+            }
+        });
+    });
+
+    describe('list schema positional', () => {
+        test('applies type at index i to data[i]', () => {
+            registry.register_struct('ROW', ['T', 'L', 'N']);
+            try {
+                const result = from_text('["Product", 2, "100.50"]::@ROW');
+                assert.strictEqual(result[0], 'Product');
+                assert.strictEqual(result[1], 2);
+                assert.strictEqual(result[2].toString(), '100.5');
+            } finally {
+                registry.unregister_struct('ROW');
+            }
+        });
+
+        test('array of rows applies positional to each', () => {
+            registry.register_struct('ROW', ['T', 'L', 'N']);
+            try {
+                const result = from_text('[["A", 1, "10"], ["B", 2, "20"]]::@ROW');
+                assert.strictEqual(result[0][0], 'A');
+                assert.strictEqual(result[0][1], 1);
+                assert.strictEqual(result[0][2].toString(), '10');
+                assert.strictEqual(result[1][0], 'B');
+                assert.strictEqual(result[1][1], 2);
+                assert.strictEqual(result[1][2].toString(), '20');
+            } finally {
+                registry.unregister_struct('ROW');
+            }
+        });
+    });
+
+    describe('list schema homogeneous', () => {
+        test('single type applies to all elements', () => {
+            registry.register_struct('PRICES', ['N']);
+            try {
+                const result = from_text('[100, 200, "50.25"]::@PRICES');
+                assert.strictEqual(result[0].toString(), '100');
+                assert.strictEqual(result[1].toString(), '200');
+                assert.strictEqual(result[2].toString(), '50.25');
+            } finally {
+                registry.unregister_struct('PRICES');
+            }
+        });
+
+        test('empty array returns empty', () => {
+            registry.register_struct('NUMS', ['L']);
+            try {
+                const result = from_text('[]::@NUMS');
+                assert.deepStrictEqual(result, []);
+            } finally {
+                registry.unregister_struct('NUMS');
+            }
+        });
+
+        test('nested 2D array applies to leaves', () => {
+            registry.register_struct('MATRIX', ['L']);
+            try {
+                const result = from_text('[[1, 2], [3, 4]]::@MATRIX');
+                assert.deepStrictEqual(result, [[1, 2], [3, 4]]);
+            } finally {
+                registry.unregister_struct('MATRIX');
+            }
+        });
+    });
+
+    describe('string schema', () => {
+        test('named fields produce dict output', () => {
+            registry.register_struct('POINT', 'x:R,y:R');
+            try {
+                const result = from_text('["3.7", "7.3"]::@POINT');
+                assert.deepStrictEqual(result, { x: 3.7, y: 7.3 });
+            } finally {
+                registry.unregister_struct('POINT');
+            }
+        });
+
+        test('anonymous fields produce list output', () => {
+            registry.register_struct('COORDS', 'R,R');
+            try {
+                const result = from_text('["3.7", "7.3"]::@COORDS');
+                assert.deepStrictEqual(result, [3.7, 7.3]);
+            } finally {
+                registry.unregister_struct('COORDS');
+            }
+        });
+
+        test('preserves field order', () => {
+            registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N');
+            try {
+                const result = from_text('["Widget", "10", "99.99"]::@CSV_ROW');
+                assert.strictEqual(result.name, 'Widget');
+                assert.strictEqual(result.qty, 10);
+                assert.strictEqual(result.price.toString(), '99.99');
+                assert.deepStrictEqual(Object.keys(result), ['name', 'qty', 'price']);
+            } finally {
+                registry.unregister_struct('CSV_ROW');
+            }
+        });
+
+        test('handles spaces in definition', () => {
+            registry.register_struct('POINT2', 'x : R , y : R');
+            try {
+                const result = from_text('["1.0", "2.0"]::@POINT2');
+                assert.deepStrictEqual(result, { x: 1.0, y: 2.0 });
+            } finally {
+                registry.unregister_struct('POINT2');
+            }
+        });
+    });
+
+    describe('array of structs (#@)', () => {
+        test('batch mode with named string schema', () => {
+            registry.register_struct('ROW', 'name:T,qty:L,price:N');
+            try {
+                const result = from_text('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW');
+                assert.strictEqual(result.length, 2);
+                assert.strictEqual(result[0].name, 'A');
+                assert.strictEqual(result[0].qty, 1);
+                assert.strictEqual(result[0].price.toString(), '10');
+                assert.strictEqual(result[1].name, 'B');
+                assert.strictEqual(result[1].qty, 2);
+                assert.strictEqual(result[1].price.toString(), '20');
+            } finally {
+                registry.unregister_struct('ROW');
+            }
+        });
+
+        test('batch mode with anonymous string schema', () => {
+            registry.register_struct('PAIR', 'R,R');
+            try {
+                const result = from_text('[["1.5", "2.5"], ["3.5", "4.5"]]::#@PAIR');
+                assert.deepStrictEqual(result, [[1.5, 2.5], [3.5, 4.5]]);
+            } finally {
+                registry.unregister_struct('PAIR');
+            }
+        });
+
+        test('batch mode with dict schema', () => {
+            registry.register_struct('ITEM', { name: 'T', value: 'L' });
+            try {
+                const result = from_text('[{"name": "A", "value": "1"}, {"name": "B", "value": "2"}]::#@ITEM');
+                assert.strictEqual(result.length, 2);
+                assert.strictEqual(result[0].name, 'A');
+                assert.strictEqual(result[0].value, 1);
+                assert.strictEqual(result[1].name, 'B');
+                assert.strictEqual(result[1].value, 2);
+            } finally {
+                registry.unregister_struct('ITEM');
+            }
+        });
+    });
+});

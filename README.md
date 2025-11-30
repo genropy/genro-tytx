@@ -153,17 +153,50 @@ assert restored["date"] == date(2025, 1, 15)
 | `H` | Hour | `time` | `"10:30:00::H"` |
 | `JS` | JavaScript object | `dict`/`list` | `'{"a":1}::JS'` |
 
+### Type Prefixes
+
+| Prefix | Category | Registration | Example |
+|--------|----------|--------------|---------|
+| (none) | Built-in | TYTX core | `::L`, `::D`, `::N` |
+| `~` | Custom class | `register_class` | `::~UUID`, `::~INV` |
+| `@` | Struct schema | `register_struct` | `::@CUSTOMER`, `::@ROW` |
+| `#` | Typed array | (inline) | `::#L`, `::#N`, `::#@ROW` |
+
 ### Typed Arrays
 
-Compact format for homogeneous arrays:
+Compact format for homogeneous arrays using `#` prefix:
 
 ```python
 # Parse typed arrays
-from_text("[1,2,3]::L")           # → [1, 2, 3]
-from_text("[[1,2],[3,4]]::L")     # → [[1, 2], [3, 4]]  (nested)
+from_text("[1,2,3]::#L")           # → [1, 2, 3]
+from_text("[[1,2],[3,4]]::#L")     # → [[1, 2], [3, 4]]  (nested)
 
 # Serialize with compact_array
-as_typed_text([1, 2, 3], compact_array=True)  # → '["1","2","3"]::L'
+as_typed_text([1, 2, 3], compact_array=True)  # → '["1","2","3"]::#L'
+```
+
+### Struct Schemas
+
+Define reusable type schemas for data structures:
+
+```python
+from genro_tytx import registry, from_text
+
+# Dict schema - for objects
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
+
+from_text('{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER')
+# → {"name": "Acme", "balance": Decimal("100"), "created": date(2025, 1, 15)}
+
+# String schema - for CSV-like data
+registry.register_struct('POINT', 'x:R,y:R')
+
+from_text('["3.7", "7.3"]::@POINT')
+# → {"x": 3.7, "y": 7.3}
+
+# Array of structs with #@
+from_text('[["1", "2"], ["3", "4"]]::#@POINT')
+# → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
 ```
 
 ## Features

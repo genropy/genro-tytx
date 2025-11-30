@@ -3,8 +3,17 @@ from typing import Any
 
 from .base import DataType
 
-# Prefix for custom extension types
+# Symbol prefix for custom extension types (tilde = eXtension)
+CUSTOM_PREFIX = "~"
+# Symbol prefix for typed arrays (hash = each element #i)
+ARRAY_PREFIX = "#"
+# Symbol prefix for struct schema types (at = @schema)
+STRUCT_PREFIX = "@"
+
+# Legacy prefixes for backwards compatibility
 X_PREFIX = "X_"
+Y_PREFIX = "Y_"
+Z_PREFIX = "Z_"
 
 
 class _ExtensionType:
@@ -19,8 +28,8 @@ class _ExtensionType:
         serialize: Callable[[Any], str],
         parse: Callable[[str], Any],
     ) -> None:
-        self.code = f"{X_PREFIX}{code}"
-        self.name = f"x_{code.lower()}"
+        self.code = f"{CUSTOM_PREFIX}{code}"
+        self.name = f"custom_{code.lower()}"
         self.cls = cls
         self._serialize = serialize
         self._parse = parse
@@ -34,11 +43,201 @@ class _ExtensionType:
         return self._serialize(value)
 
 
+def _parse_string_schema(schema_str: str) -> tuple[list[tuple[str, str]], bool]:
+    """
+    Parse a string schema definition.
+
+    Args:
+        schema_str: Schema string like "x:R,y:R" (named) or "R,R" (anonymous)
+
+    Returns:
+        Tuple of (fields, has_names) where:
+        - fields: list of (name, type_code) tuples. For anonymous, name is ""
+        - has_names: True if schema has field names (output dict), False (output list)
+    """
+    fields: list[tuple[str, str]] = []
+    has_names = False
+
+    for part in schema_str.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            name, type_code = part.split(":", 1)
+            fields.append((name.strip(), type_code.strip()))
+            has_names = True
+        else:
+            fields.append(("", part.strip()))
+
+    return fields, has_names
+
+
+class _StructType:
+    """
+    Wrapper for struct schema types registered via register_struct.
+
+    Supports three schema formats:
+    - list: positional types ['T', 'L', 'N'] or homogeneous ['N']
+    - dict: keyed types {'name': 'T', 'balance': 'N'}
+    - str: ordered types "x:R,y:R" (named → dict) or "R,R" (anonymous → list)
+    """
+
+    code: str
+    name: str
+    python_type: None
+    schema: "list[str] | dict[str, str] | str"
+    _registry: "TypeRegistry"
+    _string_fields: "list[tuple[str, str]] | None"
+    _string_has_names: bool
+
+    def __init__(
+        self,
+        code: str,
+        schema: "list[str] | dict[str, str] | str",
+        registry: "TypeRegistry",
+    ) -> None:
+        self.code = f"{STRUCT_PREFIX}{code}"
+        self.name = f"struct_{code.lower()}"
+        self._registry = registry
+        self.python_type = None
+        self.schema = schema
+
+        # Parse string schema to internal representation
+        if isinstance(schema, str):
+            fields, has_names = _parse_string_schema(schema)
+            self._string_fields = fields
+            self._string_has_names = has_names
+        else:
+            self._string_fields = None
+            self._string_has_names = False
+
+    def parse(self, value: str) -> Any:
+        """Parse JSON string using schema."""
+        import json
+
+        data = json.loads(value)
+        return self._apply_schema(data)
+
+    def serialize(self, value: Any) -> str:
+        """Serialize value to JSON string."""
+        import json
+
+        return json.dumps(value, separators=(",", ":"))
+
+    def _apply_schema(self, data: Any) -> Any:
+        """Apply schema to hydrate data."""
+        # String schema: use parsed fields
+        if self._string_fields is not None:
+            return self._apply_string_schema(data)
+        # Dict schema
+        if isinstance(self.schema, dict):
+            return self._apply_dict_schema(data)
+        # List schema
+        return self._apply_list_schema(data)
+
+    def _apply_string_schema(self, data: Any) -> Any:
+        """Apply string schema to data (list input).
+
+        Always treats data as a single record. For batch processing
+        (array of records), use ::#@STRUCT syntax instead.
+        """
+        if not isinstance(data, list):
+            return data
+        return self._apply_string_schema_single(data)
+
+    def _apply_string_schema_single(self, data: list[Any]) -> Any:
+        """Apply string schema to a single list."""
+        # Type narrowing: this method is only called when _string_fields is set
+        assert self._string_fields is not None
+        result_list = []
+        for i, (_name, type_code) in enumerate(self._string_fields):
+            if i < len(data):
+                result_list.append(self._hydrate_value(data[i], type_code))
+            else:
+                result_list.append(None)
+
+        # If schema has names, return dict; otherwise return list
+        if self._string_has_names:
+            return {
+                name: value
+                for (name, _), value in zip(
+                    self._string_fields, result_list, strict=False
+                )
+            }
+        return result_list
+
+    def _apply_dict_schema(self, data: Any) -> Any:
+        """Apply dict schema to data."""
+        if not isinstance(data, dict):
+            return data
+        result = dict(data)
+        # Type narrowing: this method is only called when schema is a dict
+        assert isinstance(self.schema, dict)
+        for key, type_code in self.schema.items():
+            if key in result:
+                result[key] = self._hydrate_value(result[key], type_code)
+        return result
+
+    def _apply_list_schema(self, data: Any) -> Any:
+        """Apply list schema to data."""
+        if not isinstance(data, list):
+            return data
+        # Type narrowing: this method is only called when schema is a list
+        assert isinstance(self.schema, list)
+        if len(self.schema) == 1:
+            # Homogeneous: apply single type to all elements
+            type_code = self.schema[0]
+            return [self._apply_homogeneous(item, type_code) for item in data]
+        else:
+            # Positional: apply type at index i to data[i]
+            # If data is array of arrays, apply positionally to each sub-array
+            if data and isinstance(data[0], list):
+                return [self._apply_positional(item) for item in data]
+            return self._apply_positional(data)
+
+    def _apply_homogeneous(self, item: Any, type_code: str) -> Any:
+        """Apply homogeneous type recursively."""
+        if isinstance(item, list):
+            return [self._apply_homogeneous(i, type_code) for i in item]
+        return self._hydrate_value(item, type_code)
+
+    def _apply_positional(self, data: list[Any]) -> list[Any]:
+        """Apply positional schema to a single list."""
+        # Type narrowing: this method is only called when schema is a list
+        assert isinstance(self.schema, list)
+        result = []
+        for i, item in enumerate(data):
+            if i < len(self.schema):
+                result.append(self._hydrate_value(item, self.schema[i]))
+            else:
+                result.append(item)
+        return result
+
+    def _hydrate_value(self, value: Any, type_code: str) -> Any:
+        """Hydrate a single value using type code."""
+        # Check if it's a struct reference (recursive)
+        if type_code.startswith(STRUCT_PREFIX):
+            struct_type = self._registry.get(type_code)
+            if struct_type and isinstance(struct_type, _StructType):
+                return struct_type._apply_schema(value)
+            return value
+
+        # Regular type
+        type_cls = self._registry.get(type_code)
+        if type_cls:
+            type_instance = _get_type_instance(type_cls)
+            if not isinstance(value, str):
+                value = str(value)
+            return type_instance.parse(value)
+
+        return value
+
+
 def _get_type_instance(
-    type_or_instance: "type[DataType] | _ExtensionType",
-) -> "DataType | _ExtensionType":
-    """Get a type instance from either a DataType class or _ExtensionType instance."""
-    if isinstance(type_or_instance, _ExtensionType):
+    type_or_instance: "type[DataType] | _ExtensionType | _StructType",
+) -> "DataType | _ExtensionType | _StructType":
+    """Get a type instance from either a DataType class or _ExtensionType/_StructType instance."""
+    if isinstance(type_or_instance, (_ExtensionType, _StructType)):
         return type_or_instance
     return type_or_instance()
 
@@ -48,14 +247,19 @@ class TypeRegistry:
     Registry for pluggable data types.
 
     Uses unified dictionaries for both built-in and custom types.
-    Custom types use X_ prefix to avoid collisions with built-in types.
+    Type code prefixes:
+        - ~ (tilde): custom extension types registered via register_class
+        - @ (at): struct schema types registered via register_struct
+        - # (hash): typed arrays where each element #i is of given type
     """
 
     def __init__(self) -> None:
-        # Unified registries for both built-in DataType and custom _ExtensionType
-        self._types: dict[str, type[DataType] | _ExtensionType] = {}
-        self._codes: dict[str, type[DataType] | _ExtensionType] = {}
+        # Unified registries for built-in DataType, custom _ExtensionType, and _StructType
+        self._types: dict[str, type[DataType] | _ExtensionType | _StructType] = {}
+        self._codes: dict[str, type[DataType] | _ExtensionType | _StructType] = {}
         self._python_types: dict[type, type[DataType] | _ExtensionType] = {}
+        # Struct schemas registry: code -> schema (list, dict, or str)
+        self._structs: dict[str, list[str] | dict[str, str] | str] = {}
 
     def register(self, type_cls: type[DataType]) -> None:
         """
@@ -125,9 +329,9 @@ class TypeRegistry:
         Remove a previously registered custom extension type.
 
         Args:
-            code: Type code without X_ prefix
+            code: Type code without ~ prefix
         """
-        full_code = f"{X_PREFIX}{code}"
+        full_code = f"{CUSTOM_PREFIX}{code}"
         if full_code in self._codes:
             ext_type = self._codes.pop(full_code)
             # Remove from _types by name
@@ -140,7 +344,61 @@ class TypeRegistry:
             ):
                 del self._python_types[ext_type.python_type]
 
-    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | None:
+    def register_struct(
+        self, code: str, schema: "list[str] | dict[str, str] | str"
+    ) -> None:
+        """
+        Register a struct schema for schema-based hydration.
+
+        Args:
+            code: Struct code (will be prefixed with @)
+            schema: Type schema - either:
+                - list: positional types ['T', 'L', 'N'] or homogeneous ['N']
+                - dict: keyed types {'name': 'T', 'balance': 'N'}
+                - str: ordered types with explicit field order:
+                    - "x:R,y:R" (named fields → output dict)
+                    - "R,R" (anonymous fields → output list)
+
+        Examples:
+            register_struct('ROW', ['T', 'L', 'N'])      # positional list
+            register_struct('PRICES', ['N'])             # homogeneous list
+            register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})  # dict
+            register_struct('POINT', 'x:R,y:R')          # string → dict output
+            register_struct('COORDS', 'R,R')             # string → list output
+        """
+        self._structs[code] = schema
+        struct_type = _StructType(code, schema, self)
+        self._codes[struct_type.code] = struct_type
+        self._types[struct_type.name] = struct_type
+
+    def unregister_struct(self, code: str) -> None:
+        """
+        Remove a previously registered struct schema.
+
+        Args:
+            code: Struct code without @ prefix
+        """
+        if code in self._structs:
+            del self._structs[code]
+        full_code = f"{STRUCT_PREFIX}{code}"
+        if full_code in self._codes:
+            struct_type = self._codes.pop(full_code)
+            if struct_type.name in self._types:
+                del self._types[struct_type.name]
+
+    def get_struct(self, code: str) -> list[str] | dict[str, str] | str | None:
+        """
+        Get a struct schema by code.
+
+        Args:
+            code: Struct code without @ prefix
+
+        Returns:
+            Schema (list, dict, or str) or None if not found
+        """
+        return self._structs.get(code)
+
+    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | _StructType | None:
         """
         Retrieve a type by name or code.
         """
@@ -171,7 +429,9 @@ class TypeRegistry:
 
         Args:
             text: The string to parse. May contain embedded type (value::type).
-                Supports typed arrays: "[1,2,3]::L" applies type to all leaf values.
+                Supports typed arrays with # prefix: "[1,2,3]::#L".
+                Supports struct schemas with @ prefix: '{"a":1}::@CODE'.
+                Supports custom types with ~ prefix: 'uuid::~UUID'.
             type_code: Optional explicit type code. If provided, uses this type.
 
         Returns:
@@ -191,17 +451,45 @@ class TypeRegistry:
         # Split only on the last occurrence to handle values containing '::'
         val_part, type_part = text.rsplit("::", 1)
 
+        # Handle # prefix for typed arrays (each element #i is of type X)
+        # Supports both ::#L (built-in) and ::#@ROW (struct)
+        if type_part.startswith(ARRAY_PREFIX):
+            base_type_code = type_part[len(ARRAY_PREFIX) :]
+            # Check if it's a struct reference (#@STRUCT)
+            if base_type_code.startswith(STRUCT_PREFIX):
+                struct_type = self.get(base_type_code)
+                if struct_type and isinstance(struct_type, _StructType):
+                    return self._parse_struct_array(val_part, struct_type)
+                return text
+            # Regular typed array (#L, #N, etc.)
+            base_type = self.get(base_type_code)
+            if base_type:
+                return self._parse_typed_array(val_part, base_type)
+            return text
+
+        # Handle @ prefix (struct) - delegate to _StructType.parse()
+        if type_part.startswith(STRUCT_PREFIX):
+            struct_type = self.get(type_part)
+            if struct_type and isinstance(struct_type, _StructType):
+                return struct_type.parse(val_part)
+            return text
+
+        # Handle ~ prefix (custom extension type)
+        if type_part.startswith(CUSTOM_PREFIX):
+            ext_type = self.get(type_part)
+            if ext_type and isinstance(ext_type, _ExtensionType):
+                return ext_type.parse(val_part)
+            return text
+
+        # Regular scalar type (built-in)
         type_cls = self.get(type_part)
         if type_cls:
-            # Check if it's a typed array: starts with '['
-            if val_part.startswith("["):
-                return self._parse_typed_array(val_part, type_cls)
             return _get_type_instance(type_cls).parse(val_part)
 
         return text
 
     def _parse_typed_array(
-        self, json_str: str, type_cls: "type[DataType] | _ExtensionType"
+        self, json_str: str, type_cls: "type[DataType] | _ExtensionType | _StructType"
     ) -> list[Any]:
         """
         Parse a typed array, applying the type to all leaf values.
@@ -227,6 +515,22 @@ class TypeRegistry:
         result = apply_type(data)
         # data was parsed from JSON array, so result is always a list
         return result if isinstance(result, list) else [result]
+
+    def _parse_struct_array(self, json_str: str, struct_type: _StructType) -> list[Any]:
+        """
+        Parse an array of structs, applying the struct schema to each element.
+
+        Args:
+            json_str: JSON array string like '[["A",1],["B",2]]'
+            struct_type: _StructType instance to apply to each element
+
+        Returns:
+            List with each element parsed using the struct schema
+        """
+        import json
+
+        data = json.loads(json_str)
+        return [struct_type._apply_schema(item) for item in data]
 
     def _get_type_code_for_value(self, value: Any) -> str | None:
         """Get the type code for a Python value."""
@@ -303,7 +607,7 @@ class TypeRegistry:
         Args:
             value: Python value to serialize.
             compact_array: If True and value is a homogeneous array, produce
-                compact format "[1,2,3]::L" instead of typing each element.
+                compact format "[1,2,3]::#L" instead of typing each element.
                 If array is not homogeneous, falls back to element-by-element typing.
 
         Returns:
@@ -345,7 +649,7 @@ class TypeRegistry:
         return {self._get_leaf_type_code(value)}
 
     def _serialize_leaf(
-        self, value: Any, type_cls: "type[DataType] | _ExtensionType"
+        self, value: Any, type_cls: "type[DataType] | _ExtensionType | _StructType"
     ) -> Any:
         """Serialize a leaf value using the given type class."""
         if isinstance(value, list):
@@ -382,9 +686,9 @@ class TypeRegistry:
         if not type_cls:
             return None
 
-        # Serialize all leaf values
+        # Serialize all leaf values with # prefix for typed arrays
         serialized = self._serialize_leaf(value, type_cls)
-        return json.dumps(serialized, separators=(",", ":")) + "::" + type_code
+        return json.dumps(serialized, separators=(",", ":")) + "::" + ARRAY_PREFIX + type_code
 
     def _serialize_array_elements(self, value: list[Any]) -> str:
         """Serialize array with each element typed individually."""

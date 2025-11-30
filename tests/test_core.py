@@ -1270,37 +1270,37 @@ class TestTypedArrays:
 
     def test_from_text_typed_array_int(self):
         """Parse typed array of integers."""
-        result = from_text("[1,2,3]::L")
+        result = from_text("[1,2,3]::#L")
         assert result == [1, 2, 3]
         assert all(isinstance(x, int) for x in result)
 
     def test_from_text_typed_array_nested(self):
         """Parse nested typed array."""
-        result = from_text("[[1,2],[3,4]]::L")
+        result = from_text("[[1,2],[3,4]]::#L")
         assert result == [[1, 2], [3, 4]]
         assert all(isinstance(x, int) for row in result for x in row)
 
     def test_from_text_typed_array_float(self):
         """Parse typed array of floats."""
-        result = from_text("[1.5,2.5,3.5]::R")
+        result = from_text("[1.5,2.5,3.5]::#R")
         assert result == [1.5, 2.5, 3.5]
         assert all(isinstance(x, float) for x in result)
 
     def test_from_text_typed_array_decimal(self):
         """Parse typed array of decimals."""
-        result = from_text("[1.5,2.5,3.5]::N")
+        result = from_text("[1.5,2.5,3.5]::#N")
         assert result == [Decimal("1.5"), Decimal("2.5"), Decimal("3.5")]
         assert all(isinstance(x, Decimal) for x in result)
 
     def test_from_text_typed_array_bool(self):
         """Parse typed array of booleans."""
-        result = from_text("[true,false,true]::B")
+        result = from_text("[true,false,true]::#B")
         assert result == [True, False, True]
         assert all(isinstance(x, bool) for x in result)
 
     def test_from_text_typed_array_date(self):
         """Parse typed array of dates."""
-        result = from_text('["2025-01-15","2025-01-16"]::D')
+        result = from_text('["2025-01-15","2025-01-16"]::#D')
         assert result == [date(2025, 1, 15), date(2025, 1, 16)]
         assert all(isinstance(x, date) for x in result)
 
@@ -1308,34 +1308,34 @@ class TestTypedArrays:
         """Serialize homogeneous int array with compact_array=True."""
         result = as_typed_text([1, 2, 3], compact_array=True)
         # Values are serialized as strings for consistency with other types
-        assert result == '["1","2","3"]::L'
+        assert result == '["1","2","3"]::#L'
 
     def test_as_typed_text_compact_array_nested(self):
         """Serialize nested homogeneous array with compact_array=True."""
         result = as_typed_text([[1, 2], [3, 4]], compact_array=True)
-        assert result == '[["1","2"],["3","4"]]::L'
+        assert result == '[["1","2"],["3","4"]]::#L'
 
     def test_as_typed_text_compact_array_float(self):
         """Serialize homogeneous float array with compact_array=True."""
         result = as_typed_text([1.5, 2.5, 3.5], compact_array=True)
-        assert result == '["1.5","2.5","3.5"]::R'
+        assert result == '["1.5","2.5","3.5"]::#R'
 
     def test_as_typed_text_compact_array_decimal(self):
         """Serialize homogeneous decimal array with compact_array=True."""
         result = as_typed_text([Decimal("1.5"), Decimal("2.5")], compact_array=True)
-        assert result == '["1.5","2.5"]::N'
+        assert result == '["1.5","2.5"]::#N'
 
     def test_as_typed_text_compact_array_bool(self):
         """Serialize homogeneous bool array with compact_array=True."""
         result = as_typed_text([True, False, True], compact_array=True)
-        assert result == '["true","false","true"]::B'
+        assert result == '["true","false","true"]::#B'
 
     def test_as_typed_text_compact_array_date(self):
         """Serialize homogeneous date array with compact_array=True."""
         result = as_typed_text(
             [date(2025, 1, 15), date(2025, 1, 16)], compact_array=True
         )
-        assert result == '["2025-01-15","2025-01-16"]::D'
+        assert result == '["2025-01-15","2025-01-16"]::#D'
 
     def test_as_typed_text_compact_array_empty(self):
         """Empty array returns [] without type."""
