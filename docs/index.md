@@ -150,13 +150,48 @@ TYTX uses mnemonic type codes:
 | `R` | Float | `float` | `number` | `"3.14::R"` |
 | `N` | Decimal | `Decimal` | `number` | `"99.99::N"` |
 | `D` | Date | `date` | `Date` | `"2025-01-15::D"` |
-| `DH` | DateTime | `datetime` | `Date` | `"2025-01-15T10:00::DH"` |
+| `DHZ` | DateTime | `datetime` | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `H` | Time | `time` | `string` | `"10:30:00::H"` |
 | `B` | Boolean | `bool` | `boolean` | `"true::B"` |
 | `T` | Text | `str` | `string` | `"hello::T"` |
 | `JS` | JSON | `dict`/`list` | `object`/`array` | `'{"a":1}::JS'` |
 
 Each type has a unique code for serialization.
+
+## Type Prefixes
+
+TYTX supports three type prefix categories:
+
+| Prefix | Category | Example | Description |
+|--------|----------|---------|-------------|
+| (none) | Built-in | `::L`, `::D`, `::N` | Standard types |
+| `~` | Custom | `::~UUID`, `::~INV` | Extension types via `register_class` |
+| `@` | Struct | `::@CUSTOMER` | Struct schemas via `register_struct` |
+| `#` | Array | `::#L`, `::#@POINT` | Typed arrays |
+
+### Custom Types (~)
+
+Register custom classes for serialization:
+
+```python
+from genro_tytx import registry
+import uuid
+
+registry.register_class("UUID", uuid.UUID, str, uuid.UUID)
+registry.from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")  # → UUID object
+```
+
+### Struct Schemas (@)
+
+Define schemas for structured data:
+
+```python
+registry.register_struct('POINT', 'x:R,y:R')
+registry.from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+
+# Arrays of structs
+registry.from_text('[["1", "2"], ["3", "4"]]::#@POINT')  # → [{"x": 1, "y": 2}, ...]
+```
 
 ## Key Features
 

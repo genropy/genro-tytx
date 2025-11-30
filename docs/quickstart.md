@@ -27,7 +27,7 @@ from_text("123::L")                    # → 123 (L = Long/int)
 from_text("100.50::N")                 # → Decimal("100.50") (N = Numeric)
 from_text("3.14::R")                   # → 3.14 (R = Real/float)
 from_text("2025-01-15::D")             # → date(2025, 1, 15) (D = Date)
-from_text("2025-01-15T10:00:00::DH")   # → datetime(...) (DH = DateTime)
+from_text("2025-01-15T10:00:00Z::DHZ")  # → datetime(...) (DHZ = DateTime with Zone)
 from_text("10:30:00::H")               # → time(10, 30) (H = Hour/time)
 from_text("true::B")                   # → True (B = Boolean)
 from_text('{"a":1}::JS')               # → {"a": 1} (JS = JSON)
@@ -46,7 +46,7 @@ as_typed_text(123)                     # → "123::L"
 as_typed_text(3.14)                    # → "3.14::R"
 as_typed_text(Decimal("100.50"))       # → "100.50::N"
 as_typed_text(date(2025, 1, 15))       # → "2025-01-15::D"
-as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00::DH"
+as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00Z::DHZ"
 as_typed_text(True)                    # → "true::B"
 as_typed_text({"a": 1})                # → '{"a": 1}::JS'
 as_typed_text("hello")                 # → "hello" (no suffix for strings)
@@ -147,6 +147,8 @@ from_json('{"x": "10::L"}')   // → {x: 10}
 
 ## Type Codes Reference
 
+### Built-in Types
+
 | Code | Name | Python Type | Example |
 |------|------|-------------|---------|
 | `L` | integer | `int` | `"123::L"` |
@@ -158,6 +160,60 @@ from_json('{"x": "10::L"}')   // → {x: 10}
 | `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `H` | time | `time` | `"10:30:00::H"` |
 | `JS` | json | `dict`/`list` | `'{"a":1}::JS'` |
+
+### Type Prefixes
+
+| Prefix | Category | Example |
+|--------|----------|---------|
+| (none) | Built-in | `::L`, `::D`, `::N` |
+| `~` | Custom | `::~UUID`, `::~INV` |
+| `@` | Struct | `::@CUSTOMER`, `::@POINT` |
+| `#` | Array | `::#L`, `::#N`, `::#@POINT` |
+
+## Custom Types (~)
+
+Register your own classes:
+
+```python
+from genro_tytx import registry
+import uuid
+
+registry.register_class("UUID", uuid.UUID, str, uuid.UUID)
+registry.from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")  # → UUID
+registry.as_typed_text(uuid.uuid4())  # → "...-...-...::~UUID"
+```
+
+## Struct Schemas (@)
+
+Define schemas for structured data:
+
+```python
+from genro_tytx import registry
+
+# Dict schema - keys map to types
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
+# → {"name": "Acme", "balance": Decimal("100")}
+
+# String schema - positional data → dict
+registry.register_struct('POINT', 'x:R,y:R')
+registry.from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+
+# Array of structs with #@
+registry.from_text('[["1", "2"], ["3", "4"]]::#@POINT')
+# → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
+```
+
+## Typed Arrays (#)
+
+Arrays with uniform element types:
+
+```python
+from genro_tytx import registry
+
+registry.from_text('["1", "2", "3"]::#L')     # → [1, 2, 3]
+registry.from_text('["1.5", "2.5"]::#N')      # → [Decimal("1.5"), Decimal("2.5")]
+```
 
 ## Next Steps
 

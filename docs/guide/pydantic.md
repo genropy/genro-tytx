@@ -127,7 +127,7 @@ Output:
 {
     "total": "1234.56::N",
     "due_date": "2025-02-15::D",
-    "created_at": "2025-01-15T10:30:00::DH",
+    "created_at": "2025-01-15T10:30:00Z::DHZ",
     "invoice_number": "12345::L",
     "customer": "Acme Corp",
     "paid": "false::B"
@@ -350,7 +350,7 @@ async def receive_message(ws) -> Message:
 | Feature | Pydantic BaseModel | TytxModel |
 |---------|-------------------|-----------|
 | Decimal in JSON | Converted to float | Preserved as "value::N" |
-| date/datetime | ISO string | "value::D" / "value::DH" |
+| date/datetime | ISO string | "value::D" / "value::DHZ" |
 | Round-trip precision | May lose precision | Exact preservation |
 | MessagePack | Not built-in | Built-in support |
 | Validation | Full support | Full support |
