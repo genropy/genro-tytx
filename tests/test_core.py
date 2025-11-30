@@ -35,6 +35,7 @@ class TestFromText:
 
     def test_from_text_typed_json(self):
         assert from_text('{"a":1}::JS') == {"a": 1}
+        assert from_text('{"a":1}::J') == {"a": 1}  # J alias
 
     def test_from_text_typed_decimal(self):
         assert from_text("123.45::N") == Decimal("123.45")
@@ -853,3 +854,353 @@ class TestEdgeCases:
         dt = DecimalType()
         result = dt.format(Decimal("1234.56"), "%.2f", None)
         assert isinstance(result, str)
+
+
+class TestMsgpackUtils:
+    """Tests for MessagePack utilities (optional dependency)."""
+
+    def test_msgpack_import_error(self):
+        """Test ImportError when msgpack not installed."""
+        import sys
+        import pytest
+
+        # Save original msgpack module if present
+        original_msgpack = sys.modules.get("msgpack")
+
+        # Remove msgpack from modules to simulate not installed
+        if "msgpack" in sys.modules:
+            del sys.modules["msgpack"]
+
+        # Also need to reset the module's cached state
+        from genro_tytx import msgpack_utils
+        msgpack_utils._msgpack_available = None
+
+        # Mock the import to fail
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "msgpack":
+                raise ImportError("No module named 'msgpack'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
+
+        try:
+            with pytest.raises(ImportError, match="msgpack is required"):
+                msgpack_utils.packb({"test": 1})
+        finally:
+            builtins.__import__ = original_import
+            msgpack_utils._msgpack_available = None
+            if original_msgpack:
+                sys.modules["msgpack"] = original_msgpack
+
+    def test_msgpack_packb_unpackb_roundtrip(self):
+        """Test round-trip with msgpack pack/unpack."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import packb, unpackb
+
+        data = {
+            "price": Decimal("99.99"),
+            "date": date(2025, 1, 15),
+            "timestamp": datetime(2025, 1, 15, 10, 30, 0),
+            "count": 42,
+            "name": "Test",
+        }
+
+        packed = packb(data)
+        assert isinstance(packed, bytes)
+
+        restored = unpackb(packed)
+        assert restored["price"] == Decimal("99.99")
+        assert restored["date"] == date(2025, 1, 15)
+        assert restored["timestamp"] == datetime(2025, 1, 15, 10, 30, 0)
+        assert restored["count"] == 42
+        assert restored["name"] == "Test"
+
+    def test_msgpack_nested_structures(self):
+        """Test nested dicts and lists with TYTX types."""
+        pytest = __import__("pytest")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import packb, unpackb
+
+        data = {
+            "order": {
+                "items": [
+                    {"name": "Widget", "price": Decimal("25.00")},
+                    {"name": "Gadget", "price": Decimal("75.50")},
+                ],
+                "total": Decimal("100.50"),
+                "date": date(2025, 6, 15),
+            }
+        }
+
+        packed = packb(data)
+        restored = unpackb(packed)
+
+        assert restored["order"]["total"] == Decimal("100.50")
+        assert restored["order"]["date"] == date(2025, 6, 15)
+        assert restored["order"]["items"][0]["price"] == Decimal("25.00")
+
+    def test_msgpack_primitives_only(self):
+        """Test that primitives don't use ExtType."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import packb, unpackb
+
+        # Data with only primitives
+        data = {"name": "Test", "count": 42, "active": True}
+
+        packed = packb(data)
+        restored = unpackb(packed)
+
+        assert restored == data
+
+    def test_msgpack_encoder_decoder_direct(self):
+        """Test using tytx_encoder/tytx_decoder directly with msgpack."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import tytx_encoder, tytx_decoder
+
+        data = {"price": Decimal("50.00")}
+
+        packed = msgpack.packb(data, default=tytx_encoder)
+        restored = msgpack.unpackb(packed, ext_hook=tytx_decoder)
+
+        assert restored["price"] == Decimal("50.00")
+
+    def test_msgpack_ext_type_code(self):
+        """Test that TYTX uses ExtType code 42."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import TYTX_EXT_TYPE, tytx_encoder
+
+        assert TYTX_EXT_TYPE == 42
+
+        data = {"price": Decimal("10.00")}
+        ext = tytx_encoder(data)
+
+        assert isinstance(ext, msgpack.ExtType)
+        assert ext.code == 42
+
+    def test_msgpack_unknown_ext_type(self):
+        """Test that unknown ExtType codes are returned as-is."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import tytx_decoder
+
+        # Create an ExtType with a different code
+        result = tytx_decoder(99, b"some data")
+
+        assert isinstance(result, msgpack.ExtType)
+        assert result.code == 99
+        assert result.data == b"some data"
+
+    def test_msgpack_tytx_marker_removal(self):
+        """Test that ::TYTX marker is properly removed during decode."""
+        pytest = __import__("pytest")
+        msgpack = pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import tytx_decoder
+
+        # Simulate raw TYTX ExtType data
+        tytx_data = b'{"price": "99.99::N"}::TYTX'
+        result = tytx_decoder(42, tytx_data)
+
+        assert result["price"] == Decimal("99.99")
+
+    def test_msgpack_without_tytx_marker(self):
+        """Test decode when ::TYTX marker is missing (backward compat)."""
+        pytest = __import__("pytest")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import tytx_decoder
+
+        # Data without ::TYTX suffix
+        data = b'{"price": "99.99::N"}'
+        result = tytx_decoder(42, data)
+
+        assert result["price"] == Decimal("99.99")
+
+    def test_msgpack_encoder_non_serializable(self):
+        """Test that encoder raises TypeError for non-TYTX types."""
+        pytest = __import__("pytest")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import tytx_encoder
+
+        class CustomType:
+            pass
+
+        with pytest.raises(TypeError, match="not MessagePack serializable"):
+            tytx_encoder(CustomType())
+
+    def test_msgpack_has_tytx_types_detection(self):
+        """Test _has_tytx_types detection function."""
+        pytest = __import__("pytest")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.msgpack_utils import _has_tytx_types
+        from datetime import time
+
+        # Types that should be detected
+        assert _has_tytx_types(Decimal("10")) is True
+        assert _has_tytx_types(date(2025, 1, 1)) is True
+        assert _has_tytx_types(datetime(2025, 1, 1, 10, 0)) is True
+        assert _has_tytx_types(time(10, 30)) is True
+
+        # Nested detection
+        assert _has_tytx_types({"price": Decimal("10")}) is True
+        assert _has_tytx_types([Decimal("10")]) is True
+        assert _has_tytx_types({"nested": {"deep": date(2025, 1, 1)}}) is True
+
+        # Non-TYTX types
+        assert _has_tytx_types("string") is False
+        assert _has_tytx_types(42) is False
+        assert _has_tytx_types({"name": "test"}) is False
+        assert _has_tytx_types([1, 2, 3]) is False
+
+
+class TestPydanticMsgpack:
+    """Tests for TytxModel MessagePack support."""
+
+    def test_tytx_model_msgpack_roundtrip(self):
+        """Test TytxModel msgpack serialization round-trip."""
+        pytest = __import__("pytest")
+        pytest.importorskip("pydantic")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.pydantic import TytxModel
+
+        class Order(TytxModel):
+            price: Decimal
+            order_date: date
+            quantity: int
+            name: str
+
+        order = Order(
+            price=Decimal("99.99"),
+            order_date=date(2025, 1, 15),
+            quantity=5,
+            name="Widget",
+        )
+
+        # Serialize to msgpack
+        packed = order.model_dump_msgpack()
+        assert isinstance(packed, bytes)
+
+        # Deserialize from msgpack
+        restored = Order.model_validate_tytx_msgpack(packed)
+
+        assert restored.price == Decimal("99.99")
+        assert restored.order_date == date(2025, 1, 15)
+        assert restored.quantity == 5
+        assert restored.name == "Widget"
+
+    def test_tytx_model_msgpack_with_datetime(self):
+        """Test TytxModel msgpack with datetime field."""
+        pytest = __import__("pytest")
+        pytest.importorskip("pydantic")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.pydantic import TytxModel
+
+        class Event(TytxModel):
+            name: str
+            timestamp: datetime
+            amount: Decimal
+
+        event = Event(
+            name="Test Event",
+            timestamp=datetime(2025, 6, 15, 14, 30, 0),
+            amount=Decimal("1234.56"),
+        )
+
+        packed = event.model_dump_msgpack()
+        restored = Event.model_validate_tytx_msgpack(packed)
+
+        assert restored.name == "Test Event"
+        assert restored.timestamp == datetime(2025, 6, 15, 14, 30, 0)
+        assert restored.amount == Decimal("1234.56")
+
+    def test_tytx_model_msgpack_nested(self):
+        """Test TytxModel msgpack with nested models."""
+        pytest = __import__("pytest")
+        pytest.importorskip("pydantic")
+        pytest.importorskip("msgpack")
+
+        from genro_tytx.pydantic import TytxModel
+
+        class Item(TytxModel):
+            name: str
+            price: Decimal
+
+        class Order(TytxModel):
+            items: list[Item]
+            total: Decimal
+
+        order = Order(
+            items=[
+                Item(name="Widget", price=Decimal("25.00")),
+                Item(name="Gadget", price=Decimal("75.50")),
+            ],
+            total=Decimal("100.50"),
+        )
+
+        packed = order.model_dump_msgpack()
+        restored = Order.model_validate_tytx_msgpack(packed)
+
+        assert restored.total == Decimal("100.50")
+        assert len(restored.items) == 2
+        assert restored.items[0].price == Decimal("25.00")
+
+    def test_tytx_model_msgpack_import_error(self):
+        """Test ImportError when msgpack not installed for TytxModel."""
+        import sys
+        pytest = __import__("pytest")
+        pytest.importorskip("pydantic")
+
+        from genro_tytx.pydantic import TytxModel
+
+        class Simple(TytxModel):
+            value: int
+
+        obj = Simple(value=42)
+
+        # Save original msgpack module if present
+        original_msgpack = sys.modules.get("msgpack")
+
+        # Remove msgpack from modules to simulate not installed
+        if "msgpack" in sys.modules:
+            del sys.modules["msgpack"]
+
+        # Reset msgpack_utils cached state
+        from genro_tytx import msgpack_utils
+        msgpack_utils._msgpack_available = None
+
+        # Mock the import to fail
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "msgpack":
+                raise ImportError("No module named 'msgpack'")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = mock_import
+
+        try:
+            with pytest.raises(ImportError, match="msgpack is required"):
+                obj.model_dump_msgpack()
+        finally:
+            builtins.__import__ = original_import
+            msgpack_utils._msgpack_available = None
+            if original_msgpack:
+                sys.modules["msgpack"] = original_msgpack

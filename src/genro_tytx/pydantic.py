@@ -16,7 +16,7 @@
 Pydantic integration for TYTX.
 
 This module provides a TytxModel base class that automatically serializes
-to/from TYTX-typed JSON, preserving Decimal precision and date types.
+to/from TYTX-typed JSON and MessagePack, preserving Decimal precision and date types.
 
 Usage:
     pip install genro-tytx[pydantic]
@@ -38,6 +38,10 @@ Usage:
     # Deserialize from TYTX JSON
     restored = Order.model_validate_tytx(json_str)
     # restored.price is Decimal("99.99"), not float!
+
+    # MessagePack support (requires: pip install genro-tytx[msgpack])
+    packed = order.model_dump_msgpack()
+    restored = Order.model_validate_tytx_msgpack(packed)
 """
 
 from __future__ import annotations
@@ -176,6 +180,57 @@ def _get_tytx_model_class() -> type:
                 data = _hydrate_dict(data)
 
             return cls.model_validate(data, strict=strict, context=context)
+
+        def model_dump_msgpack(self, **kwargs: Any) -> bytes:
+            """
+            Serialize to TYTX-typed MessagePack bytes.
+
+            Requires msgpack: pip install genro-tytx[msgpack]
+
+            All Decimal values, dates, etc. are preserved using TYTX ExtType(42).
+
+            Args:
+                **kwargs: Additional arguments passed to model_dump().
+
+            Returns:
+                MessagePack bytes with TYTX types preserved.
+
+            Raises:
+                ImportError: If msgpack is not installed.
+            """
+            from .msgpack_utils import packb
+
+            data = self.model_dump(mode="python", **kwargs)
+            return packb(data)
+
+        @classmethod
+        def model_validate_tytx_msgpack(
+            cls: type[_T],
+            data: bytes,
+            *,
+            strict: bool | None = None,
+            context: Any = None,
+        ) -> _T:
+            """
+            Validate from TYTX-typed MessagePack bytes.
+
+            Requires msgpack: pip install genro-tytx[msgpack]
+
+            Args:
+                data: MessagePack bytes with TYTX types.
+                strict: Whether to enforce strict validation.
+                context: Optional context for validation.
+
+            Returns:
+                Validated model instance with proper Python types.
+
+            Raises:
+                ImportError: If msgpack is not installed.
+            """
+            from .msgpack_utils import unpackb
+
+            unpacked = unpackb(data)
+            return cls.model_validate(unpacked, strict=strict, context=context)
 
     return TytxModel
 
