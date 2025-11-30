@@ -80,7 +80,7 @@ export { TYTX_EXT_TYPE, packb, unpackb } from './msgpack.js';
 export { TytxModel } from './model.js';
 
 // Version
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 // Convenience re-exports from registry
 import { registry } from './registry.js';

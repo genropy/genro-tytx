@@ -61,7 +61,7 @@ from_text = registry.from_text
 as_text = registry.as_text
 as_typed_text = registry.as_typed_text
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "__version__",
     # Text API
