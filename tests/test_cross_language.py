@@ -54,6 +54,9 @@ def _create_value(spec):
         elif type_name == "date":
             return date.fromisoformat(value)
         elif type_name == "datetime":
+            # Handle Z suffix for Python 3.10 compatibility
+            if value.endswith("Z"):
+                value = value[:-1] + "+00:00"
             return datetime.fromisoformat(value)
         elif type_name == "time":
             return time.fromisoformat(value)

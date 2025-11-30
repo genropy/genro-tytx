@@ -214,6 +214,10 @@ class DateTimeType(DataType):
     default_format = "%c"  # Locale's appropriate date and time representation
 
     def parse(self, value: str) -> datetime:
+        # Handle Z suffix for Python 3.10 compatibility
+        # (fromisoformat only supports Z suffix in Python 3.11+)
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
         return datetime.fromisoformat(value)
 
     def serialize(self, value: Any) -> str:
