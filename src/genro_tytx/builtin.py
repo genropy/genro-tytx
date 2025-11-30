@@ -134,7 +134,7 @@ class JsonType(DataType):
 
     name = "json"
     code = "JS"
-    aliases = ["JSON"]
+    aliases = ["JSON", "J"]
     python_type = dict  # Primary type, also handles list
     js_type = "object"
     sql_type = "JSON"
@@ -238,7 +238,7 @@ class TimeType(DataType):
     code = "H"
     aliases = ["TIME", "HZ"]
     python_type = time
-    js_type = "Date"
+    js_type = "string"
     sql_type = "TIME"
     align = "L"
     empty = None
