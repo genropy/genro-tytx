@@ -9,6 +9,8 @@ types
 formatting
 json
 xml
+msgpack
+pydantic
 javascript
 custom-types
 registry
