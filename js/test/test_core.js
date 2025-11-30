@@ -34,7 +34,9 @@ describe('from_text', () => {
     });
 
     test('parses decimal', () => {
-        assert.strictEqual(from_text('99.99::N'), 99.99);
+        const result = from_text('99.99::N');
+        // Result is either Big object (if big.js installed) or number
+        assert.strictEqual(Number(result), 99.99);
     });
 
     test('parses boolean true', () => {
@@ -193,7 +195,8 @@ describe('as_json', () => {
 describe('from_json', () => {
     test('hydrates typed values', () => {
         const result = from_json('{"price": "99.99::N"}');
-        assert.strictEqual(result.price, 99.99);
+        // Result is either Big object (if big.js installed) or number
+        assert.strictEqual(Number(result.price), 99.99);
     });
 
     test('hydrates nested', () => {
