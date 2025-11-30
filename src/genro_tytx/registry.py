@@ -100,7 +100,7 @@ class TypeRegistry:
         if isinstance(value, Decimal):
             return "N"  # Genropy: N for numeric/decimal
         if isinstance(value, datetime):
-            return "DH"  # Genropy: DH for datetime
+            return "DHZ"  # Genropy: DHZ for datetime (timezone-aware)
         if isinstance(value, date):
             return "D"  # Genropy: D for date
         if isinstance(value, time):

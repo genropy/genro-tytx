@@ -73,12 +73,10 @@ describe('registry', () => {
     });
 
     it('types date', () => {
-      // Use UTC date to avoid timezone issues
-      // Note: JS Date always includes time, so it serializes as DH (datetime)
-      const date = new Date(Date.UTC(2025, 0, 15, 0, 0, 0));
+      // Midnight UTC is now recognized as date-only (::D)
+      const date = new Date('2025-01-15T00:00:00.000Z');
       const result = registry.asTypedText(date);
-      expect(result).toMatch(/2025-01-15/);
-      expect(result).toMatch(/::DH$/);
+      expect(result).toBe('2025-01-15::D');
     });
 
     it('returns string as-is', () => {
@@ -98,13 +96,11 @@ describe('JSON utilities', () => {
     });
 
     it('types dates', () => {
-      // Use UTC date to avoid timezone issues
-      // Note: JS Date always includes time, so it serializes as DH (datetime)
-      const date = new Date(Date.UTC(2025, 0, 15, 0, 0, 0));
+      // Use UTC date at midnight - now recognized as date-only (::D)
+      const date = new Date('2025-01-15T00:00:00.000Z');
       const json = asTypedJson({ date });
       const parsed = JSON.parse(json);
-      expect(parsed.date).toMatch(/2025-01-15/);
-      expect(parsed.date).toMatch(/::DH$/);
+      expect(parsed.date).toBe('2025-01-15::D');
     });
 
     it('handles nested objects with native types', () => {
@@ -259,8 +255,17 @@ describe('TytxModel', () => {
 
 describe('additional registry tests', () => {
   it('parses time type', () => {
+    // Time is now returned as Date on epoch (1970-01-01) UTC
     const result = registry.fromText('10:30:00::H');
-    expect(result).toBe('10:30:00');
+    expect(result).toBeInstanceOf(Date);
+    const date = result as Date;
+    expect(date.getUTCHours()).toBe(10);
+    expect(date.getUTCMinutes()).toBe(30);
+    expect(date.getUTCSeconds()).toBe(0);
+    // Epoch date
+    expect(date.getUTCFullYear()).toBe(1970);
+    expect(date.getUTCMonth()).toBe(0);
+    expect(date.getUTCDate()).toBe(1);
   });
 
   it('parses JSON type', () => {

@@ -1,6 +1,6 @@
 import builtins
 import importlib
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from decimal import Decimal
 
 import pytest
@@ -44,7 +44,7 @@ def test_model_dump_and_validate_hydrates_dict_and_bytes():
 
     obj = Payload(
         amount=Decimal("10.50"),
-        when=datetime(2025, 1, 15, 9, 30, 0),
+        when=datetime(2025, 1, 15, 9, 30, 0, tzinfo=timezone.utc),  # UTC-aware for DHZ
         tags=[1, 2],
         metadata={"price": Decimal("5.00")},
         count=7,
@@ -55,13 +55,13 @@ def test_model_dump_and_validate_hydrates_dict_and_bytes():
 
     json_str = obj.model_dump_json(indent=2)
     assert '"amount": "10.50::N"' in json_str
-    assert '"when": "2025-01-15T09:30:00::DH"' in json_str
+    assert '"when": "2025-01-15T09:30:00Z::DHZ"' in json_str  # DHZ with Z suffix
     assert '"tags": [' in json_str
 
     hydrated = Payload.model_validate_tytx(
         {
             "amount": "10.50::N",
-            "when": "2025-01-15T09:30:00::DH",
+            "when": "2025-01-15T09:30:00Z::DHZ",  # DHZ format
             "tags": ["1::L", "2::L"],
             "metadata": {"price": "5.00::N"},
             "count": 7,
@@ -71,7 +71,7 @@ def test_model_dump_and_validate_hydrates_dict_and_bytes():
         }
     )
     assert hydrated.amount == Decimal("10.50")
-    assert hydrated.when == datetime(2025, 1, 15, 9, 30, 0)
+    assert hydrated.when == datetime(2025, 1, 15, 9, 30, 0, tzinfo=timezone.utc)  # UTC-aware
     assert hydrated.tags == [1, 2]
     assert hydrated.metadata["price"] == Decimal("5.00")
     assert hydrated.count == 7
@@ -80,7 +80,7 @@ def test_model_dump_and_validate_hydrates_dict_and_bytes():
     assert hydrated.matrix == [[5, 6]]
 
     byte_hydrated = Payload.model_validate_tytx(
-        b'{"amount": "10.50::N", "when": "2025-01-15T09:30:00::DH", "tags": ["1::L"], "metadata": {"price": "5.00::N"}, "count": 1, "raw_values": [1], "items": [{"price": "3.00::N"}], "matrix": [["7::L"]]}'
+        b'{"amount": "10.50::N", "when": "2025-01-15T09:30:00Z::DHZ", "tags": ["1::L"], "metadata": {"price": "5.00::N"}, "count": 1, "raw_values": [1], "items": [{"price": "3.00::N"}], "matrix": [["7::L"]]}'
     )
     assert byte_hydrated.amount == Decimal("10.50")
     assert byte_hydrated.tags == [1]

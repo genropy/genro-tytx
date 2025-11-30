@@ -44,6 +44,11 @@ class TestFromText:
         assert from_text("2025-01-15::D") == date(2025, 1, 15)
 
     def test_from_text_typed_datetime(self):
+        from datetime import timezone
+        # DHZ is the canonical code (timezone-aware) - returns UTC datetime
+        result = from_text("2025-01-15T10:00:00Z::DHZ")
+        assert result == datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+        # DH is deprecated but still supported (naive datetime)
         assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
 
     def test_from_text_no_type(self):
@@ -77,7 +82,8 @@ class TestAsText:
         assert as_text(date(2025, 1, 15)) == "2025-01-15"
 
     def test_as_text_datetime(self):
-        assert as_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00"
+        # DHZ serializes with Z suffix
+        assert as_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00Z"
 
     def test_as_text_json(self):
         assert as_text({"a": 1}) == '{"a": 1}'
@@ -106,7 +112,8 @@ class TestAsTypedText:
         assert as_typed_text(date(2025, 1, 15)) == "2025-01-15::D"
 
     def test_as_typed_text_datetime(self):
-        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00::DH"
+        # DHZ is the canonical code with Z suffix
+        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00Z::DHZ"
 
     def test_as_typed_text_json(self):
         assert as_typed_text({"a": 1}) == '{"a": 1}::JS'
@@ -164,8 +171,9 @@ class TestTypeAttributes:
         from genro_tytx import DateTimeType
 
         assert DateTimeType.python_type is datetime
-        assert DateTimeType.sql_type == "TIMESTAMP"
+        assert DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"  # DHZ is timezone-aware
         assert DateTimeType.empty is None
+        assert DateTimeType.code == "DHZ"
 
     def test_genropy_compatible_aliases(self):
         """Test that Genropy-compatible aliases work."""
@@ -190,9 +198,10 @@ class TestTypeAttributes:
         assert from_text("100.50::N") == Decimal("100.50")
         assert from_text("100.50::NUMERIC") == Decimal("100.50")
 
-        # DateTime (Genropy uses DH, DHZ)
+        # DateTime (DHZ is canonical, DH is deprecated)
+        from datetime import timezone
+        assert from_text("2025-01-15T10:00:00Z::DHZ") == datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
         assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
-        assert from_text("2025-01-15T10:00:00::DHZ") == datetime(2025, 1, 15, 10, 0, 0)
 
 
 class TestAsTextFormatting:
@@ -201,7 +210,7 @@ class TestAsTextFormatting:
     def test_as_text_format_none_returns_iso(self):
         """format=None returns ISO/technical output."""
         assert as_text(date(2025, 1, 15)) == "2025-01-15"
-        assert as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00"
+        assert as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00Z"  # DHZ adds Z
         assert as_text(123) == "123"
         assert as_text(Decimal("1234.56")) == "1234.56"
 
@@ -342,9 +351,9 @@ class TestJSONUtils:
         assert '"day": "2025-01-15::D"' in result
 
     def test_as_typed_json_datetime(self):
-        """as_typed_json converts datetime to typed string."""
+        """as_typed_json converts datetime to typed string with DHZ."""
         result = as_typed_json({"ts": datetime(2025, 1, 15, 10, 30)})
-        assert '"ts": "2025-01-15T10:30:00::DH"' in result
+        assert '"ts": "2025-01-15T10:30:00Z::DHZ"' in result
 
     def test_as_typed_json_complex(self):
         """as_typed_json handles complex nested structures."""
@@ -391,10 +400,11 @@ class TestJSONUtils:
 
     def test_json_roundtrip(self):
         """Round-trip: as_typed_json then from_json returns original values."""
+        from datetime import timezone
         original = {
             "price": Decimal("123.45"),
             "date": date(2025, 6, 15),
-            "timestamp": datetime(2025, 6, 15, 14, 30, 0),
+            "timestamp": datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # Use UTC-aware
             "name": "Test",
             "count": 42,
         }
@@ -897,6 +907,7 @@ class TestMsgpackUtils:
 
     def test_msgpack_packb_unpackb_roundtrip(self):
         """Test round-trip with msgpack pack/unpack."""
+        from datetime import timezone
         pytest = __import__("pytest")
         msgpack = pytest.importorskip("msgpack")
 
@@ -905,7 +916,7 @@ class TestMsgpackUtils:
         data = {
             "price": Decimal("99.99"),
             "date": date(2025, 1, 15),
-            "timestamp": datetime(2025, 1, 15, 10, 30, 0),
+            "timestamp": datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc),  # UTC-aware
             "count": 42,
             "name": "Test",
         }
@@ -916,7 +927,7 @@ class TestMsgpackUtils:
         restored = unpackb(packed)
         assert restored["price"] == Decimal("99.99")
         assert restored["date"] == date(2025, 1, 15)
-        assert restored["timestamp"] == datetime(2025, 1, 15, 10, 30, 0)
+        assert restored["timestamp"] == datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         assert restored["count"] == 42
         assert restored["name"] == "Test"
 
@@ -1106,6 +1117,7 @@ class TestPydanticMsgpack:
 
     def test_tytx_model_msgpack_with_datetime(self):
         """Test TytxModel msgpack with datetime field."""
+        from datetime import timezone
         pytest = __import__("pytest")
         pytest.importorskip("pydantic")
         pytest.importorskip("msgpack")
@@ -1119,7 +1131,7 @@ class TestPydanticMsgpack:
 
         event = Event(
             name="Test Event",
-            timestamp=datetime(2025, 6, 15, 14, 30, 0),
+            timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # UTC-aware
             amount=Decimal("1234.56"),
         )
 
@@ -1127,7 +1139,7 @@ class TestPydanticMsgpack:
         restored = Event.model_validate_tytx_msgpack(packed)
 
         assert restored.name == "Test Event"
-        assert restored.timestamp == datetime(2025, 6, 15, 14, 30, 0)
+        assert restored.timestamp == datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
         assert restored.amount == Decimal("1234.56")
 
     def test_tytx_model_msgpack_nested(self):

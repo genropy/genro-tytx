@@ -20,8 +20,10 @@ export type TypeCode =
 
 /**
  * Primary type codes (canonical forms).
+ * DHZ = timezone-aware datetime (canonical)
+ * DH = naive datetime (deprecated)
  */
-export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DH' | 'H' | 'JS';
+export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DHZ' | 'DH' | 'H' | 'JS';
 
 /**
  * TYTX value types that can be serialized.

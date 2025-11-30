@@ -55,6 +55,12 @@ class TypeRegistry {
     /**
      * Get the type code for a JavaScript value.
      * Uses Genropy-compatible codes.
+     *
+     * Date detection convention (JS has only Date type):
+     * - Date (::D): midnight UTC (hours, minutes, seconds, ms all 0)
+     * - Time (::H): epoch date (1970-01-01) - "first date in the world"
+     * - DateTime (::DHZ): all other cases (timezone-aware)
+     *
      * @param {*} value
      * @returns {string|null}
      */
@@ -69,12 +75,27 @@ class TypeRegistry {
             return Number.isInteger(value) ? 'L' : 'R';  // Genropy: L for long/int, R for real/float
         }
         if (value instanceof Date) {
-            // Check if it's date-only (time is 00:00:00)
-            const has_time = value.getHours() !== 0
-                || value.getMinutes() !== 0
-                || value.getSeconds() !== 0
-                || value.getMilliseconds() !== 0;
-            return has_time ? 'DH' : 'D';  // Genropy: DH for datetime, D for date
+            // Use UTC for consistent cross-timezone behavior
+            const hours = value.getUTCHours();
+            const minutes = value.getUTCMinutes();
+            const seconds = value.getUTCSeconds();
+            const ms = value.getUTCMilliseconds();
+            const year = value.getUTCFullYear();
+            const month = value.getUTCMonth();
+            const day = value.getUTCDate();
+
+            // Time: epoch date (1970-01-01) with any time
+            if (year === 1970 && month === 0 && day === 1) {
+                return 'H';  // Genropy: H for time
+            }
+
+            // Date: midnight UTC (no time component)
+            if (hours === 0 && minutes === 0 && seconds === 0 && ms === 0) {
+                return 'D';  // Genropy: D for date
+            }
+
+            // DateTime: everything else
+            return 'DHZ';  // Genropy: DHZ for datetime (timezone-aware)
         }
         if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
             return 'JS';  // Genropy: JS for json

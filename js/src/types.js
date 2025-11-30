@@ -195,24 +195,26 @@ const DecimalType = {
 /**
  * Date type - calendar date without time.
  * Genropy: D for date
+ *
+ * In JS, dates are stored as Date objects at midnight UTC.
+ * This ensures consistent behavior across timezones.
  */
 const DateType = {
     name: 'date',
     code: 'D',
-    aliases: ['DATE'],
+    aliases: ['DATE', 'd', 'date'],
     js_type: 'Date',
 
     parse(value) {
-        // Parse ISO date (YYYY-MM-DD)
-        const [year, month, day] = value.split('-').map(Number);
-        return new Date(year, month - 1, day);
+        // Parse ISO date (YYYY-MM-DD) as midnight UTC
+        return new Date(value + 'T00:00:00.000Z');
     },
 
     serialize(value) {
-        // Output ISO date (YYYY-MM-DD)
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const day = String(value.getDate()).padStart(2, '0');
+        // Output ISO date (YYYY-MM-DD) using UTC
+        const year = value.getUTCFullYear();
+        const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(value.getUTCDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     },
 
@@ -221,7 +223,8 @@ const DateType = {
             return new Intl.DateTimeFormat(locale, {
                 year: 'numeric',
                 month: '2-digit',
-                day: '2-digit'
+                day: '2-digit',
+                timeZone: 'UTC'
             }).format(value);
         }
         return this.serialize(value);
@@ -229,13 +232,17 @@ const DateType = {
 };
 
 /**
- * DateTime type - date with time.
- * Genropy: DH for datetime
+ * DateTime type - date with time (timezone-aware).
+ * Genropy: DHZ for datetime
+ *
+ * DHZ preserves timezone information. When serialized, always outputs
+ * with Z suffix for UTC. This allows cross-timezone operations:
+ * America -> Paris (save as UTC) -> Tokyo (view as local or UTC).
  */
 const DateTimeType = {
     name: 'datetime',
-    code: 'DH',
-    aliases: ['DATETIME', 'DT', 'DHZ', 'timestamp'],
+    code: 'DHZ',
+    aliases: [],
     js_type: 'Date',
 
     parse(value) {
@@ -244,8 +251,14 @@ const DateTimeType = {
     },
 
     serialize(value) {
-        // Output ISO datetime
-        return value.toISOString();
+        // Output ISO datetime with Z suffix for UTC
+        const year = value.getUTCFullYear();
+        const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(value.getUTCDate()).padStart(2, '0');
+        const hours = String(value.getUTCHours()).padStart(2, '0');
+        const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
     },
 
     format(value, fmt, locale) {
@@ -256,7 +269,54 @@ const DateTimeType = {
                 day: '2-digit',
                 hour: '2-digit',
                 minute: '2-digit',
-                second: '2-digit'
+                second: '2-digit',
+                timeZone: 'UTC'
+            }).format(value);
+        }
+        return this.serialize(value);
+    }
+};
+
+/**
+ * Naive DateTime type - date with time (no timezone).
+ * Genropy: DH for naive datetime
+ *
+ * DEPRECATED: Use DateTimeType (DHZ) instead.
+ *
+ * DH is for naive datetimes without timezone info.
+ * Serializes as ISO format without Z suffix.
+ */
+const NaiveDateTimeType = {
+    name: 'naive_datetime',
+    code: 'DH',
+    aliases: [],
+    js_type: 'Date',
+
+    parse(value) {
+        return new Date(value);
+    },
+
+    serialize(value) {
+        // Output ISO datetime WITHOUT Z suffix
+        const year = value.getUTCFullYear();
+        const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(value.getUTCDate()).padStart(2, '0');
+        const hours = String(value.getUTCHours()).padStart(2, '0');
+        const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+        const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    },
+
+    format(value, fmt, locale) {
+        if (locale) {
+            return new Intl.DateTimeFormat(locale, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: 'UTC'
             }).format(value);
         }
         return this.serialize(value);
@@ -266,24 +326,28 @@ const DateTimeType = {
 /**
  * Time type - time without date.
  * Genropy: H for time (hour)
+ *
+ * In JS, time is stored as Date on epoch (1970-01-01) UTC.
+ * This allows smart detection: any Date with year=1970, month=0, day=1
+ * is treated as time-only.
  */
 const TimeType = {
     name: 'time',
     code: 'H',
     aliases: ['TIME', 'HZ'],
-    js_type: 'string',
+    js_type: 'Date',
 
     parse(value) {
-        // Return time as string (JS has no native time type)
-        return value;
+        // Parse time string (HH:MM:SS) as Date on epoch UTC
+        return new Date('1970-01-01T' + value + 'Z');
     },
 
     serialize(value) {
-        // If Date object, extract time part
+        // Extract time part using UTC
         if (value instanceof Date) {
-            const hours = String(value.getHours()).padStart(2, '0');
-            const minutes = String(value.getMinutes()).padStart(2, '0');
-            const seconds = String(value.getSeconds()).padStart(2, '0');
+            const hours = String(value.getUTCHours()).padStart(2, '0');
+            const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(value.getUTCSeconds()).padStart(2, '0');
             return `${hours}:${minutes}:${seconds}`;
         }
         return String(value);
@@ -302,6 +366,7 @@ function register_builtins() {
     registry.register(DecimalType);
     registry.register(DateType);
     registry.register(DateTimeType);
+    registry.register(NaiveDateTimeType);  // DH - deprecated
     registry.register(TimeType);
 }
 
@@ -317,6 +382,7 @@ module.exports = {
     DecimalType,
     DateType,
     DateTimeType,
+    NaiveDateTimeType,
     TimeType,
     register_builtins,
     // Decimal library info

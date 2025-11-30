@@ -76,40 +76,118 @@ const StrType: DataType<string> = {
   isType: (value: unknown): value is string => typeof value === 'string',
 };
 
+/**
+ * Date type - calendar date without time.
+ * In JS, dates are stored as Date objects at midnight UTC.
+ */
 const DateType: DataType<Date> = {
   code: 'D',
   name: 'date',
-  aliases: ['DATE'],
+  aliases: ['DATE', 'd', 'date'],
   jsType: 'Date',
-  parse: (value: string) => new Date(value + 'T00:00:00'),
-  serialize: (value: Date) => value.toISOString().split('T')[0],
+  parse: (value: string) => new Date(value + 'T00:00:00.000Z'),
+  serialize: (value: Date) => {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
   isType: (value: unknown): value is Date => {
     if (!(value instanceof Date)) return false;
-    return value.getHours() === 0 && value.getMinutes() === 0 && value.getSeconds() === 0;
+    // Date is midnight UTC
+    return (
+      value.getUTCHours() === 0 &&
+      value.getUTCMinutes() === 0 &&
+      value.getUTCSeconds() === 0 &&
+      value.getUTCMilliseconds() === 0 &&
+      // Not epoch (that's time)
+      !(value.getUTCFullYear() === 1970 && value.getUTCMonth() === 0 && value.getUTCDate() === 1)
+    );
   },
 };
 
+/**
+ * DateTime type - date with time (timezone-aware).
+ * DHZ preserves timezone information. When serialized, always outputs
+ * with Z suffix for UTC. This allows cross-timezone operations:
+ * America -> Paris (save as UTC) -> Tokyo (view as local or UTC).
+ */
 const DateTimeType: DataType<Date> = {
-  code: 'DH',
+  code: 'DHZ',
   name: 'datetime',
-  aliases: ['DT', 'DHZ', 'DATETIME'],
+  aliases: [],
   jsType: 'Date',
   parse: (value: string) => new Date(value),
-  serialize: (value: Date) => value.toISOString().replace('Z', '').split('.')[0],
+  serialize: (value: Date) => {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const hours = String(value.getUTCHours()).padStart(2, '0');
+    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
+  },
   isType: (value: unknown): value is Date => {
     if (!(value instanceof Date)) return false;
-    return value.getHours() !== 0 || value.getMinutes() !== 0 || value.getSeconds() !== 0;
+    // Not midnight UTC and not epoch date
+    const isMidnightUtc =
+      value.getUTCHours() === 0 &&
+      value.getUTCMinutes() === 0 &&
+      value.getUTCSeconds() === 0 &&
+      value.getUTCMilliseconds() === 0;
+    const isEpoch =
+      value.getUTCFullYear() === 1970 && value.getUTCMonth() === 0 && value.getUTCDate() === 1;
+    return !isMidnightUtc && !isEpoch;
   },
 };
 
-const TimeType: DataType<string> = {
+/**
+ * Naive DateTime type - date with time (no timezone).
+ * DEPRECATED: Use DateTimeType (DHZ) instead.
+ * DH is for naive datetimes without timezone info.
+ * Serializes as ISO format without Z suffix.
+ */
+const NaiveDateTimeType: DataType<Date> = {
+  code: 'DH',
+  name: 'naive_datetime',
+  aliases: [],
+  jsType: 'Date',
+  parse: (value: string) => new Date(value),
+  serialize: (value: Date) => {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const hours = String(value.getUTCHours()).padStart(2, '0');
+    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  },
+  isType: (_value: unknown): _value is Date => false, // Never auto-detected
+};
+
+/**
+ * Time type - time without date.
+ * In JS, time is stored as Date on epoch (1970-01-01) UTC.
+ */
+const TimeType: DataType<Date> = {
   code: 'H',
   name: 'time',
   aliases: ['TIME', 'HZ'],
-  jsType: 'string',
-  parse: (value: string) => value,
-  serialize: (value: string) => value,
-  isType: (_value: unknown): _value is string => false, // Time is always explicit
+  jsType: 'Date',
+  parse: (value: string) => new Date('1970-01-01T' + value + 'Z'),
+  serialize: (value: Date) => {
+    const hours = String(value.getUTCHours()).padStart(2, '0');
+    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  },
+  isType: (value: unknown): value is Date => {
+    if (!(value instanceof Date)) return false;
+    // Time is epoch date (1970-01-01)
+    return (
+      value.getUTCFullYear() === 1970 && value.getUTCMonth() === 0 && value.getUTCDate() === 1
+    );
+  },
 };
 
 const JsonType: DataType<object> = {
@@ -143,6 +221,7 @@ export class TypeRegistry {
       StrType,
       DateType,
       DateTimeType,
+      NaiveDateTimeType, // DH - deprecated
       TimeType,
       JsonType,
     ];
@@ -197,26 +276,42 @@ export class TypeRegistry {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
     if (value instanceof Date) {
-      return DateTimeType.isType(value)
-        ? DateTimeType.serialize(value)
-        : DateType.serialize(value);
+      // Smart detection: time, date, or datetime
+      if (TimeType.isType(value)) {
+        return TimeType.serialize(value);
+      }
+      if (DateType.isType(value)) {
+        return DateType.serialize(value);
+      }
+      return DateTimeType.serialize(value);
     }
     return String(value);
   }
 
   /**
    * Serialize value to typed string with ::code suffix.
+   *
+   * Date detection convention (JS has only Date type):
+   * - Date (::D): midnight UTC (hours, minutes, seconds, ms all 0)
+   * - Time (::H): epoch date (1970-01-01) - "first date in the world"
+   * - DateTime (::DHZ): all other cases (timezone-aware)
    */
   asTypedText(value: TytxValue): string {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
 
-    // Date/DateTime
+    // Date/DateTime/Time - smart detection using UTC
     if (value instanceof Date) {
-      const isDateTime = value.getHours() !== 0 || value.getMinutes() !== 0 || value.getSeconds() !== 0;
-      return isDateTime
-        ? `${DateTimeType.serialize(value)}::DH`
-        : `${DateType.serialize(value)}::D`;
+      // Check if it's time (epoch date: 1970-01-01)
+      if (TimeType.isType(value)) {
+        return `${TimeType.serialize(value)}::H`;
+      }
+      // Check if it's date-only (midnight UTC)
+      if (DateType.isType(value)) {
+        return `${DateType.serialize(value)}::D`;
+      }
+      // Otherwise it's datetime (timezone-aware)
+      return `${DateTimeType.serialize(value)}::DHZ`;
     }
 
     // Boolean
@@ -263,4 +358,4 @@ export const registry = new TypeRegistry();
 /**
  * Re-export built-in types for custom type creation.
  */
-export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, TimeType, JsonType };
+export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, NaiveDateTimeType, TimeType, JsonType };

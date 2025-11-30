@@ -64,8 +64,16 @@ describe('from_text', () => {
     });
 
     test('parses time', () => {
+        // Time is now returned as Date on epoch (1970-01-01) UTC
         const result = from_text('10:30:00::H');
-        assert.strictEqual(result, '10:30:00');
+        assert.ok(result instanceof Date);
+        assert.strictEqual(result.getUTCHours(), 10);
+        assert.strictEqual(result.getUTCMinutes(), 30);
+        assert.strictEqual(result.getUTCSeconds(), 0);
+        // Epoch date
+        assert.strictEqual(result.getUTCFullYear(), 1970);
+        assert.strictEqual(result.getUTCMonth(), 0);
+        assert.strictEqual(result.getUTCDate(), 1);
     });
 
     test('parses json', () => {
@@ -108,7 +116,8 @@ describe('as_text', () => {
     });
 
     test('serializes date', () => {
-        const d = new Date(2024, 0, 15); // Jan 15, 2024
+        // Use UTC date (midnight UTC) for date-only
+        const d = new Date('2024-01-15T00:00:00.000Z');
         assert.strictEqual(as_text(d), '2024-01-15');
     });
 
@@ -132,14 +141,15 @@ describe('as_typed_text', () => {
     });
 
     test('types date', () => {
-        const d = new Date(2024, 0, 15); // Jan 15, 2024, no time
+        // Use UTC date (midnight UTC) for date-only detection
+        const d = new Date('2024-01-15T00:00:00.000Z');
         assert.strictEqual(as_typed_text(d), '2024-01-15::D');
     });
 
     test('types datetime', () => {
         const dt = new Date(2024, 0, 15, 10, 30, 0); // With time
         const result = as_typed_text(dt);
-        assert.ok(result.endsWith('::DH'));
+        assert.ok(result.endsWith('::DHZ'));  // DHZ is the canonical code
     });
 
     test('types object as JSON', () => {

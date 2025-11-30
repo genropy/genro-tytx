@@ -204,14 +204,18 @@ class DateType(DataType):
 
 
 class DateTimeType(DataType):
-    """DateTime type - date with time."""
+    """DateTime type - date with time (timezone-aware).
+
+    DHZ preserves timezone information. When serialized, always outputs
+    with Z suffix for UTC. This allows cross-timezone operations:
+    America -> Paris (save as UTC) -> Tokyo (view as local or UTC).
+    """
 
     name = "datetime"
-    code = "DH"
-    aliases = ["DATETIME", "DT", "DHZ", "timestamp"]
+    code = "DHZ"
     python_type = datetime
     js_type = "Date"
-    sql_type = "TIMESTAMP"
+    sql_type = "TIMESTAMP WITH TIME ZONE"
     align = "L"
     empty = None
     default_format = "%c"  # Locale's appropriate date and time representation
@@ -220,7 +224,51 @@ class DateTimeType(DataType):
         return datetime.fromisoformat(value)
 
     def serialize(self, value: Any) -> str:
-        return str(value.isoformat())
+        # Always serialize with Z suffix for UTC
+        from datetime import timezone as tz
+
+        if value.tzinfo is not None:
+            utc_value = value.astimezone(tz.utc)
+            result: str = utc_value.strftime("%Y-%m-%dT%H:%M:%SZ")
+            return result
+        # Naive datetime: assume UTC
+        result = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return str(result)
+
+    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
+        prev = _set_locale(locale)
+        try:
+            result: str = value.strftime(fmt)
+            return result
+        finally:
+            _restore_locale(prev)
+
+
+class NaiveDateTimeType(DataType):
+    """Naive DateTime type - date with time (no timezone).
+
+    DEPRECATED: Use DateTimeType (DHZ) instead.
+
+    DH is for naive datetimes without timezone info.
+    Serializes as ISO format without Z suffix.
+    """
+
+    name = "naive_datetime"
+    code = "DH"
+    python_type = None  # Not auto-detected, must be explicit
+    js_type = "Date"
+    sql_type = "TIMESTAMP"
+    align = "L"
+    empty = None
+    default_format = "%c"
+
+    def parse(self, value: str) -> datetime:
+        return datetime.fromisoformat(value)
+
+    def serialize(self, value: Any) -> str:
+        # Serialize without timezone suffix
+        result: str = value.strftime("%Y-%m-%dT%H:%M:%S")
+        return result
 
     def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:
         prev = _set_locale(locale)
@@ -269,6 +317,7 @@ def register_builtins() -> None:
     registry.register(DecimalType)
     registry.register(DateType)
     registry.register(DateTimeType)
+    registry.register(NaiveDateTimeType)  # DH - deprecated
     registry.register(TimeType)
 
 

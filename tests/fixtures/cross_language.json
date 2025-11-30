@@ -1,0 +1,125 @@
+{
+  "_comment": "Cross-language test fixtures for TYTX protocol.",
+  "_version": "0.3.0",
+  "_notes": [
+    "JSON-native types (int, float, bool, string, null) pass through unchanged",
+    "Only non-native types get type markers (Date, Decimal, etc.)",
+    "JS/TS use UTC for all date/time operations",
+    "Date: midnight UTC -> ::D",
+    "Time: epoch date (1970-01-01) -> ::H",
+    "DateTime: all other dates -> ::DHZ (timezone-aware)",
+    "DH is deprecated (naive datetime without timezone)"
+  ],
+
+  "typed_text": {
+    "_comment": "as_typed_text(value) -> expected string",
+    "cases": [
+      {"input": {"type": "int", "value": 42}, "expected": "42::L"},
+      {"input": {"type": "int", "value": -100}, "expected": "-100::L"},
+      {"input": {"type": "int", "value": 0}, "expected": "0::L"},
+      {"input": {"type": "float", "value": 3.14}, "expected": "3.14::R"},
+      {"input": {"type": "float", "value": -0.5}, "expected": "-0.5::R"},
+      {"input": {"type": "bool", "value": true}, "expected": "true::B"},
+      {"input": {"type": "bool", "value": false}, "expected": "false::B"},
+      {"input": {"type": "date", "value": "2025-01-15"}, "expected": "2025-01-15::D"},
+      {"input": {"type": "datetime", "value": "2025-01-15T10:30:00Z"}, "expected": "2025-01-15T10:30:00Z::DHZ"},
+      {"input": {"type": "time", "value": "10:30:00"}, "expected": "10:30:00::H"},
+      {"input": {"type": "decimal", "value": "99.50"}, "expected": "99.50::N", "_python_only": true},
+      {"input": {"type": "decimal", "value": "0.001"}, "expected": "0.001::N", "_python_only": true},
+      {"input": {"type": "string", "value": "hello"}, "expected": "hello"}
+    ]
+  },
+
+  "from_text": {
+    "_comment": "from_text(typed_string) -> expected value and type",
+    "cases": [
+      {"input": "42::L", "expected": {"type": "int", "value": 42}},
+      {"input": "-100::L", "expected": {"type": "int", "value": -100}},
+      {"input": "3.14::R", "expected": {"type": "float", "value": 3.14}},
+      {"input": "true::B", "expected": {"type": "bool", "value": true}},
+      {"input": "false::B", "expected": {"type": "bool", "value": false}},
+      {"input": "2025-01-15::D", "expected": {"type": "date", "value": "2025-01-15"}},
+      {"input": "2025-01-15T10:30:00Z::DHZ", "expected": {"type": "datetime", "value": "2025-01-15T10:30:00Z"}},
+      {"input": "10:30:00::H", "expected": {"type": "time", "value": "10:30:00"}},
+      {"input": "99.50::N", "expected": {"type": "decimal", "value": "99.50"}, "_python_only": true},
+      {"input": "hello", "expected": {"type": "string", "value": "hello"}},
+      {"input": "no::type::here", "expected": {"type": "string", "value": "no::type::here"}}
+    ]
+  },
+
+  "typed_json": {
+    "_comment": "as_typed_json(object) -> expected JSON (keys may vary in order)",
+    "cases": [
+      {
+        "name": "native_types_no_markers",
+        "input": {"count": 5, "price": 99.99, "active": true, "name": "test"},
+        "expected": {"count": 5, "price": 99.99, "active": true, "name": "test"},
+        "_note": "JSON-native types pass through unchanged"
+      },
+      {
+        "name": "date_gets_marker",
+        "input": {"date": {"type": "date", "value": "2025-01-15"}},
+        "expected": {"date": "2025-01-15::D"},
+        "_note": "Date (midnight UTC) is not JSON-native, gets ::D marker"
+      },
+      {
+        "name": "datetime_gets_marker",
+        "input": {"when": {"type": "datetime", "value": "2025-01-15T10:30:00Z"}},
+        "expected": {"when": "2025-01-15T10:30:00Z::DHZ"},
+        "_note": "DateTime is not JSON-native, gets ::DHZ marker (timezone-aware)"
+      },
+      {
+        "name": "mixed_native_and_typed",
+        "input": {
+          "id": 123,
+          "amount": 50.5,
+          "date": {"type": "date", "value": "2025-01-15"},
+          "active": true
+        },
+        "expected": {
+          "id": 123,
+          "amount": 50.5,
+          "date": "2025-01-15::D",
+          "active": true
+        },
+        "_note": "Native types unchanged, only date gets marker"
+      },
+      {
+        "name": "nested_objects",
+        "input": {
+          "user": {"name": "John", "age": 30},
+          "created": {"type": "date", "value": "2025-01-15"}
+        },
+        "expected": {
+          "user": {"name": "John", "age": 30},
+          "created": "2025-01-15::D"
+        }
+      },
+      {
+        "name": "arrays_with_native_types",
+        "input": {"items": [1, 2, 3], "flags": [true, false]},
+        "expected": {"items": [1, 2, 3], "flags": [true, false]}
+      }
+    ]
+  },
+
+  "json_roundtrip": {
+    "_comment": "from_json(as_typed_json(value)) should restore original values",
+    "cases": [
+      {
+        "name": "simple_with_date",
+        "input": {
+          "count": 5,
+          "date": {"type": "date", "value": "2025-01-15"}
+        }
+      },
+      {
+        "name": "nested_structure",
+        "input": {
+          "order": {"id": 100, "items": [1, 2, 3]},
+          "created": {"type": "datetime", "value": "2025-01-15T10:30:00Z"}
+        }
+      }
+    ]
+  }
+}
