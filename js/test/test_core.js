@@ -162,20 +162,22 @@ describe('as_typed_text', () => {
 // =============================================================================
 
 describe('as_typed_json', () => {
-    test('types numbers', () => {
-        const result = as_typed_json({ count: 42 });
-        assert.strictEqual(result, '{"count":"42::L"}');
+    test('preserves JSON-native numbers without markers', () => {
+        // JSON natively supports numbers, so they don't need TYTX markers
+        const result = as_typed_json({ count: 42, price: 99.99 });
+        assert.strictEqual(result, '{"count":42,"price":99.99}');
     });
 
-    test('types dates', () => {
+    test('types dates (non-native)', () => {
         const d = new Date(2024, 0, 15);
         const result = as_typed_json({ date: d });
         assert.ok(result.includes('::D'));
     });
 
-    test('nested objects', () => {
+    test('nested objects with native types', () => {
+        // Numbers are JSON-native, no markers needed
         const result = as_typed_json({ outer: { inner: 42 } });
-        assert.ok(result.includes('42::L'));
+        assert.strictEqual(result, '{"outer":{"inner":42}}');
     });
 });
 
@@ -421,16 +423,15 @@ describe('msgpack_utils', () => {
         assert.strictEqual(msgpackUtils._hasTytxTypes([new Date()]), true);
     });
 
-    test('_hasTytxTypes detects numbers', { skip: !msgpackAvailable }, () => {
-        assert.strictEqual(msgpackUtils._hasTytxTypes(42), true);
-        assert.strictEqual(msgpackUtils._hasTytxTypes(3.14), true);
-        assert.strictEqual(msgpackUtils._hasTytxTypes({ price: 99.99 }), true);
-    });
-
-    test('_hasTytxTypes returns false for plain objects', { skip: !msgpackAvailable }, () => {
+    test('_hasTytxTypes returns false for msgpack-native types', { skip: !msgpackAvailable }, () => {
+        // Numbers, strings, booleans are msgpack-native - no TYTX needed
+        assert.strictEqual(msgpackUtils._hasTytxTypes(42), false);
+        assert.strictEqual(msgpackUtils._hasTytxTypes(3.14), false);
+        assert.strictEqual(msgpackUtils._hasTytxTypes({ price: 99.99 }), false);
         assert.strictEqual(msgpackUtils._hasTytxTypes('hello'), false);
         assert.strictEqual(msgpackUtils._hasTytxTypes({ name: 'test' }), false);
         assert.strictEqual(msgpackUtils._hasTytxTypes(null), false);
+        assert.strictEqual(msgpackUtils._hasTytxTypes(true), false);
     });
 
     test('packb/unpackb roundtrip with numbers', { skip: !msgpackAvailable }, () => {
@@ -510,7 +511,7 @@ describe('TytxModel', () => {
         assert.ok(order.date instanceof Date);
     });
 
-    test('toTytx serializes instance to JSON string', () => {
+    test('toTytx serializes instance to JSON string with native types', () => {
         const order = new Order();
         order.price = 99.99;
         order.quantity = 5;
@@ -519,9 +520,10 @@ describe('TytxModel', () => {
         const json = order.toTytx();
         const parsed = JSON.parse(json);
 
-        assert.ok(parsed.price.endsWith('::R') || parsed.price.endsWith('::N'));
-        assert.strictEqual(parsed.quantity, '5::L');
-        assert.strictEqual(parsed.active, 'true::B');
+        // JSON-native types pass through unchanged (no type markers)
+        assert.strictEqual(parsed.price, 99.99);
+        assert.strictEqual(parsed.quantity, 5);
+        assert.strictEqual(parsed.active, true);
     });
 
     test('toTytx handles Date objects', () => {

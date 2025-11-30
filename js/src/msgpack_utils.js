@@ -53,8 +53,12 @@ function _getMsgpack() {
 
 /**
  * Check if object contains types that need TYTX encoding.
+ *
+ * MessagePack natively handles: int, float, bool, str, bytes, null, array, map.
+ * Only Date needs TYTX encoding (msgpack doesn't have native Date support).
+ *
  * @param {*} obj - Object to check.
- * @returns {boolean} True if object contains Date or needs typing.
+ * @returns {boolean} True if object contains Date.
  */
 function _hasTytxTypes(obj) {
     if (obj instanceof Date) {
@@ -66,10 +70,7 @@ function _hasTytxTypes(obj) {
     if (obj !== null && typeof obj === 'object') {
         return Object.values(obj).some(_hasTytxTypes);
     }
-    // Numbers need typing to preserve the type code (L vs R vs N)
-    if (typeof obj === 'number') {
-        return true;
-    }
+    // Numbers, booleans, strings are msgpack-native - no TYTX needed
     return false;
 }
 

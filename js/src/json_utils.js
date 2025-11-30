@@ -1,15 +1,19 @@
 /**
  * JSON utilities for TYTX Protocol.
  *
- * Provides encoder/decoder functions for JSON serialization with typed values.
+ * JSON-native types (number, boolean, string, null) are NOT marked with type codes
+ * because JSON already preserves their type. Only non-native types (Date) receive
+ * type markers.
  *
  * Usage:
  *     // Typed JSON (TYTX format - reversible)
- *     as_typed_json(data)  // → '{"price": "99.50::D"}'
- *     from_json(json_str)  // → {price: 99.5}
+ *     as_typed_json({count: 5, date: new Date()})
+ *     // → '{"count": 5, "date": "2025-01-15T00:00:00::DH"}'
  *
- *     // Standard JSON (for external systems - may lose precision)
- *     as_json(data)  // → '{"price": 99.5}'
+ *     from_json(json_str)  // → {count: 5, date: Date}
+ *
+ *     // Standard JSON (for external systems)
+ *     as_json(data)  // → '{"count": 5, "date": "2025-01-15T00:00:00.000Z"}'
  *
  * @module json_utils
  */
@@ -40,8 +44,12 @@ function _hydrate(obj) {
 
 /**
  * Recursively serialize values to typed strings.
+ *
+ * JSON-native types (number, boolean, string, null) pass through unchanged.
+ * Only Date objects get type markers (they're not JSON-native).
+ *
  * @param {*} obj - Value to serialize.
- * @param {boolean} typed - If true, use typed format.
+ * @param {boolean} typed - If true, use typed format for non-native types.
  * @returns {*} Value with non-JSON types converted.
  */
 function _serialize(obj, typed) {
@@ -49,7 +57,7 @@ function _serialize(obj, typed) {
         return obj;
     }
 
-    // Handle Date objects
+    // Handle Date objects - not JSON-native, needs marker
     if (obj instanceof Date) {
         if (typed) {
             return registry.as_typed_text(obj);
@@ -71,14 +79,7 @@ function _serialize(obj, typed) {
         return result;
     }
 
-    // Handle primitives that need typing
-    if (typed && typeof obj === 'number') {
-        return registry.as_typed_text(obj);
-    }
-    if (typed && typeof obj === 'boolean') {
-        return registry.as_typed_text(obj);
-    }
-
+    // JSON-native types (number, boolean, string): pass through unchanged
     return obj;
 }
 
