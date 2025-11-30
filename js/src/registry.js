@@ -2,9 +2,17 @@
  * TYTX Type Registry
  *
  * Registry for pluggable data types.
+ * Uses unified maps for both built-in and custom types.
+ * Custom types use X_ prefix to avoid collisions.
  *
  * @module registry
  */
+
+/**
+ * Prefix for custom extension types.
+ * @const {string}
+ */
+const X_PREFIX = 'X_';
 
 /**
  * @typedef {Object} DataType
@@ -15,16 +23,27 @@
  * @property {function(*): string} serialize - Convert JS value to string
  */
 
+/**
+ * @typedef {Object} ExtensionType
+ * @property {string} name - Name in format "x_code"
+ * @property {string} code - Full code with X_ prefix
+ * @property {Function|null} cls - Constructor function for auto-detection
+ * @property {function(string): *} parse - Convert string to JS value
+ * @property {function(*): string} serialize - Convert JS value to string
+ */
+
 class TypeRegistry {
     constructor() {
-        /** @type {Map<string, DataType>} */
+        /** @type {Map<string, DataType|ExtensionType>} */
         this._types = new Map();
-        /** @type {Map<string, DataType>} */
+        /** @type {Map<string, DataType|ExtensionType>} */
         this._codes = new Map();
+        /** @type {Map<Function, ExtensionType>} */
+        this._constructors = new Map();
     }
 
     /**
-     * Register a new data type.
+     * Register a new data type (internal, for built-in types).
      * @param {DataType} type_def - Type definition object
      */
     register(type_def) {
@@ -33,9 +52,77 @@ class TypeRegistry {
     }
 
     /**
+     * Register a custom extension type with X_ prefix.
+     *
+     * If serialize/parse are not provided, the class must implement:
+     * - as_typed_text(): instance method for serialization
+     * - static from_typed_text(s): static method for parsing
+     *
+     * @param {string} code - Type code (will be prefixed with X_)
+     * @param {Function} cls - Constructor function (required for auto-detection)
+     * @param {function(*): string} [serialize] - Function to convert value to string
+     * @param {function(string): *} [parse] - Function to convert string to value
+     * @throws {Error} If serialize/parse not provided and class lacks required methods
+     */
+    register_class(code, cls, serialize = null, parse = null) {
+        // Auto-detect serialize from class method
+        if (serialize === null) {
+            if (cls.prototype && typeof cls.prototype.as_typed_text === 'function') {
+                serialize = (v) => v.as_typed_text();
+            } else {
+                throw new Error(
+                    `Class ${cls.name || 'unknown'} must have as_typed_text() method ` +
+                    'or provide serialize parameter'
+                );
+            }
+        }
+
+        // Auto-detect parse from class static method
+        if (parse === null) {
+            if (typeof cls.from_typed_text === 'function') {
+                parse = cls.from_typed_text;
+            } else {
+                throw new Error(
+                    `Class ${cls.name || 'unknown'} must have static from_typed_text() method ` +
+                    'or provide parse parameter'
+                );
+            }
+        }
+
+        const ext_type = {
+            code: X_PREFIX + code,
+            name: 'x_' + code.toLowerCase(),
+            cls: cls,
+            serialize: serialize,
+            parse: parse
+        };
+
+        // Register in unified maps
+        this._types.set(ext_type.name, ext_type);
+        this._codes.set(ext_type.code, ext_type);
+        this._constructors.set(cls, ext_type);
+    }
+
+    /**
+     * Remove a previously registered custom extension type.
+     * @param {string} code - Type code without X_ prefix
+     */
+    unregister_class(code) {
+        const full_code = X_PREFIX + code;
+        const ext_type = this._codes.get(full_code);
+        if (ext_type) {
+            this._codes.delete(full_code);
+            this._types.delete(ext_type.name);
+            if (ext_type.cls !== null) {
+                this._constructors.delete(ext_type.cls);
+            }
+        }
+    }
+
+    /**
      * Retrieve a type by name or code.
      * @param {string} name_or_code
-     * @returns {DataType|null}
+     * @returns {DataType|ExtensionType|null}
      */
     get(name_or_code) {
         return this._types.get(name_or_code)
@@ -88,12 +175,22 @@ class TypeRegistry {
             // DateTime: everything else
             return 'DHZ';  // DHZ = Date Hour Zulu (timezone-aware)
         }
-        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-            return 'JS';  // JS = JavaScript object
-        }
         if (typeof value === 'string') {
             return null; // Strings don't get typed
         }
+
+        // Check custom types (registered via register_class)
+        if (typeof value === 'object' && value !== null && value.constructor) {
+            const ext_type = this._constructors.get(value.constructor);
+            if (ext_type) {
+                return ext_type.code;
+            }
+        }
+
+        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+            return 'JS';  // JS = JavaScript object
+        }
+
         return null;
     }
 
@@ -313,4 +410,4 @@ class TypeRegistry {
 // Global registry instance
 const registry = new TypeRegistry();
 
-module.exports = { TypeRegistry, registry };
+module.exports = { TypeRegistry, registry, X_PREFIX };

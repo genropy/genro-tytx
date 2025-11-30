@@ -28,4 +28,6 @@ def test_version_format() -> None:
     version = genro_tytx.__version__
     parts = version.split(".")
     assert len(parts) >= 2, "Version should have at least major.minor"
-    assert all(part.isdigit() for part in parts[:2]), "Major and minor should be numeric"
+    assert all(
+        part.isdigit() for part in parts[:2]
+    ), "Major and minor should be numeric"

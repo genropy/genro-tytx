@@ -131,7 +131,9 @@ def tytx_encoder(obj: Any) -> Any:
         tytx_str = as_typed_json(obj)
         return msgpack.ExtType(TYTX_EXT_TYPE, tytx_str.encode("utf-8"))
 
-    raise TypeError(f"Object of type {type(obj).__name__} is not MessagePack serializable")
+    raise TypeError(
+        f"Object of type {type(obj).__name__} is not MessagePack serializable"
+    )
 
 
 def tytx_decoder(code: int, data: bytes) -> Any:

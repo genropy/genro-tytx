@@ -278,7 +278,7 @@ class TimeType(DataType):
     name = "time"
     code = "H"
     python_type = time
-    js_type = "string"
+    js_type = "Date"  # JS uses Date with epoch (1970-01-01)
     sql_type = "TIME"
     align = "L"
     empty = None

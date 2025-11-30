@@ -31,12 +31,13 @@ The core syntax is `value::type_code`.
 
 | Native Type | Serialized (TYTX) | Description |
 |-------------|-------------------|-------------|
-| `int` | `"123::I"` | Integer |
-| `Decimal` | `"100.50::D"` | Exact decimal (money) |
-| `datetime` | `"2023-10-27T10:00::dt"` | ISO DateTime |
-| `date` | `"2023-10-27::d"` | ISO Date |
+| `int` | `"123::L"` | Long integer |
+| `float` | `"3.14::R"` | Real number |
+| `Decimal` | `"100.50::N"` | Numeric (exact decimal) |
+| `datetime` | `"2023-10-27T10:00:00Z::DHZ"` | ISO DateTime (UTC) |
+| `date` | `"2023-10-27::D"` | ISO Date |
+| `time` | `"10:30:00::H"` | ISO Time (Hour) |
 | `bool` | `"true::B"` | Boolean |
-| `list` | `"a,b,c::L"` | Simple comma-separated list |
 
 If a value does not contain `::`, it is treated as a standard string (or native JSON type if already parsed).
 
@@ -45,7 +46,7 @@ If a value does not contain `::`, it is treated as a standard string (or native 
 For entire payloads containing TYTX values, append `::TYTX`:
 
 ```
-{"price": "100::D", "date": "2025-01-15::d"}::TYTX
+{"price": "100.50::N", "date": "2025-01-15::D"}::TYTX
 ```
 
 The `::TYTX` suffix indicates the payload contains typed values that need hydration. The format (JSON, XML, etc.) is auto-detected from the content.
@@ -69,23 +70,9 @@ The `::TYTX` suffix indicates the payload contains typed values that need hydrat
 | `H` | time | `time` | `Date` | ISO Time |
 | `JS` | json | `dict`/`list` | `object`/`array` | JSON structure |
 
-### Custom Types
+### Custom Types (Extension Types)
 
-Custom types can be registered with the registry:
-
-```python
-@registry.register("MyType", "MT")
-class MyTypeHandler:
-    python_type = MyType
-
-    @staticmethod
-    def parse(value: str) -> MyType:
-        return MyType.from_string(value)
-
-    @staticmethod
-    def serialize(obj: MyType) -> str:
-        return obj.to_string()
-```
+Custom types use the `X_` prefix and are registered via `register_class`. See [type-codes.md](type-codes.md#custom-types-extension-types) for details.
 
 ---
 
@@ -93,38 +80,46 @@ class MyTypeHandler:
 
 ### 4.1 Core Logic (`genro-tytx`)
 
-The reference implementation resides in `genro-tytx` (Python) and `genro-tytx` (npm).
+TYTX has **three official implementations** that follow the same specification:
 
-- **Registry**: Manages registered types.
-- **Hydrate**: Converts TYTX strings into native objects.
-- **Serialize**: Converts native objects into TYTX strings.
+| Implementation | Package | Runtime |
+|---------------|---------|---------|
+| **Python** | `genro-tytx` (PyPI) | Python 3.10+ |
+| **JavaScript** | `genro-tytx` (npm) | Node.js, Browser |
+| **TypeScript** | `genro-tytx` (npm) | Node.js, Browser |
+
+All implementations provide:
+
+- **Registry**: Manages registered types
+- **Hydrate**: Converts TYTX strings into native objects
+- **Serialize**: Converts native objects into TYTX strings
 
 ### 4.2 Python Implementation
 
 ```python
-from genro_tytx import hydrate, serialize
+from genro_tytx import from_json, as_typed_json
 
-# Hydrate
-data = hydrate({"price": "100.50::D", "date": "2025-01-15::d"})
+# Parse (hydrate)
+data = from_json('{"price": "100.50::N", "date": "2025-01-15::D"}')
 # {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 
 # Serialize
-result = serialize({"price": Decimal("100.50"), "date": date(2025, 1, 15)})
-# {"price": "100.50::D", "date": "2025-01-15::d"}
+result = as_typed_json({"price": Decimal("100.50"), "date": date(2025, 1, 15)})
+# '{"price": "100.50::N", "date": "2025-01-15::D"}'
 ```
 
 ### 4.3 JavaScript Implementation
 
-```typescript
-import { hydrate, serialize } from 'genro-tytx';
+```javascript
+const { from_json, as_typed_json } = require('genro-tytx');
 
-// Hydrate
-const data = hydrate({ price: "100.50::D", date: "2025-01-15::d" });
-// { price: Decimal("100.50"), date: Date("2025-01-15") }
+// Parse (hydrate)
+const data = from_json('{"price": "100.50::N", "date": "2025-01-15::D"}');
+// { price: 100.50, date: Date("2025-01-15") }
 
 // Serialize
-const result = serialize({ price: new Decimal("100.50"), date: new Date("2025-01-15") });
-// { price: "100.50::D", date: "2025-01-15::d" }
+const result = as_typed_json({ price: 100.50, date: new Date("2025-01-15") });
+// '{"price": "100.50::R", "date": "2025-01-15::D"}'
 ```
 
 ### 4.4 ASGI Integration (`genro-asgi`)
@@ -134,13 +129,13 @@ The protocol integrates with the web framework layer:
 #### Input (Request)
 
 - **Query Parameters**: Middleware or Request helper to automatically hydrate query parameters.
-  - `GET /api/items?price=100::D` -> `request.query_params["price"]` is `Decimal("100")`.
+  - `GET /api/items?price=100::N` -> `request.query_params["price"]` is `Decimal("100")`.
 - **JSON Body**: `receive_typed()` method that walks the received JSON and hydrates types.
 
 #### Output (Response)
 
 - **Serialization**: `send_typed()` method that serializes Python objects with TYTX encoding.
-  - Example: `await ws.send_typed({"price": Decimal("10.5")})` sends `{"price": "10.5::D"}::TYTX`.
+  - Example: `await ws.send_typed({"price": Decimal("10.5")})` sends `{"price": "10.5::N"}`.
 
 ---
 
@@ -165,21 +160,21 @@ json.loads(text, object_hook=tytx_decoder)
 ### 5.2 XML
 
 - **Attributes**: XML attributes are always strings. TYTX fits perfectly.
-  - `<item price="100::D" />`
+  - `<item price="100::N" />`
 - **Content**: Typed content.
-  - `<value>100::D</value>`
+  - `<value>100::N</value>`
 - **Schema**: XSD is not required; type is self-contained in the value.
 
 ```python
-from genro_tytx.encoders import encode_xml, decode_xml
-
-# Encode
-xml = encode_xml({"price": Decimal("100.50")})
-# <root><price>100.50::D</price></root>
+from genro_tytx import from_xml, as_typed_xml
 
 # Decode
-data = decode_xml(xml)
-# {"price": Decimal("100.50")}
+data = from_xml('<root><price>100.50::N</price></root>')
+# {"root": {"attrs": {}, "value": {"price": {"attrs": {}, "value": Decimal("100.50")}}}}
+
+# Encode
+xml = as_typed_xml({"price": Decimal("100.50")})
+# '<root><price>100.50::N</price></root>'
 ```
 
 ### 5.3 MessagePack
@@ -187,70 +182,35 @@ data = decode_xml(xml)
 MessagePack uses Extension Types. TYTX reserves ExtType code **42**.
 
 ```python
-import msgpack
-from genro_tytx.encoders import msgpack_encode, msgpack_decode
+from genro_tytx import from_msgpack, as_typed_msgpack
 
 # Encode - wraps typed payloads in ExtType(42)
-packed = msgpack.packb(data, default=msgpack_encode)
+packed = as_typed_msgpack({"price": Decimal("100.50")})
 
 # Decode - unwraps ExtType(42) and hydrates
-unpacked = msgpack.unpackb(packed, ext_hook=msgpack_decode)
+data = from_msgpack(packed)
+# {"price": Decimal("100.50")}
 ```
 
-The content inside ExtType(42) is always a TYTX-encoded string (same format as JSON/XML).
+The content inside ExtType(42) is a TYTX-encoded JSON string.
 
 ---
 
-## 6. Extended Types: Table
-
-A special `Table` type (`::T` or `::table`) transports tabular data efficiently.
-
-### Structure (JSON)
-
-```json
-{
-  "title": "My Table",
-  "headers": [
-    {"name": "ID", "type": "int", "align": "right"},
-    {"name": "Name", "type": "str", "align": "left"},
-    {"name": "Price", "type": "decimal", "format": "%.2f"}
-  ],
-  "rows": [
-    ["1", "Item A", "10.50"],
-    ["2", "Item B", "20.00"]
-  ]
-}
-```
-
-### Serialization
-
-The entire JSON object is serialized into a string with `::T` suffix:
-
-```
-"{\"title\":\"My Table\",...}::T"
-```
-
-### Parsing
-
-The parser reads the JSON and constructs a `Table` object where columns are typed according to `headers[i].type`.
-
----
-
-## 7. Pydantic Integration
+## 6. Pydantic Integration
 
 Pydantic is a validation library; TYTX is a transport protocol. They are complementary.
 
 - **Validation**: Pydantic models define fields with target Python types (`price: Decimal`).
 - **Flow**:
-  1. **Transport**: JSON arrives with `"100::D"`.
-  2. **Hydration**: TYTX middleware converts `"100::D"` -> `Decimal("100")`.
+  1. **Transport**: JSON arrives with `"100::N"`.
+  2. **Hydration**: TYTX middleware converts `"100::N"` -> `Decimal("100")`.
   3. **Validation**: Pydantic receives `Decimal("100")` and validates.
 
 **Recommendation**: Let the TYTX layer handle hydration *before* Pydantic sees the data. This keeps Pydantic models clean and standard.
 
 ---
 
-## 8. Security Considerations
+## 7. Security Considerations
 
 - **Type Codes**: Only registered type codes are processed. Unknown codes are treated as plain strings.
 - **Validation**: TYTX only handles type conversion; validation is the application's responsibility.
@@ -258,7 +218,7 @@ Pydantic is a validation library; TYTX is a transport protocol. They are complem
 
 ---
 
-## 9. Versioning
+## 8. Versioning
 
 The protocol version is embedded in implementations but not in the wire format. Breaking changes increment the major version.
 

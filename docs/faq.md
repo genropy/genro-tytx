@@ -69,26 +69,24 @@ order = Order(**data)  # Works!
 
 ### How do I add a custom type?
 
-Create a `DataType` subclass and register it:
+Use `register_class` to register custom extension types (prefixed with `X_`):
 
 ```python
 from genro_tytx import registry
-from genro_tytx.base import DataType
 import uuid
 
-class UUIDType(DataType):
-    name = "uuid"
-    code = "U"
-    python_type = uuid.UUID
+registry.register_class(
+    code="UUID",  # becomes "X_UUID" in wire format
+    cls=uuid.UUID,
+    serialize=lambda u: str(u),
+    parse=lambda s: uuid.UUID(s)
+)
 
-    def parse(self, value: str) -> uuid.UUID:
-        return uuid.UUID(value)
-
-    def serialize(self, value: uuid.UUID) -> str:
-        return str(value)
-
-registry.register(UUIDType)
+# Usage
+from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID")  # → UUID
 ```
+
+See the [specification](spec/type-codes.md#custom-types-extension-types) for complete documentation.
 
 ### Why use `::` as separator?
 
@@ -180,7 +178,7 @@ TYTX uses mnemonic type codes:
 Check:
 1. Is the type code valid? (`registry.get("X")` returns `None` for unknown types)
 2. Is there a `::` in the value? (`from_text("123")` returns `"123"`)
-3. Is the type registered? (custom types need `registry.register()`)
+3. Is the type registered? (custom types need `registry.register_class()`)
 
 ### Why does `from_xml` return wrong structure?
 

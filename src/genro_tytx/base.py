@@ -41,7 +41,9 @@ class DataType(ABC):
         """
         raise NotImplementedError
 
-    def format(self, value: Any, fmt: str | bool | None = None, locale: str | None = None) -> str:
+    def format(
+        self, value: Any, fmt: str | bool | None = None, locale: str | None = None
+    ) -> str:
         """
         Format python object to localized string representation.
 
@@ -67,7 +69,9 @@ class DataType(ABC):
             return self.serialize(value)
         return self._format_with_locale(value, cast(str, fmt), locale)
 
-    def _format_with_locale(self, value: Any, fmt: str, locale: str | None) -> str:  # noqa: ARG002
+    def _format_with_locale(
+        self, value: Any, fmt: str, locale: str | None  # noqa: ARG002
+    ) -> str:
         """
         Apply format string with locale. Override in subclasses.
 

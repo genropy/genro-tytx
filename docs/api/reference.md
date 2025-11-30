@@ -220,9 +220,42 @@ Complete API documentation for genro-tytx.
 
    .. py:method:: register(type_class: type[DataType]) -> None
 
-      Register a type class.
+      Register a built-in type class (internal use).
 
       :param type_class: DataType subclass to register
+
+   .. py:method:: register_class(code: str, cls: type, serialize: Callable, parse: Callable) -> None
+
+      Register a custom extension type with ``X_`` prefix.
+
+      :param code: Type code (will be prefixed with ``X_``)
+      :param cls: Python class for auto-detection
+      :param serialize: Function to convert value to string
+      :param parse: Function to convert string to value
+
+      **Example:**
+
+      .. code-block:: python
+
+         registry.register_class(
+             code="UUID",
+             cls=uuid.UUID,
+             serialize=lambda u: str(u),
+             parse=lambda s: uuid.UUID(s)
+         )
+         # "550e8400-...::X_UUID"
+
+   .. py:method:: unregister_class(code: str) -> None
+
+      Remove a previously registered custom extension type.
+
+      :param code: Type code without ``X_`` prefix
+
+      **Example:**
+
+      .. code-block:: python
+
+         registry.unregister_class("UUID")  # removes X_UUID
 
    .. py:method:: from_text(value: str, type_code: str | None = None) -> Any
 
@@ -237,12 +270,14 @@ Complete API documentation for genro-tytx.
       Serialize value with type suffix.
 ```
 
-## DataType Base Class
+## DataType Base Class (Internal)
+
+> **Note**: `DataType` is used internally for built-in types. For custom types, use `registry.register_class()` instead.
 
 ```{eval-rst}
 .. py:class:: DataType
 
-   Abstract base class for TYTX types.
+   Abstract base class for built-in TYTX types (internal use).
 
    **Class Attributes:**
 

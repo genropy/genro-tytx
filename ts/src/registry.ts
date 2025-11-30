@@ -1,11 +1,49 @@
 /**
  * Type registry for TYTX TypeScript implementation.
  *
+ * Uses unified maps for both built-in and custom types.
+ * Custom types use X_ prefix to avoid collisions.
+ *
  * @module registry
  */
 
 import type { DataType, TytxValue, TypeCode } from './types.js';
 import { isTypedString, extractTypeCode, extractValue } from './types.js';
+
+/**
+ * Prefix for custom extension types.
+ */
+export const X_PREFIX = 'X_';
+
+/**
+ * Interface for classes that can be registered with TYTX.
+ * Classes implementing this interface can be registered without
+ * providing explicit serialize/parse functions.
+ */
+export interface TytxSerializable {
+  /** Serialize this instance to a TYTX string (without the ::X_CODE suffix) */
+  as_typed_text(): string;
+}
+
+/**
+ * Static interface for TYTX-serializable classes.
+ */
+export interface TytxSerializableClass<T> {
+  /** Parse a TYTX string to create an instance */
+  from_typed_text(s: string): T;
+  new (...args: unknown[]): T;
+}
+
+/**
+ * Extension type for custom classes registered via register_class.
+ */
+export interface ExtensionType<T = unknown> {
+  code: string;
+  name: string;
+  cls: TytxSerializableClass<T> | (new (...args: unknown[]) => T);
+  serialize: (value: T) => string;
+  parse: (s: string) => T;
+}
 
 /**
  * Built-in type handlers.
@@ -14,7 +52,6 @@ import { isTypedString, extractTypeCode, extractValue } from './types.js';
 const IntType: DataType<number> = {
   code: 'L',
   name: 'int',
-  jsType: 'number',
   parse: (value: string) => parseInt(value, 10),
   serialize: (value: number) => String(Math.trunc(value)),
   isType: (value: unknown): value is number =>
@@ -24,7 +61,6 @@ const IntType: DataType<number> = {
 const FloatType: DataType<number> = {
   code: 'R',
   name: 'float',
-  jsType: 'number',
   parse: (value: string) => parseFloat(value),
   serialize: (value: number) => String(value),
   isType: (value: unknown): value is number =>
@@ -36,7 +72,6 @@ let bigLoader: (() => unknown) | null = null;
 const DecimalType: DataType<number | bigint> = {
   code: 'N',
   name: 'decimal',
-  jsType: 'number | Big',
   parse: (value: string): number | bigint => {
     // Try to use big.js if available
     try {
@@ -56,7 +91,6 @@ const DecimalType: DataType<number | bigint> = {
 const BoolType: DataType<boolean> = {
   code: 'B',
   name: 'bool',
-  jsType: 'boolean',
   parse: (value: string) => {
     const lower = value.toLowerCase();
     return ['true', '1', 'yes', 'on'].includes(lower);
@@ -68,7 +102,6 @@ const BoolType: DataType<boolean> = {
 const StrType: DataType<string> = {
   code: 'T',
   name: 'str',
-  jsType: 'string',
   parse: (value: string) => value,
   serialize: (value: string) => value,
   isType: (value: unknown): value is string => typeof value === 'string',
@@ -81,7 +114,6 @@ const StrType: DataType<string> = {
 const DateType: DataType<Date> = {
   code: 'D',
   name: 'date',
-  jsType: 'Date',
   parse: (value: string) => new Date(value + 'T00:00:00.000Z'),
   serialize: (value: Date) => {
     const year = value.getUTCFullYear();
@@ -112,7 +144,6 @@ const DateType: DataType<Date> = {
 const DateTimeType: DataType<Date> = {
   code: 'DHZ',
   name: 'datetime',
-  jsType: 'Date',
   parse: (value: string) => new Date(value),
   serialize: (value: Date) => {
     const year = value.getUTCFullYear();
@@ -146,7 +177,6 @@ const DateTimeType: DataType<Date> = {
 const NaiveDateTimeType: DataType<Date> = {
   code: 'DH',
   name: 'naive_datetime',
-  jsType: 'Date',
   parse: (value: string) => new Date(value),
   serialize: (value: Date) => {
     const year = value.getUTCFullYear();
@@ -167,7 +197,6 @@ const NaiveDateTimeType: DataType<Date> = {
 const TimeType: DataType<Date> = {
   code: 'H',
   name: 'time',
-  jsType: 'Date',
   parse: (value: string) => new Date('1970-01-01T' + value + 'Z'),
   serialize: (value: Date) => {
     const hours = String(value.getUTCHours()).padStart(2, '0');
@@ -187,7 +216,6 @@ const TimeType: DataType<Date> = {
 const JsonType: DataType<object> = {
   code: 'JS',
   name: 'json',
-  jsType: 'object',
   parse: (value: string) => JSON.parse(value) as object,
   serialize: (value: object) => JSON.stringify(value),
   isType: (value: unknown): value is object =>
@@ -198,8 +226,9 @@ const JsonType: DataType<object> = {
  * Type registry class.
  */
 export class TypeRegistry {
-  private readonly types: Map<string, DataType> = new Map();
-  private readonly codeToType: Map<string, DataType> = new Map();
+  private readonly types: Map<string, DataType | ExtensionType> = new Map();
+  private readonly codeToType: Map<string, DataType | ExtensionType> = new Map();
+  private readonly constructors: Map<new (...args: unknown[]) => unknown, ExtensionType> = new Map();
 
   constructor() {
     this.registerBuiltins();
@@ -225,7 +254,7 @@ export class TypeRegistry {
   }
 
   /**
-   * Register a type handler.
+   * Register a type handler (internal, for built-in types).
    */
   register(type: DataType): void {
     this.types.set(type.name, type);
@@ -233,10 +262,92 @@ export class TypeRegistry {
   }
 
   /**
+   * Register a custom extension type with X_ prefix.
+   *
+   * If serialize/parse are not provided, the class must implement:
+   * - as_typed_text(): instance method for serialization
+   * - static from_typed_text(s: string): static method for parsing
+   *
+   * @param code - Type code (will be prefixed with X_)
+   * @param cls - Constructor function (required for auto-detection)
+   * @param serialize - Function to convert value to string (optional)
+   * @param parse - Function to convert string to value (optional)
+   * @throws Error if serialize/parse not provided and class lacks required methods
+   */
+  register_class<T>(
+    code: string,
+    cls: TytxSerializableClass<T> | (new (...args: unknown[]) => T),
+    serialize?: (value: T) => string,
+    parse?: (s: string) => T,
+  ): void {
+    // Auto-detect serialize from class method
+    let actualSerialize = serialize;
+    if (actualSerialize === undefined) {
+      if ('prototype' in cls && typeof (cls.prototype as TytxSerializable).as_typed_text === 'function') {
+        actualSerialize = (v: T) => (v as TytxSerializable).as_typed_text();
+      } else {
+        throw new Error(
+          `Class ${cls.name || 'unknown'} must have as_typed_text() method ` +
+          'or provide serialize parameter'
+        );
+      }
+    }
+
+    // Auto-detect parse from class static method
+    let actualParse = parse;
+    if (actualParse === undefined) {
+      if ('from_typed_text' in cls && typeof cls.from_typed_text === 'function') {
+        actualParse = (cls as TytxSerializableClass<T>).from_typed_text.bind(cls);
+      } else {
+        throw new Error(
+          `Class ${cls.name || 'unknown'} must have static from_typed_text() method ` +
+          'or provide parse parameter'
+        );
+      }
+    }
+
+    const extType: ExtensionType<T> = {
+      code: X_PREFIX + code,
+      name: 'x_' + code.toLowerCase(),
+      cls: cls,
+      serialize: actualSerialize,
+      parse: actualParse,
+    };
+
+    // Register in unified maps
+    this.types.set(extType.name, extType as ExtensionType);
+    this.codeToType.set(extType.code, extType as ExtensionType);
+    this.constructors.set(cls, extType as ExtensionType);
+  }
+
+  /**
+   * Remove a previously registered custom extension type.
+   * @param code - Type code without X_ prefix
+   */
+  unregister_class(code: string): void {
+    const fullCode = X_PREFIX + code;
+    const extType = this.codeToType.get(fullCode) as ExtensionType | undefined;
+    if (extType) {
+      this.codeToType.delete(fullCode);
+      this.types.delete(extType.name);
+      if (extType.cls) {
+        this.constructors.delete(extType.cls);
+      }
+    }
+  }
+
+  /**
    * Get type handler by code or name.
    */
-  get(codeOrName: string): DataType | undefined {
-    return this.codeToType.get(codeOrName.toUpperCase()) ?? this.types.get(codeOrName);
+  get(codeOrName: string): DataType | ExtensionType | undefined {
+    return this.codeToType.get(codeOrName.toUpperCase()) ?? this.codeToType.get(codeOrName) ?? this.types.get(codeOrName);
+  }
+
+  /**
+   * Get extension type by constructor.
+   */
+  getByConstructor(ctor: new (...args: unknown[]) => unknown): ExtensionType | undefined {
+    return this.constructors.get(ctor);
   }
 
   /**
@@ -271,7 +382,7 @@ export class TypeRegistry {
   /**
    * Parse a typed array, applying the type to all leaf values.
    */
-  private parseTypedArray(jsonStr: string, type: DataType): unknown[] {
+  private parseTypedArray(jsonStr: string, type: DataType | ExtensionType): unknown[] {
     const data = JSON.parse(jsonStr) as unknown[];
 
     const applyType = (item: unknown): unknown => {
@@ -382,6 +493,16 @@ export class TypeRegistry {
       return Number.isInteger(value) ? 'L' : 'R';
     }
     if (typeof value === 'bigint') return 'L';
+    if (typeof value === 'string') return null;
+
+    // Check custom types (registered via register_class)
+    if (typeof value === 'object' && value !== null && value.constructor) {
+      const extType = this.constructors.get(value.constructor as new (...args: unknown[]) => unknown);
+      if (extType) {
+        return extType.code;
+      }
+    }
+
     return null; // strings and other types
   }
 
@@ -404,7 +525,7 @@ export class TypeRegistry {
   /**
    * Serialize leaf values using a specific type.
    */
-  private serializeLeaf(value: unknown, type: DataType): unknown {
+  private serializeLeaf(value: unknown, type: DataType | ExtensionType): unknown {
     if (Array.isArray(value)) {
       return value.map((item) => this.serializeLeaf(item, type));
     }

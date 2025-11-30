@@ -113,7 +113,10 @@ class TestAsTypedText:
 
     def test_as_typed_text_datetime(self):
         # DHZ is the canonical code with Z suffix
-        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00Z::DHZ"
+        assert (
+            as_typed_text(datetime(2025, 1, 15, 10, 0, 0))
+            == "2025-01-15T10:00:00Z::DHZ"
+        )
 
     def test_as_typed_text_json(self):
         assert as_typed_text({"a": 1}) == '{"a": 1}::JS'
@@ -171,7 +174,9 @@ class TestTypeAttributes:
         from genro_tytx import DateTimeType
 
         assert DateTimeType.python_type is datetime
-        assert DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"  # DHZ is timezone-aware
+        assert (
+            DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"
+        )  # DHZ is timezone-aware
         assert DateTimeType.empty is None
         assert DateTimeType.code == "DHZ"
 
@@ -207,7 +212,9 @@ class TestAsTextFormatting:
     def test_as_text_format_none_returns_iso(self):
         """format=None returns ISO/technical output."""
         assert as_text(date(2025, 1, 15)) == "2025-01-15"
-        assert as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00Z"  # DHZ adds Z
+        assert (
+            as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00Z"
+        )  # DHZ adds Z
         assert as_text(123) == "123"
         assert as_text(Decimal("1234.56")) == "1234.56"
 
@@ -224,7 +231,10 @@ class TestAsTextFormatting:
     def test_as_text_format_string(self):
         """format=string uses specific format."""
         assert as_text(date(2025, 1, 15), format="%d/%m/%Y") == "15/01/2025"
-        assert as_text(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M") == "2025-01-15 10:30"
+        assert (
+            as_text(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M")
+            == "2025-01-15 10:30"
+        )
 
     def test_as_text_format_numeric(self):
         """Numeric types support locale-aware formatting."""
@@ -260,7 +270,12 @@ class TestXMLNewStructure:
 
     def test_as_typed_xml_with_attrs(self):
         """Element with typed attributes."""
-        data = {"root": {"attrs": {"id": 123, "price": Decimal("99.50")}, "value": "content"}}
+        data = {
+            "root": {
+                "attrs": {"id": 123, "price": Decimal("99.50")},
+                "value": "content",
+            }
+        }
         xml = as_typed_xml(data)
         assert 'id="123::L"' in xml
         assert 'price="99.50::N"' in xml
@@ -402,7 +417,9 @@ class TestJSONUtils:
         original = {
             "price": Decimal("123.45"),
             "date": date(2025, 6, 15),
-            "timestamp": datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # Use UTC-aware
+            "timestamp": datetime(
+                2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+            ),  # Use UTC-aware
             "name": "Test",
             "count": 42,
         }
@@ -619,7 +636,9 @@ class TestEdgeCases:
 
         calls: list[str] = []
 
-        monkeypatch.setattr(builtin.locale_module, "getlocale", lambda _category: ("C", "UTF-8"))
+        monkeypatch.setattr(
+            builtin.locale_module, "getlocale", lambda _category: ("C", "UTF-8")
+        )
         monkeypatch.setattr(
             builtin.locale_module,
             "setlocale",
@@ -944,7 +963,9 @@ class TestMsgpackUtils:
         data = {
             "price": Decimal("99.99"),
             "date": date(2025, 1, 15),
-            "timestamp": datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc),  # UTC-aware
+            "timestamp": datetime(
+                2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc
+            ),  # UTC-aware
             "count": 42,
             "name": "Test",
         }
@@ -955,7 +976,9 @@ class TestMsgpackUtils:
         restored = unpackb(packed)
         assert restored["price"] == Decimal("99.99")
         assert restored["date"] == date(2025, 1, 15)
-        assert restored["timestamp"] == datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert restored["timestamp"] == datetime(
+            2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
         assert restored["count"] == 42
         assert restored["name"] == "Test"
 
@@ -1148,7 +1171,9 @@ class TestPydanticMsgpack:
 
         event = Event(
             name="Test Event",
-            timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # UTC-aware
+            timestamp=datetime(
+                2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+            ),  # UTC-aware
             amount=Decimal("1234.56"),
         )
 
@@ -1156,7 +1181,9 @@ class TestPydanticMsgpack:
         restored = Event.model_validate_tytx_msgpack(packed)
 
         assert restored.name == "Test Event"
-        assert restored.timestamp == datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
+        assert restored.timestamp == datetime(
+            2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+        )
         assert restored.amount == Decimal("1234.56")
 
     def test_tytx_model_msgpack_nested(self):
@@ -1305,7 +1332,9 @@ class TestTypedArrays:
 
     def test_as_typed_text_compact_array_date(self):
         """Serialize homogeneous date array with compact_array=True."""
-        result = as_typed_text([date(2025, 1, 15), date(2025, 1, 16)], compact_array=True)
+        result = as_typed_text(
+            [date(2025, 1, 15), date(2025, 1, 16)], compact_array=True
+        )
         assert result == '["2025-01-15","2025-01-16"]::D'
 
     def test_as_typed_text_compact_array_empty(self):

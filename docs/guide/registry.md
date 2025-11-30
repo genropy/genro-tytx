@@ -72,32 +72,36 @@ registry.is_typed("123")           # → False (no type)
 registry.is_typed("hello::BOGUS")  # → False (unknown type)
 ```
 
-### register(type_class)
+### register_class(code, cls, serialize, parse)
 
-<!-- test: test_core.py::TestEdgeCases::test_register_type_without_python_type -->
-
-Register a custom type:
+Register a custom class with the `X_` prefix:
 
 ```python
 from genro_tytx import registry
-from genro_tytx.base import DataType
+import uuid
 
-class MyType(DataType):
-    name = "mytype"
-    code = "MY"
-    python_type = MyClass
-
-    def parse(self, value: str) -> MyClass:
-        return MyClass(value)
-
-    def serialize(self, value: MyClass) -> str:
-        return str(value)
-
-registry.register(MyType)
+registry.register_class(
+    code="UUID",  # becomes "X_UUID" in wire format
+    cls=uuid.UUID,
+    serialize=lambda u: str(u),
+    parse=lambda s: uuid.UUID(s)
+)
 
 # Now available
-registry.get("MY")                 # → MyType
-registry.from_text("value::MY")    # → MyClass instance
+registry.get("X_UUID")                                    # → type info
+registry.from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID")  # → UUID
+```
+
+See [type-codes.md](../../spec/type-codes.md#custom-types-extension-types) for complete documentation.
+
+### unregister_class(code)
+
+Remove a previously registered custom type:
+
+```python
+from genro_tytx import registry
+
+registry.unregister_class("UUID")  # removes X_UUID
 ```
 
 ### from_text(value, type_code=None)
@@ -147,22 +151,31 @@ registry.as_typed_text("hello")        # → "hello" (no suffix)
 
 ## Custom Registry
 
-Create isolated type sets:
+Create isolated registries for specific use cases:
 
 ```python
 from genro_tytx import TypeRegistry
+from genro_tytx.builtin import IntType, DecimalType
 
 # Empty registry
 my_registry = TypeRegistry()
 
-# Register only needed types
-from genro_tytx import IntType, DecimalType
+# Register only needed built-in types
 my_registry.register(IntType)
 my_registry.register(DecimalType)
 
+# Register custom extension types
+my_registry.register_class(
+    code="INV",
+    cls=Invoice,
+    serialize=lambda inv: f"{inv.id}|{inv.total}",
+    parse=lambda s: Invoice(*s.split("|"))
+)
+
 # Use custom registry
-my_registry.from_text("123::L")        # → 123
-my_registry.from_text("hello::T")      # → "hello::T" (StrType not registered)
+my_registry.from_text("123::L")              # → 123
+my_registry.from_text("hello::T")            # → "hello::T" (StrType not registered)
+my_registry.from_text("1|100::X_INV")      # → Invoice(1, 100)
 ```
 
 ## Fallback Behavior

@@ -107,10 +107,10 @@ TYTX reserves MessagePack ExtType code **42**:
 
 ```python
 import msgpack
-from genro_tytx.msgpack_utils import TYTX_EXT_TYPE, tytx_encoder
+from genro_tytx.msgpack_utils import TYTX_X_TYPE, tytx_encoder
 from decimal import Decimal
 
-assert TYTX_EXT_TYPE == 42
+assert TYTX_X_TYPE == 42
 
 data = {"price": Decimal("10.00")}
 ext = tytx_encoder(data)

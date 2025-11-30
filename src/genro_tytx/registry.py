@@ -1,21 +1,65 @@
+from collections.abc import Callable
 from typing import Any
 
 from .base import DataType
+
+# Prefix for custom extension types
+X_PREFIX = "X_"
+
+
+class _ExtensionType:
+    """
+    Wrapper for custom extension types registered via register_class.
+    """
+
+    def __init__(
+        self,
+        code: str,
+        cls: type | None,
+        serialize: Callable[[Any], str],
+        parse: Callable[[str], Any],
+    ) -> None:
+        self.code = f"{X_PREFIX}{code}"
+        self.name = f"x_{code.lower()}"
+        self.cls = cls
+        self._serialize = serialize
+        self._parse = parse
+        # For compatibility with DataType interface
+        self.python_type = cls
+
+    def parse(self, value: str) -> Any:
+        return self._parse(value)
+
+    def serialize(self, value: Any) -> str:
+        return self._serialize(value)
+
+
+def _get_type_instance(
+    type_or_instance: "type[DataType] | _ExtensionType",
+) -> "DataType | _ExtensionType":
+    """Get a type instance from either a DataType class or _ExtensionType instance."""
+    if isinstance(type_or_instance, _ExtensionType):
+        return type_or_instance
+    return type_or_instance()
 
 
 class TypeRegistry:
     """
     Registry for pluggable data types.
+
+    Uses unified dictionaries for both built-in and custom types.
+    Custom types use X_ prefix to avoid collisions with built-in types.
     """
 
     def __init__(self) -> None:
-        self._types: dict[str, type[DataType]] = {}
-        self._codes: dict[str, type[DataType]] = {}
-        self._python_types: dict[type, type[DataType]] = {}
+        # Unified registries for both built-in DataType and custom _ExtensionType
+        self._types: dict[str, type[DataType] | _ExtensionType] = {}
+        self._codes: dict[str, type[DataType] | _ExtensionType] = {}
+        self._python_types: dict[type, type[DataType] | _ExtensionType] = {}
 
     def register(self, type_cls: type[DataType]) -> None:
         """
-        Register a new data type.
+        Register a new data type (internal, for built-in types).
         """
         self._types[type_cls.name] = type_cls
         self._codes[type_cls.code] = type_cls
@@ -23,7 +67,80 @@ class TypeRegistry:
         if hasattr(type_cls, "python_type") and type_cls.python_type is not None:
             self._python_types[type_cls.python_type] = type_cls
 
-    def get(self, name_or_code: str) -> type[DataType] | None:
+    def register_class(
+        self,
+        code: str,
+        cls: type,
+        serialize: Callable[[Any], str] | None = None,
+        parse: Callable[[str], Any] | None = None,
+    ) -> None:
+        """
+        Register a custom extension type with X_ prefix.
+
+        If serialize/parse are not provided, the class must implement:
+        - as_typed_text(self) -> str: instance method for serialization
+        - from_typed_text(s: str) -> cls: static method for parsing
+
+        Args:
+            code: Type code (will be prefixed with X_)
+            cls: Python class (required for auto-detection)
+            serialize: Function to convert value to string (optional if class has as_typed_text)
+            parse: Function to convert string to value (optional if class has from_typed_text)
+
+        Raises:
+            ValueError: If serialize/parse not provided and class lacks required methods
+        """
+        # Auto-detect serialize from class method
+        if serialize is None:
+            if hasattr(cls, "as_typed_text"):
+
+                def serialize(v: Any) -> str:
+                    result: str = v.as_typed_text()
+                    return result
+
+            else:
+                raise ValueError(
+                    f"Class {cls.__name__} must have as_typed_text() method "
+                    "or provide serialize parameter"
+                )
+
+        # Auto-detect parse from class method
+        if parse is None:
+            if hasattr(cls, "from_typed_text"):
+                parse = cls.from_typed_text
+            else:
+                raise ValueError(
+                    f"Class {cls.__name__} must have from_typed_text() static method "
+                    "or provide parse parameter"
+                )
+
+        ext_type = _ExtensionType(code, cls, serialize, parse)
+        # Register in unified dictionaries
+        self._types[ext_type.name] = ext_type
+        self._codes[ext_type.code] = ext_type
+        self._python_types[cls] = ext_type
+
+    def unregister_class(self, code: str) -> None:
+        """
+        Remove a previously registered custom extension type.
+
+        Args:
+            code: Type code without X_ prefix
+        """
+        full_code = f"{X_PREFIX}{code}"
+        if full_code in self._codes:
+            ext_type = self._codes.pop(full_code)
+            # Remove from _types by name
+            if ext_type.name in self._types:
+                del self._types[ext_type.name]
+            # Remove from _python_types if cls was registered
+            if (
+                ext_type.python_type is not None
+                and ext_type.python_type in self._python_types
+            ):
+                del self._python_types[ext_type.python_type]
+
+    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | None:
         """
         Retrieve a type by name or code.
         """
@@ -33,7 +150,7 @@ class TypeRegistry:
             return self._codes[name_or_code]
         return None
 
-    def get_for_value(self, value: Any) -> type[DataType] | None:
+    def get_for_value(self, value: Any) -> type[DataType] | _ExtensionType | None:
         """
         Get the type class for a Python value.
         """
@@ -64,7 +181,7 @@ class TypeRegistry:
         if type_code is not None:
             type_cls = self.get(type_code)
             if type_cls:
-                return type_cls().parse(text)
+                return _get_type_instance(type_cls).parse(text)
             return text
 
         # Check for embedded type
@@ -79,17 +196,19 @@ class TypeRegistry:
             # Check if it's a typed array: starts with '['
             if val_part.startswith("["):
                 return self._parse_typed_array(val_part, type_cls)
-            return type_cls().parse(val_part)
+            return _get_type_instance(type_cls).parse(val_part)
 
         return text
 
-    def _parse_typed_array(self, json_str: str, type_cls: type[DataType]) -> list[Any]:
+    def _parse_typed_array(
+        self, json_str: str, type_cls: "type[DataType] | _ExtensionType"
+    ) -> list[Any]:
         """
         Parse a typed array, applying the type to all leaf values.
 
         Args:
             json_str: JSON array string like "[1,2,3]" or "[[1,2],[3,4]]"
-            type_cls: Type class to apply to all leaf values
+            type_cls: Type class or extension type to apply to all leaf values
 
         Returns:
             List with all leaf values parsed using the type class
@@ -97,12 +216,13 @@ class TypeRegistry:
         import json
 
         data = json.loads(json_str)
+        type_instance = _get_type_instance(type_cls)
 
         def apply_type(item: Any) -> Any:
             if isinstance(item, list):
                 return [apply_type(i) for i in item]
             # Convert to string and parse with type
-            return type_cls().parse(str(item))
+            return type_instance.parse(str(item))
 
         result = apply_type(data)
         # data was parsed from JSON array, so result is always a list
@@ -133,6 +253,12 @@ class TypeRegistry:
             return "JS"  # JS = JavaScript object
         if isinstance(value, str):
             return None  # Strings don't get typed
+
+        # Check custom types (registered via register_class)
+        type_cls = self._python_types.get(type(value))
+        if type_cls is not None:
+            return type_cls.code
+
         return None
 
     def as_text(
@@ -163,9 +289,10 @@ class TypeRegistry:
         if code:
             type_cls = self.get(code)
             if type_cls:
-                if format is not None:
-                    return type_cls().format(value, format, locale)
-                return type_cls().serialize(value)
+                type_instance = _get_type_instance(type_cls)
+                if format is not None and hasattr(type_instance, "format"):
+                    return type_instance.format(value, format, locale)
+                return type_instance.serialize(value)
 
         return str(value)
 
@@ -198,7 +325,7 @@ class TypeRegistry:
         if code:
             type_cls = self.get(code)
             if type_cls:
-                return type_cls().serialize(value) + "::" + code
+                return _get_type_instance(type_cls).serialize(value) + "::" + code
 
         return str(value)
 
@@ -217,11 +344,13 @@ class TypeRegistry:
             return result
         return {self._get_leaf_type_code(value)}
 
-    def _serialize_leaf(self, value: Any, type_cls: type[DataType]) -> Any:
+    def _serialize_leaf(
+        self, value: Any, type_cls: "type[DataType] | _ExtensionType"
+    ) -> Any:
         """Serialize a leaf value using the given type class."""
         if isinstance(value, list):
             return [self._serialize_leaf(item, type_cls) for item in value]
-        return type_cls().serialize(value)
+        return _get_type_instance(type_cls).serialize(value)
 
     def _try_compact_array(self, value: list[Any]) -> str | None:
         """

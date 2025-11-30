@@ -12,6 +12,5 @@ xml
 msgpack
 pydantic
 javascript
-custom-types
 registry
 ```

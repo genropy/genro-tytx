@@ -60,8 +60,6 @@ export interface DataType<T = unknown> {
   serialize(value: T): string;
   /** Check if value is of this type */
   isType(value: unknown): value is T;
-  /** JavaScript type hint for documentation */
-  readonly jsType: string;
 }
 
 /**

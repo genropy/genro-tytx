@@ -1,6 +1,6 @@
 {
   "name": "genro-tytx",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats",
   "main": "src/index.js",
   "exports": {

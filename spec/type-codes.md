@@ -29,7 +29,7 @@ This document defines all registered type codes for the TYTX protocol.
 | `D` | `date` | `Date` | ISO 8601 date | `"2025-01-15::D"` |
 | `DHZ` | `datetime` | `Date` | ISO 8601 datetime (UTC) | `"2025-01-15T10:30:00Z::DHZ"` |
 | `DH` | `datetime` | `Date` | ISO 8601 datetime (naive, deprecated) | `"2025-01-15T10:30:00::DH"` |
-| `H` | `time` | `string` | ISO 8601 time | `"10:30:00::H"` |
+| `H` | `time` | `Date` | ISO 8601 time | `"10:30:00::H"` |
 
 > **Note**: `DHZ` is the canonical code for datetime (timezone-aware). `DH` is deprecated for new code but supported for backward compatibility.
 
@@ -70,31 +70,36 @@ Each code is a mnemonic for the type it represents:
 | `B` | **B**oolean |
 | `JS` | **J**ava**S**cript object (JSON) |
 
-## Registering Custom Types
+## Custom Types (Extension Types)
+
+Custom types use the `X_` prefix (eXtension) to avoid collisions with built-in types.
+
+### The `register_class` Pattern
+
+Use `register_class` to register custom classes with TYTX. The code you provide is automatically prefixed with `X_`.
 
 ### Python
 
 ```python
 from genro_tytx import registry
-from genro_tytx.base import DataType
 import uuid
 
-class UUIDType(DataType):
-    name = "uuid"
-    code = "U"
-    python_type = uuid.UUID
-    sql_type = "UUID"
-
-    def parse(self, value: str) -> uuid.UUID:
-        return uuid.UUID(value)
-
-    def serialize(self, value: uuid.UUID) -> str:
-        return str(value)
-
-registry.register(UUIDType)
+# Register a custom class
+registry.register_class(
+    code="UUID",  # becomes "X_UUID" in wire format
+    cls=uuid.UUID,
+    serialize=lambda u: str(u),
+    parse=lambda s: uuid.UUID(s)
+)
 
 # Usage
-# "550e8400-e29b-41d4-a716-446655440000::U" → UUID("550e8400-...")
+from genro_tytx import from_text, as_typed_text
+
+as_typed_text(uuid.uuid4())
+# → "550e8400-e29b-41d4-a716-446655440000::X_UUID"
+
+from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID")
+# → UUID("550e8400-...")
 ```
 
 ### JavaScript
@@ -102,24 +107,96 @@ registry.register(UUIDType)
 ```javascript
 const { registry } = require('genro-tytx');
 
-const UUIDType = {
-    name: 'uuid',
-    code: 'U',
-    js_type: 'string',
-
-    parse(value) {
-        return value; // JS stores UUID as string
-    },
-
-    serialize(value) {
-        return String(value);
-    }
-};
-
-registry.register(UUIDType);
+// Register a custom class
+registry.register_class({
+    code: "UUID",  // becomes "X_UUID" in wire format
+    cls: null,     // JS doesn't have a UUID class
+    serialize: (u) => String(u),
+    parse: (s) => s  // JS stores UUID as string
+});
 
 // Usage
-// "550e8400-e29b-41d4-a716-446655440000::U" → "550e8400-..."
+const { from_text, as_typed_text } = require('genro-tytx');
+
+// If the object has a registered class, it serializes with X_ prefix
+from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID");
+// → "550e8400-..."
+```
+
+### Type Code Namespaces
+
+| Prefix | Type | Example | Managed by |
+|--------|------|---------|------------|
+| (none) | Built-in | `::L`, `::D`, `::DHZ` | TYTX core |
+| `X_` | Custom | `::X_UUID`, `::X_INV` | `register_class` |
+
+### Unregistering Custom Types
+
+Use `unregister_class` to remove a previously registered custom type:
+
+**Python:**
+
+```python
+registry.unregister_class("UUID")  # removes X_UUID
+```
+
+**JavaScript/TypeScript:**
+
+```javascript
+registry.unregister_class("UUID");  // removes X_UUID
+```
+
+### Fallback Behavior
+
+If a parser receives an unknown `X_` type:
+
+- The value is returned as a plain string
+- No error is raised
+- This allows graceful degradation when Python and JS have different registered types
+
+### Complete Example: Invoice Type
+
+```python
+# Python
+from decimal import Decimal
+
+class Invoice:
+    def __init__(self, id: int, total: Decimal):
+        self.id = id
+        self.total = total
+
+registry.register_class(
+    code="INV",
+    cls=Invoice,
+    serialize=lambda inv: f"{inv.id}|{inv.total}",
+    parse=lambda s: Invoice(int(s.split("|")[0]), Decimal(s.split("|")[1]))
+)
+
+inv = Invoice(123, Decimal("100.50"))
+as_typed_text(inv)  # → "123|100.50::X_INV"
+```
+
+```javascript
+// JavaScript
+class Invoice {
+    constructor(id, total) {
+        this.id = id;
+        this.total = total;
+    }
+}
+
+registry.register_class({
+    code: "INV",
+    cls: Invoice,
+    serialize: (inv) => `${inv.id}|${inv.total}`,
+    parse: (s) => {
+        const [id, total] = s.split("|");
+        return new Invoice(parseInt(id), parseFloat(total));
+    }
+});
+
+from_text("123|100.50::X_INV");
+// → Invoice { id: 123, total: 100.5 }
 ```
 
 ## Typed Arrays

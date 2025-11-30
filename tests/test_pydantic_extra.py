@@ -71,7 +71,9 @@ def test_model_dump_and_validate_hydrates_dict_and_bytes():
         }
     )
     assert hydrated.amount == Decimal("10.50")
-    assert hydrated.when == datetime(2025, 1, 15, 9, 30, 0, tzinfo=timezone.utc)  # UTC-aware
+    assert hydrated.when == datetime(
+        2025, 1, 15, 9, 30, 0, tzinfo=timezone.utc
+    )  # UTC-aware
     assert hydrated.tags == [1, 2]
     assert hydrated.metadata["price"] == Decimal("5.00")
     assert hydrated.count == 7

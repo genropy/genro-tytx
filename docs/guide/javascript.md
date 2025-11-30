@@ -169,36 +169,30 @@ console.log(isDecimalInstance(value));  // true if big.js/decimal.js installed
 
 ## Registry API
 
-### registry.register(type)
+### registry.register_class(options)
 
-Register a custom type.
+Register a custom extension type (prefixed with `X_`).
 
 ```javascript
-const { registry } = require('genro-tytx');
+const { registry, from_text } = require('genro-tytx');
 
-const UUIDType = {
-    name: 'uuid',
-    code: 'U',
-    js_type: 'string',
-
-    parse(value) {
-        // Validate and return UUID string
+registry.register_class({
+    code: 'UUID',  // becomes "X_UUID" in wire format
+    cls: null,     // JS doesn't have a built-in UUID class
+    serialize: (value) => value.toLowerCase(),
+    parse: (value) => {
         if (!/^[0-9a-f-]{36}$/i.test(value)) {
             throw new Error('Invalid UUID');
         }
         return value;
-    },
-
-    serialize(value) {
-        return value.toLowerCase();
     }
-};
-
-registry.register(UUIDType);
+});
 
 // Now works
-from_text("550e8400-e29b-41d4-a716-446655440000::U");
+from_text("550e8400-e29b-41d4-a716-446655440000::X_UUID");
 ```
+
+See the [specification](../../spec/type-codes.md#custom-types-extension-types) for complete documentation.
 
 ### registry.get(code)
 

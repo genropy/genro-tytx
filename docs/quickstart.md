@@ -162,5 +162,5 @@ from_json('{"x": "10::L"}')   // → {x: 10}
 ## Next Steps
 
 - [Type Formatting Guide](guide/formatting.md) - Locale-aware formatting
-- [Custom Types](guide/custom-types.md) - Register your own types
+- [Registry Guide](guide/registry.md) - Type registry and custom extension types
 - [API Reference](api/reference.md) - Complete API documentation

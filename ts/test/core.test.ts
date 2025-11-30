@@ -425,9 +425,10 @@ describe('additional registry tests', () => {
     expect(registry.isTyped('42::UNKNOWN')).toBe(false);
   });
 
-  it('get returns type by name', () => {
-    expect(registry.get('int')).toBeDefined();
-    expect(registry.get('LONG')).toBeDefined();
+  it('get returns type by code', () => {
+    expect(registry.get('L')).toBeDefined();
+    expect(registry.get('D')).toBeDefined();
+    expect(registry.get('DHZ')).toBeDefined();
     expect(registry.get('unknown')).toBeUndefined();
   });
 

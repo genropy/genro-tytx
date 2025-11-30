@@ -173,7 +173,9 @@ def _get_tytx_model_class() -> type:
             """
             if isinstance(data, (str, bytes, bytearray)):
                 # Parse JSON and hydrate types
-                json_str = data.decode() if isinstance(data, (bytes, bytearray)) else data
+                json_str = (
+                    data.decode() if isinstance(data, (bytes, bytearray)) else data
+                )
                 data = from_json(json_str)
             elif isinstance(data, dict):
                 # Hydrate typed values in dict
