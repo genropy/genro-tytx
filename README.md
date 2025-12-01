@@ -297,7 +297,7 @@ from_text("550e8400-e29b-41d4-a716-446655440000::U")
 | Metadata/validation facets | :white_check_mark: Done |
 | XSD to TYTX converter | :white_check_mark: Done |
 | Visual struct editor | :white_check_mark: Done |
-| Pydantic → TYTX struct | :red_circle: Planned |
+| Pydantic → TYTX struct | :white_check_mark: Done |
 | TYTX struct → Pydantic | :red_circle: Planned |
 | Visual data editor | :red_circle: Planned |
 

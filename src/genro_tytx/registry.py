@@ -386,6 +386,186 @@ class TypeRegistry:
             if struct_type.name in self._types:
                 del self._types[struct_type.name]
 
+    def register_struct_from_model(
+        self,
+        code: str,
+        model_class: type,
+        *,
+        include_nested: bool = True,
+    ) -> None:
+        """
+        Auto-generate and register a struct schema from a Pydantic model.
+
+        Args:
+            code: Struct code (will be prefixed with @)
+            model_class: Pydantic BaseModel subclass
+            include_nested: If True, recursively register nested Pydantic models
+                as separate structs (default True)
+
+        Raises:
+            ImportError: If pydantic is not installed
+            TypeError: If model_class is not a Pydantic BaseModel subclass
+
+        Examples:
+            from pydantic import BaseModel
+            from decimal import Decimal
+
+            class Customer(BaseModel):
+                name: str
+                balance: Decimal
+
+            registry.register_struct_from_model('CUSTOMER', Customer)
+            # Equivalent to: registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+        """
+        try:
+            from pydantic import BaseModel
+        except ImportError as e:
+            raise ImportError(
+                "pydantic is required for register_struct_from_model. "
+                "Install with: pip install genro-tytx[pydantic]"
+            ) from e
+
+        if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
+            raise TypeError(
+                f"model_class must be a Pydantic BaseModel subclass, got {type(model_class)}"
+            )
+
+        schema = self._model_to_schema(model_class, include_nested)
+        self.register_struct(code, schema)
+
+    def _model_to_schema(
+        self,
+        model_class: Any,
+        include_nested: bool,
+        _registered: set[type] | None = None,
+    ) -> dict[str, str]:
+        """
+        Convert a Pydantic model to a TYTX dict schema.
+
+        Args:
+            model_class: Pydantic BaseModel subclass
+            include_nested: If True, recursively register nested models
+            _registered: Internal set to track already registered models (avoid infinite recursion)
+
+        Returns:
+            Dict schema mapping field names to TYTX type codes
+        """
+        if _registered is None:
+            _registered = set()
+
+        schema: dict[str, str] = {}
+
+        # model_class is validated as BaseModel in register_struct_from_model
+        for field_name, field_info in model_class.model_fields.items():
+            annotation = field_info.annotation
+            type_code = self._python_type_to_tytx_code(
+                annotation, include_nested, _registered
+            )
+            schema[field_name] = type_code
+
+        return schema
+
+    def _python_type_to_tytx_code(
+        self,
+        python_type: type | None,
+        include_nested: bool,
+        _registered: set[type],
+    ) -> str:
+        """
+        Map a Python type annotation to a TYTX type code.
+
+        Handles:
+        - Basic types (str, int, float, bool, Decimal, date, datetime, time)
+        - Optional types (Optional[X] -> X)
+        - List types (list[X] -> #X)
+        - Nested Pydantic models (-> @MODEL_NAME)
+        - Union types (uses first non-None type)
+        """
+        import types
+        import typing
+        from datetime import date, datetime, time
+        from decimal import Decimal
+
+        # Handle None
+        if python_type is None:
+            return "T"  # Default to text
+
+        # Get origin for generic types (Optional, List, Union, etc.)
+        origin = typing.get_origin(python_type)
+        args = typing.get_args(python_type)
+
+        # Handle Optional[X] and Union[X, None] -> X
+        # In Python 3.10+, `str | None` creates a types.UnionType
+        if origin is typing.Union or isinstance(python_type, types.UnionType):
+            # For types.UnionType, get_args works correctly
+            if not args:
+                args = typing.get_args(python_type)
+            # Filter out NoneType
+            non_none_args = [a for a in args if a is not type(None)]
+            if len(non_none_args) == 1:
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
+            # Multiple types - use first one
+            if non_none_args:
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
+            return "T"
+
+        # Handle list[X] -> #X
+        if origin is list:
+            if args:
+                inner_code = self._python_type_to_tytx_code(
+                    args[0], include_nested, _registered
+                )
+                return f"#{inner_code}"
+            return "#T"  # list without type arg
+
+        # Handle dict -> JS
+        if origin is dict or python_type is dict:
+            return "JS"
+
+        # Check if it's a Pydantic model (for nested structs)
+        try:
+            from pydantic import BaseModel
+
+            if isinstance(python_type, type) and issubclass(python_type, BaseModel):
+                # Nested Pydantic model
+                struct_code = python_type.__name__.upper()
+
+                if include_nested and python_type not in _registered:
+                    _registered.add(python_type)
+                    nested_schema = self._model_to_schema(
+                        python_type, include_nested, _registered
+                    )
+                    # Only register if not already registered
+                    if struct_code not in self._structs:
+                        self.register_struct(struct_code, nested_schema)
+
+                return f"@{struct_code}"
+        except ImportError:
+            pass
+
+        # Map basic Python types to TYTX codes
+        type_mapping: dict[type, str] = {
+            str: "T",
+            int: "L",
+            float: "R",
+            bool: "B",
+            Decimal: "N",
+            date: "D",
+            datetime: "DHZ",
+            time: "H",
+        }
+
+        # Handle actual type (not generic)
+        if isinstance(python_type, type):
+            return type_mapping.get(python_type, "T")
+
+        # Fallback
+        return "T"
+
     def get_struct(self, code: str) -> list[str] | dict[str, str] | str | None:
         """
         Get a struct schema by code.

@@ -27,7 +27,7 @@ This document provides a comprehensive overview of all TYTX features, their impl
 | 4 | Struct registration (hierarchical + arrays) | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | 5 | XTYTX extended envelope | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | 6 | Metadata for structures | :white_check_mark: DONE | :white_check_mark: | :large_orange_diamond: | :large_orange_diamond: |
-| 7 | Generate structures from Pydantic | :red_circle: TODO | :red_circle: | N/A | N/A |
+| 7 | Generate structures from Pydantic | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 8 | Generate Pydantic models from structures | :red_circle: TODO | :red_circle: | N/A | N/A |
 | 9 | Generate structures from XSD | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 10 | Visual structure editor | :white_check_mark: DONE | N/A | :white_check_mark: | N/A |
@@ -213,11 +213,12 @@ T[ro:status=closed]      # Read-only if status='closed'
 
 ---
 
-### 7. Generate Structures from Pydantic :red_circle: TODO
+### 7. Generate Structures from Pydantic :white_check_mark: DONE
 
 Auto-generate TYTX struct from Pydantic model.
 
-**Planned API**:
+**API**:
+
 ```python
 from pydantic import BaseModel
 from decimal import Decimal
@@ -234,6 +235,7 @@ registry.register_struct_from_model('ORDER', Order)
 ```
 
 **Type Mapping**:
+
 | Python | TYTX |
 |--------|------|
 | `str` | `T` |
@@ -244,8 +246,39 @@ registry.register_struct_from_model('ORDER', Order)
 | `date` | `D` |
 | `datetime` | `DHZ` |
 | `time` | `H` |
+| `list[X]` | `#X` |
+| `dict` | `JS` |
+| `BaseModel` | `@MODEL_NAME` |
 
-**Status**: Specified in `spec/structs.md`, not implemented.
+**Features**:
+
+- Automatic type mapping from Python types to TYTX codes
+- Support for `Optional[X]` and `X | None` (extracts inner type)
+- Support for `list[X]` → `#X` (typed arrays)
+- Support for nested Pydantic models → `@MODEL_NAME`
+- Recursive registration of nested models with `include_nested=True` (default)
+- Handles circular references safely
+
+**Nested Models Example**:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+
+class Customer(BaseModel):
+    name: str
+    address: Address
+    orders: list[Order]
+
+registry.register_struct_from_model('CUSTOMER', Customer)
+# Registers:
+# - @CUSTOMER: {'name': 'T', 'address': '@ADDRESS', 'orders': '#@ORDER'}
+# - @ADDRESS: {'street': 'T', 'city': 'T'}
+# - @ORDER: (if not already registered)
+```
+
+**Files**: `registry.py` (`register_struct_from_model()`), `tests/test_pydantic_struct.py`
 
 ---
 
