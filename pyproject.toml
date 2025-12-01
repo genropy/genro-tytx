@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genro-tytx"
-version = "0.3.0"
+version = "0.3.1"
 description = "TYTX (Typed Text) - A protocol for exchanging typed data over text-based formats"
 readme = "README.md"
 license = "Apache-2.0"
@@ -67,6 +67,9 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
+    "pydantic>=2.0.0",
+    "lark>=1.1.0",
+    "annotated-types>=0.6.0",
 ]
 docs = [
     "sphinx>=8.0.0",
