@@ -176,7 +176,11 @@ def _get_tytx_model_class() -> type:
                 json_str = (
                     data.decode() if isinstance(data, (bytes, bytearray)) else data
                 )
-                data = from_json(json_str)
+                result = from_json(json_str)
+                # Handle XtytxResult (extract data) or plain dict
+                from .xtytx import XtytxResult
+
+                data = result.data if isinstance(result, XtytxResult) else result
             elif isinstance(data, dict):
                 # Hydrate typed values in dict
                 data = _hydrate_dict(data)

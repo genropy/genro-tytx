@@ -32,6 +32,7 @@ This document provides a comprehensive overview of all TYTX features, their impl
 | 9 | Generate structures from XSD | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 10 | Visual structure editor | :white_check_mark: DONE | N/A | :white_check_mark: | N/A |
 | 11 | Visual data editor using structures | :red_circle: TODO | N/A | :red_circle: | N/A |
+| 12 | JSON Schema / OpenAPI integration | :red_circle: TODO | :red_circle: | :red_circle: | :red_circle: |
 
 ---
 
@@ -376,6 +377,90 @@ Edit data instances using struct schemas.
 - Export to TYTX format
 
 **Current State**: `js/src/ui.js` has `FormGenerator` for empty forms, but no data binding.
+
+---
+
+### 12. JSON Schema / OpenAPI Integration :red_circle: TODO
+
+Bidirectional conversion between TYTX structs and JSON Schema / OpenAPI schemas.
+
+**Planned API**:
+
+```python
+from genro_tytx import struct_from_jsonschema, struct_to_jsonschema
+
+# JSON Schema → TYTX struct
+schema = {
+    "type": "object",
+    "properties": {
+        "id": {"type": "integer"},
+        "name": {"type": "string"},
+        "price": {"type": "number", "format": "decimal"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "is_active": {"type": "boolean"}
+    }
+}
+struct = struct_from_jsonschema(schema)
+# → {"id": "L", "name": "T", "price": "N", "created_at": "DH", "is_active": "B"}
+
+# TYTX struct → JSON Schema
+struct = {"id": "L", "name": "T", "price": "N", "created_at": "DH"}
+schema = struct_to_jsonschema(struct)
+# → {"type": "object", "properties": {...}}
+```
+
+**Type Mapping (JSON Schema → TYTX)**:
+
+| JSON Schema type/format | TYTX code |
+|------------------------|-----------|
+| `integer` | `L` |
+| `number` | `R` |
+| `number` + `format: decimal` | `N` |
+| `boolean` | `B` |
+| `string` | `T` |
+| `string` + `format: date` | `D` |
+| `string` + `format: date-time` | `DH` / `DHZ` |
+| `string` + `format: time` | `H` |
+| `array` + `items` | `#X` or `#@STRUCT` |
+| `object` + `properties` | `@STRUCT` (nested) |
+| `$ref` | resolved and mapped |
+
+**Type Mapping (TYTX → JSON Schema)**:
+
+| TYTX code | JSON Schema |
+|-----------|-------------|
+| `L` | `{"type": "integer"}` |
+| `R` | `{"type": "number"}` |
+| `N` | `{"type": "number", "format": "decimal"}` |
+| `B` | `{"type": "boolean"}` |
+| `T` | `{"type": "string"}` |
+| `D` | `{"type": "string", "format": "date"}` |
+| `DH` | `{"type": "string", "format": "date-time"}` |
+| `DHZ` | `{"type": "string", "format": "date-time"}` |
+| `H` | `{"type": "string", "format": "time"}` |
+| `#X` | `{"type": "array", "items": {...}}` |
+| `@STRUCT` | `{"$ref": "#/definitions/STRUCT"}` |
+
+**Metadata Mapping**:
+
+| TYTX facet | JSON Schema |
+|------------|-------------|
+| `min` | `minLength` (string) / `minimum` (number) |
+| `max` | `maxLength` (string) / `maximum` (number) |
+| `len` | `minLength` + `maxLength` |
+| `reg` | `pattern` |
+| `enum` | `enum` |
+| `dec` | custom extension |
+| `dig` | custom extension |
+
+**Use Cases**:
+
+- Auto-generate TYTX structs from existing OpenAPI/Swagger specs
+- Export TYTX structs for documentation or validation tools
+- Integration with JSON Schema validation libraries
+- Bridge between TYTX and REST API definitions
+
+**Planned Files**: `schema_utils.py`
 
 ---
 

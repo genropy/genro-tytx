@@ -3,26 +3,21 @@
  *
  * Protocol Prefixes:
  *     TYTX://   - Standard typed payload
- *     XTYTX://  - Extended envelope with struct definitions
+ *     XTYTX://  - Extended envelope with struct and validation definitions
  *
  * @module json
  */
 
 import type { TytxValue, TytxObject, JsonOptions, StructSchema } from './types.js';
 import { registry } from './registry.js';
+import type { XtytxEnvelope, XtytxResult } from './xtytx.js';
+import { processEnvelope } from './xtytx.js';
 
 /** Protocol prefix for standard TYTX payloads */
 export const TYTX_PREFIX = 'TYTX://';
 
 /** Protocol prefix for extended TYTX envelopes with struct definitions */
 export const XTYTX_PREFIX = 'XTYTX://';
-
-/** XTYTX envelope structure */
-interface XtytxEnvelope {
-  gstruct: Record<string, StructSchema>;
-  lstruct: Record<string, StructSchema>;
-  data: string;
-}
 
 /**
  * Recursively hydrate typed strings in parsed JSON.
@@ -45,45 +40,11 @@ function hydrate(obj: unknown, localStructs: Record<string, StructSchema> | null
 }
 
 /**
- * Process XTYTX envelope.
- *
- * 1. Register gstruct entries globally (overwrites existing)
- * 2. Build localStructs context from lstruct
- * 3. Decode data using combined context
- * 4. Return decoded data (or null if data is empty)
+ * Hydrate JSON string with local structs context.
+ * Internal helper for processEnvelope.
  */
-function processXtytx(envelope: XtytxEnvelope): TytxValue {
-  const { gstruct, lstruct, data } = envelope;
-
-  if (gstruct === undefined) {
-    throw new Error('XTYTX envelope missing required field: gstruct');
-  }
-  if (lstruct === undefined) {
-    throw new Error('XTYTX envelope missing required field: lstruct');
-  }
-  if (data === undefined) {
-    throw new Error('XTYTX envelope missing required field: data');
-  }
-
-  // Register gstruct entries globally (overwrites existing)
-  for (const [code, schema] of Object.entries(gstruct)) {
-    registry.register_struct(code, schema);
-  }
-
-  // If data is empty, return null
-  if (!data) {
-    return null;
-  }
-
-  // Strip TYTX:// prefix from data if present
-  let dataStr = data;
-  if (dataStr.startsWith(TYTX_PREFIX)) {
-    dataStr = dataStr.slice(TYTX_PREFIX.length);
-  }
-
-  // Parse and hydrate data with lstruct as local context
+function hydrateJson(dataStr: string, localStructs: Record<string, StructSchema> | null): TytxValue {
   const parsed = JSON.parse(dataStr) as unknown;
-  const localStructs = Object.keys(lstruct).length > 0 ? lstruct : null;
   return hydrate(parsed, localStructs);
 }
 
@@ -159,25 +120,31 @@ export function asJson(obj: unknown, options: JsonOptions = {}): string {
  * Supports three formats:
  * - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
  * - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
- * - XTYTX:// prefix: 'XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "..."}'
+ * - XTYTX:// prefix: Extended envelope with structs and validations
+ *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}'
  *   - gstruct entries are registered globally
  *   - lstruct entries are used only during this decode
+ *   - gvalidation entries are registered globally in validationRegistry
+ *   - lvalidation entries are document-specific (returned in result)
  *   - data is decoded using combined struct context
+ *
+ * @returns For regular JSON and TYTX://: hydrated value. For XTYTX://: XtytxResult.
  *
  * @example
  * ```ts
  * const data = fromJson('{"price":"99.99::N","date":"2025-01-15::D"}');
  * // { price: 99.99, date: Date }
  *
- * const data2 = fromJson('XTYTX://{"gstruct": {"X": {...}}, "lstruct": {}, "data": "TYTX://..."}');
+ * const result = fromJson('XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}');
+ * // result is XtytxResult with data, globalValidations, localValidations
  * ```
  */
-export function fromJson<T = TytxValue>(jsonStr: string): T {
+export function fromJson<T = TytxValue>(jsonStr: string): T | XtytxResult {
   // Check for XTYTX:// prefix
   if (jsonStr.startsWith(XTYTX_PREFIX)) {
     const envelopeJson = jsonStr.slice(XTYTX_PREFIX.length);
     const envelope = JSON.parse(envelopeJson) as XtytxEnvelope;
-    return processXtytx(envelope) as T;
+    return processEnvelope(envelope, hydrateJson, TYTX_PREFIX);
   }
 
   // Check for TYTX:// prefix

@@ -29,6 +29,7 @@ require('./types'); // Side effect: registers built-in types
 
 // Import utilities
 const { as_json, as_typed_json, from_json } = require('./json_utils');
+const { processEnvelope } = require('./xtytx');
 const { as_xml, as_typed_xml, from_xml } = require('./xml_utils');
 
 // Import type definitions
@@ -93,6 +94,9 @@ module.exports = {
     as_xml,
     as_typed_xml,
     from_xml,
+
+    // XTYTX envelope processing
+    processEnvelope,
 
     // Registry
     registry,

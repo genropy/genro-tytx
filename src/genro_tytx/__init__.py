@@ -73,13 +73,14 @@ from .xml_utils import (
     as_xml,
     from_xml,
 )
+from .xtytx import XtytxResult, process_envelope
 
 # Public API functions
 from_text = registry.from_text
 as_text = registry.as_text
 as_typed_text = registry.as_typed_text
 
-__version__ = "0.2.5"
+__version__ = "0.3.1"
 __all__ = [
     "__version__",
     # Text API
@@ -105,6 +106,9 @@ __all__ = [
     "ValidationRegistry",
     "ValidationDef",
     "validation_registry",
+    # XTYTX envelope
+    "XtytxResult",
+    "process_envelope",
     # Pydantic utilities
     "model_to_schema",
     "schema_to_model",

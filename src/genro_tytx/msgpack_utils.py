@@ -15,9 +15,11 @@
 """
 MessagePack utilities for TYTX Protocol.
 
-TYTX uses MessagePack ExtType code 42 for typed payloads.
-The content is a UTF-8 encoded JSON string with typed values.
-No TYTX:: prefix needed - ExtType(42) itself is the marker.
+TYTX uses MessagePack ExtType codes for typed payloads:
+- ExtType(42): TYTX - UTF-8 encoded JSON string with typed values
+- ExtType(43): XTYTX - UTF-8 encoded JSON envelope with structs and validations
+
+No TYTX:: prefix needed - ExtType code itself is the marker.
 
 Usage:
     pip install genro-tytx[msgpack]
@@ -51,8 +53,9 @@ from __future__ import annotations
 
 from typing import Any
 
-# TYTX ExtType code (reserved)
-TYTX_EXT_TYPE = 42
+# TYTX ExtType codes (reserved)
+TYTX_EXT_TYPE = 42  # Simple TYTX payload
+XTYTX_EXT_TYPE = 43  # Extended envelope with structs and validations
 
 # Lazy import check
 _msgpack_available: bool | None = None
@@ -138,18 +141,21 @@ def tytx_encoder(obj: Any) -> Any:
 
 def tytx_decoder(code: int, data: bytes) -> Any:
     """
-    MessagePack decoder for TYTX ExtType.
+    MessagePack decoder for TYTX/XTYTX ExtTypes.
 
     Use as the `ext_hook` parameter for msgpack.unpackb().
 
-    ExtType(42, ...) is decoded as TYTX JSON and hydrated.
+    - ExtType(42): TYTX - decoded as JSON and hydrated
+    - ExtType(43): XTYTX - decoded as envelope with structs and validations
 
     Args:
         code: ExtType code.
         data: ExtType data (bytes).
 
     Returns:
-        Hydrated Python object for TYTX types, or ExtType for unknown codes.
+        For TYTX (42): Hydrated Python object.
+        For XTYTX (43): XtytxResult with data and validation contexts.
+        For unknown codes: msgpack.ExtType as-is.
 
     Example:
         import msgpack
@@ -162,10 +168,19 @@ def tytx_decoder(code: int, data: bytes) -> Any:
 
     if code == TYTX_EXT_TYPE:
         json_str = data.decode("utf-8")
-
         from .json_utils import from_json
 
         return from_json(json_str)
+
+    if code == XTYTX_EXT_TYPE:
+        import json
+
+        from .json_utils import _hydrate_json
+        from .xtytx import process_envelope
+
+        envelope_str = data.decode("utf-8")
+        envelope = json.loads(envelope_str)
+        return process_envelope(envelope, _hydrate_json, "TYTX://")
 
     # Unknown ExtType - return as-is
     return msgpack.ExtType(code, data)
@@ -231,6 +246,7 @@ def unpackb(packed: bytes, **kwargs: Any) -> Any:
 
 __all__ = [
     "TYTX_EXT_TYPE",
+    "XTYTX_EXT_TYPE",
     "packb",
     "unpackb",
     "tytx_encoder",

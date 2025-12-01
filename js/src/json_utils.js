@@ -7,7 +7,7 @@
  *
  * Protocol Prefixes:
  *     TYTX://   - Standard typed payload
- *     XTYTX://  - Extended envelope with struct definitions
+ *     XTYTX://  - Extended envelope with struct and validation definitions
  *
  * Usage:
  *     // Typed JSON (TYTX format - reversible)
@@ -19,13 +19,15 @@
  *     // Standard JSON (for external systems)
  *     as_json(data)  // → '{"count": 5, "date": "2025-01-15T00:00:00.000Z"}'
  *
- *     // XTYTX envelope with inline struct definitions
- *     from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "TYTX://..."}')
+ *     // XTYTX envelope with inline struct and validation definitions
+ *     const result = from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "TYTX://..."}')
+ *     // result is {data, globalValidations, localValidations}
  *
  * @module json_utils
  */
 
 const { registry } = require('./registry');
+const { processEnvelope } = require('./xtytx');
 
 // Protocol prefix constants
 const TYTX_PREFIX = 'TYTX://';
@@ -55,50 +57,15 @@ function _hydrate(obj, localStructs = null) {
 }
 
 /**
- * Process XTYTX envelope.
+ * Hydrate JSON string with local structs context.
+ * Internal helper for processEnvelope.
  *
- * 1. Register gstruct entries globally (overwrites existing)
- * 2. Build localStructs context from lstruct
- * 3. Decode data using combined context
- * 4. Return decoded data (or null if data is empty)
- *
- * @param {Object} envelope - Parsed XTYTX envelope with gstruct, lstruct, data fields.
- * @returns {*} Decoded data or null if data is empty.
- * @throws {Error} If required fields are missing.
+ * @param {string} dataStr - JSON string to parse.
+ * @param {Object|null} localStructs - Optional local struct definitions.
+ * @returns {*} Hydrated JavaScript object.
  */
-function _processXtytx(envelope) {
-    const gstruct = envelope.gstruct;
-    const lstruct = envelope.lstruct;
-    let data = envelope.data;
-
-    if (gstruct === undefined) {
-        throw new Error('XTYTX envelope missing required field: gstruct');
-    }
-    if (lstruct === undefined) {
-        throw new Error('XTYTX envelope missing required field: lstruct');
-    }
-    if (data === undefined) {
-        throw new Error('XTYTX envelope missing required field: data');
-    }
-
-    // Register gstruct entries globally (overwrites existing)
-    for (const [code, schema] of Object.entries(gstruct)) {
-        registry.register_struct(code, schema);
-    }
-
-    // If data is empty, return null
-    if (!data) {
-        return null;
-    }
-
-    // Strip TYTX:// prefix from data if present
-    if (data.startsWith(TYTX_PREFIX)) {
-        data = data.slice(TYTX_PREFIX.length);
-    }
-
-    // Parse and hydrate data with lstruct as local context
-    const parsed = JSON.parse(data);
-    const localStructs = Object.keys(lstruct).length > 0 ? lstruct : null;
+function _hydrateJson(dataStr, localStructs) {
+    const parsed = JSON.parse(dataStr);
     return _hydrate(parsed, localStructs);
 }
 
@@ -185,15 +152,18 @@ function as_json(obj, indent = null) {
  * Supports three formats:
  * - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
  * - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
- * - XTYTX:// prefix: 'XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "..."}'
+ * - XTYTX:// prefix: Extended envelope with structs and validations
+ *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}'
  *   - gstruct entries are registered globally
  *   - lstruct entries are used only during this decode
+ *   - gvalidation entries are registered globally in validationRegistry
+ *   - lvalidation entries are document-specific (returned in result)
  *   - data is decoded using combined struct context
  *
  * @param {string} s - JSON string to parse (may have TYTX:// or XTYTX:// prefix).
- * @returns {*} JavaScript object with typed values hydrated.
- *              Returns null if XTYTX envelope has empty data.
- * @throws {Error} If XTYTX envelope is missing required fields.
+ * @returns {*} For regular JSON and TYTX://: JavaScript object with typed values hydrated.
+ *              For XTYTX://: {data, globalValidations, localValidations}
+ * @throws {Error} If XTYTX envelope is missing required struct fields.
  * @throws {SyntaxError} If JSON is invalid.
  */
 function from_json(s) {
@@ -201,7 +171,7 @@ function from_json(s) {
     if (s.startsWith(XTYTX_PREFIX)) {
         const envelopeJson = s.slice(XTYTX_PREFIX.length);
         const envelope = JSON.parse(envelopeJson);
-        return _processXtytx(envelope);
+        return processEnvelope(envelope, _hydrateJson, TYTX_PREFIX);
     }
 
     // Check for TYTX:// prefix

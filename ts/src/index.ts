@@ -75,6 +75,10 @@ export {
 // JSON utilities
 export { asTypedJson, asJson, fromJson, hydrateObject, hydrateArray } from './json.js';
 
+// XTYTX envelope
+export type { XtytxEnvelope, XtytxResult, HydrateFunc } from './xtytx.js';
+export { processEnvelope } from './xtytx.js';
+
 // MessagePack utilities
 export { TYTX_EXT_TYPE, packb, unpackb, __setMsgpackLoader } from './msgpack.js';
 
