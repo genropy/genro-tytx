@@ -3,7 +3,8 @@
  *
  * Tests cover:
  * - ValidationRegistry basic operations
- * - Standard validations (33 patterns)
+ * - Standard validations (29 patterns)
+ * - Italian locale validations (12 patterns)
  * - Boolean expression operators (!&|)
  * - Resolution order (local > global > registry)
  */
@@ -16,6 +17,7 @@ import {
   validationRegistry,
   createValidationRegistry,
 } from '../src/validation.js';
+import * as itValidations from '../src/validation-locale/it.js';
 
 describe('ValidationRegistry basic operations', () => {
   it('register and get', () => {
@@ -251,17 +253,17 @@ describe('Resolution order: local > global > registry', () => {
 });
 
 describe('Standard validations', () => {
-  it('33 standard validations defined', () => {
-    expect(Object.keys(STANDARD_VALIDATIONS).length).toBe(33);
+  it('29 standard validations defined', () => {
+    expect(Object.keys(STANDARD_VALIDATIONS).length).toBe(29);
   });
 
   it('global registry has standard validations', () => {
-    expect(validationRegistry.listValidations().length).toBe(33);
+    expect(validationRegistry.listValidations().length).toBe(29);
   });
 
   it('createValidationRegistry includes standard by default', () => {
     const registry = createValidationRegistry();
-    expect(registry.listValidations().length).toBe(33);
+    expect(registry.listValidations().length).toBe(29);
   });
 
   it('createValidationRegistry can exclude standard', () => {
@@ -333,35 +335,6 @@ describe('Standard validations', () => {
   it('slug invalid', () => {
     expect(validationRegistry.validate('My-Post', 'slug')).toBe(false);
     expect(validationRegistry.validate('my_post', 'slug')).toBe(false);
-  });
-
-  // Italian Fiscal
-  it('cf valid', () => {
-    expect(validationRegistry.validate('RSSMRA85M01H501X', 'cf')).toBe(true);
-  });
-
-  it('cf invalid', () => {
-    expect(validationRegistry.validate('RSSMRA85M01H501', 'cf')).toBe(false);
-    expect(validationRegistry.validate('rssmra85m01h501x', 'cf')).toBe(false);
-  });
-
-  it('piva valid', () => {
-    expect(validationRegistry.validate('12345678901', 'piva')).toBe(true);
-  });
-
-  it('piva invalid', () => {
-    expect(validationRegistry.validate('1234567890', 'piva')).toBe(false);
-    expect(validationRegistry.validate('123456789012', 'piva')).toBe(false);
-  });
-
-  it('cap_it valid', () => {
-    expect(validationRegistry.validate('00100', 'cap_it')).toBe(true);
-    expect(validationRegistry.validate('20100', 'cap_it')).toBe(true);
-  });
-
-  it('cap_it invalid', () => {
-    expect(validationRegistry.validate('0010', 'cap_it')).toBe(false);
-    expect(validationRegistry.validate('001000', 'cap_it')).toBe(false);
   });
 
   // European Standards
@@ -517,12 +490,6 @@ describe('Standard validations', () => {
 });
 
 describe('Real-world validation expressions', () => {
-  it('CF or PIVA', () => {
-    expect(validationRegistry.validateExpression('RSSMRA85M01H501X', 'cf|piva')).toBe(true);
-    expect(validationRegistry.validateExpression('12345678901', 'cf|piva')).toBe(true);
-    expect(validationRegistry.validateExpression('invalid', 'cf|piva')).toBe(false);
-  });
-
   it('latin AND uppercase', () => {
     expect(validationRegistry.validateExpression('HELLO', 'latin&uppercase')).toBe(true);
     expect(validationRegistry.validateExpression('hello', 'latin&uppercase')).toBe(false);
@@ -538,5 +505,165 @@ describe('Real-world validation expressions', () => {
     expect(validationRegistry.validateExpression('test@example.com', 'email|phone')).toBe(true);
     expect(validationRegistry.validateExpression('+393331234567', 'email|phone')).toBe(true);
     expect(validationRegistry.validateExpression('invalid', 'email|phone')).toBe(false);
+  });
+});
+
+describe('Italian locale validations', () => {
+  let registry: ValidationRegistry;
+
+  beforeEach(() => {
+    registry = createValidationRegistry(true);
+    itValidations.registerAll(registry);
+  });
+
+  it('12 Italian validations defined', () => {
+    expect(Object.keys(itValidations.VALIDATIONS).length).toBe(12);
+  });
+
+  it('registerAll adds all Italian validations', () => {
+    const newRegistry = createValidationRegistry(false);
+    expect(newRegistry.listValidations().length).toBe(0);
+    itValidations.registerAll(newRegistry);
+    expect(newRegistry.listValidations().length).toBe(12);
+  });
+
+  it('unregisterAll removes all Italian validations', () => {
+    const newRegistry = createValidationRegistry(false);
+    itValidations.registerAll(newRegistry);
+    expect(newRegistry.listValidations().length).toBe(12);
+    itValidations.unregisterAll(newRegistry);
+    expect(newRegistry.listValidations().length).toBe(0);
+  });
+
+  // Codice Fiscale
+  it('cf valid', () => {
+    expect(registry.validate('RSSMRA85M01H501X', 'cf')).toBe(true);
+  });
+
+  it('cf invalid', () => {
+    expect(registry.validate('RSSMRA85M01H501', 'cf')).toBe(false);
+    expect(registry.validate('rssmra85m01h501x', 'cf')).toBe(false);
+  });
+
+  // Partita IVA
+  it('piva valid', () => {
+    expect(registry.validate('12345678901', 'piva')).toBe(true);
+  });
+
+  it('piva invalid', () => {
+    expect(registry.validate('1234567890', 'piva')).toBe(false);
+    expect(registry.validate('123456789012', 'piva')).toBe(false);
+  });
+
+  // Telefono italiano
+  it('phone_it valid', () => {
+    expect(registry.validate('+39 02 12345678', 'phone_it')).toBe(true);
+    expect(registry.validate('02 12345678', 'phone_it')).toBe(true);
+  });
+
+  // CAP
+  it('cap valid', () => {
+    expect(registry.validate('00100', 'cap')).toBe(true);
+    expect(registry.validate('20100', 'cap')).toBe(true);
+  });
+
+  it('cap invalid', () => {
+    expect(registry.validate('0010', 'cap')).toBe(false);
+    expect(registry.validate('001000', 'cap')).toBe(false);
+  });
+
+  // Targa
+  it('targa valid', () => {
+    expect(registry.validate('AA000AA', 'targa')).toBe(true);
+    expect(registry.validate('ZZ999ZZ', 'targa')).toBe(true);
+  });
+
+  it('targa invalid', () => {
+    expect(registry.validate('AA00AA', 'targa')).toBe(false);
+    expect(registry.validate('aa000aa', 'targa')).toBe(false);
+  });
+
+  // Codice SDI
+  it('sdi valid', () => {
+    expect(registry.validate('ABC1234', 'sdi')).toBe(true);
+    expect(registry.validate('0000000', 'sdi')).toBe(true);
+  });
+
+  it('sdi invalid', () => {
+    expect(registry.validate('ABC123', 'sdi')).toBe(false);
+    expect(registry.validate('abc1234', 'sdi')).toBe(false);
+  });
+
+  // PEC
+  it('pec valid', () => {
+    expect(registry.validate('test@example.pec.it', 'pec')).toBe(true);
+  });
+
+  it('pec invalid', () => {
+    expect(registry.validate('test@example.com', 'pec')).toBe(false);
+    expect(registry.validate('test@pec.it', 'pec')).toBe(false);
+  });
+
+  // Codice ATECO
+  it('ateco valid', () => {
+    expect(registry.validate('62.01', 'ateco')).toBe(true);
+    expect(registry.validate('62.01.0', 'ateco')).toBe(true);
+    expect(registry.validate('62.01.00', 'ateco')).toBe(true);
+  });
+
+  it('ateco invalid', () => {
+    expect(registry.validate('6201', 'ateco')).toBe(false);
+    expect(registry.validate('62.1', 'ateco')).toBe(false);
+  });
+
+  // Numero REA
+  it('rea valid', () => {
+    expect(registry.validate('MI1234567', 'rea')).toBe(true);
+    expect(registry.validate('RM123456', 'rea')).toBe(true);
+  });
+
+  it('rea invalid', () => {
+    expect(registry.validate('MI12345', 'rea')).toBe(false);
+    expect(registry.validate('mi1234567', 'rea')).toBe(false);
+  });
+
+  // IBAN italiano
+  it('iban_it valid', () => {
+    expect(registry.validate('IT60X0542811101000000123456', 'iban_it')).toBe(true);
+  });
+
+  it('iban_it invalid', () => {
+    expect(registry.validate('DE89370400440532013000', 'iban_it')).toBe(false);
+    expect(registry.validate('IT60X054281110100000012345', 'iban_it')).toBe(false);
+  });
+
+  // Codice CIG
+  it('cig valid', () => {
+    expect(registry.validate('ABC1234567', 'cig')).toBe(true);
+    expect(registry.validate('0123456789', 'cig')).toBe(true);
+  });
+
+  it('cig invalid', () => {
+    expect(registry.validate('ABC123456', 'cig')).toBe(false);
+    expect(registry.validate('abc1234567', 'cig')).toBe(false);
+  });
+
+  // Codice CUP
+  it('cup valid', () => {
+    expect(registry.validate('J31B17000510007', 'cup')).toBe(true);
+    expect(registry.validate('A00B00AAAAAAAAA', 'cup')).toBe(true);
+  });
+
+  it('cup invalid', () => {
+    expect(registry.validate('131B17000510007', 'cup')).toBe(false); // starts with digit
+    expect(registry.validate('J31B1700051000', 'cup')).toBe(false); // too short (14)
+    expect(registry.validate('J31B170005100071', 'cup')).toBe(false); // too long (16)
+  });
+
+  // Boolean expressions with Italian validations
+  it('CF or PIVA expression', () => {
+    expect(registry.validateExpression('RSSMRA85M01H501X', 'cf|piva')).toBe(true);
+    expect(registry.validateExpression('12345678901', 'cf|piva')).toBe(true);
+    expect(registry.validateExpression('invalid', 'cf|piva')).toBe(false);
   });
 });

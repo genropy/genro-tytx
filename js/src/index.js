@@ -65,12 +65,15 @@ const {
     KNOWN_KEYS
 } = require('./metadata');
 
+// Import Validation Locales
+const validationLocale = require('./validation-locale');
+
 // Public API functions (bound to registry)
 const from_text = registry.from_text.bind(registry);
 const as_text = registry.as_text.bind(registry);
 const as_typed_text = registry.as_typed_text.bind(registry);
 
-const VERSION = '0.1.0';
+const VERSION = '0.3.1';
 
 module.exports = {
     // Version
@@ -121,5 +124,8 @@ module.exports = {
     formatMetadata,
     validateMetadata,
     MetadataParseError,
-    KNOWN_KEYS
+    KNOWN_KEYS,
+
+    // Validation Locales
+    validationLocale
 };

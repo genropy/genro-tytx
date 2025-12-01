@@ -532,26 +532,6 @@ STANDARD_VALIDATIONS: dict[str, ValidationDef] = {
         "pattern": r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         "message": "Invalid slug (use lowercase, numbers, hyphens)",
     },
-    # Italian Fiscal
-    "cf": {
-        "pattern": r"^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$",
-        "len": 16,
-        "message": "Invalid Italian fiscal code (Codice Fiscale)",
-    },
-    "piva": {
-        "pattern": r"^[0-9]{11}$",
-        "len": 11,
-        "message": "Invalid Italian VAT number (Partita IVA)",
-    },
-    "phone_it": {
-        "pattern": r"^(\+39)?[ ]?[0-9]{2,4}[ ]?[0-9]{4,8}$",
-        "message": "Invalid Italian phone number",
-    },
-    "cap_it": {
-        "pattern": r"^[0-9]{5}$",
-        "len": 5,
-        "message": "Invalid Italian postal code (CAP)",
-    },
     # European Standards
     "iban": {
         "pattern": r"^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$",

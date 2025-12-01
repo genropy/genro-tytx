@@ -498,6 +498,335 @@ class TypeRegistry:
         """
         return self._structs.get(code)
 
+    def model_from_struct(
+        self,
+        code: str,
+        *,
+        model_name: str | None = None,
+    ) -> type:
+        """
+        Generate a Pydantic BaseModel class from a registered TYTX struct.
+
+        This is the inverse of struct_from_model(): given a TYTX struct schema,
+        create a Pydantic model with proper field types and constraints.
+
+        Type Mapping (TYTX → Python):
+            T       -> str
+            L       -> int
+            R       -> float
+            N       -> Decimal
+            B       -> bool
+            D       -> date
+            DHZ     -> datetime
+            H       -> time
+            #X      -> list[X]
+            JS      -> dict[str, Any]
+            @STRUCT -> nested model (recursively generated)
+
+        Metadata Mapping (TYTX → Pydantic Field):
+            min:N (for str)  -> min_length=N
+            max:N (for str)  -> max_length=N
+            min:N (for num)  -> ge=N
+            max:N (for num)  -> le=N
+            reg:"..."        -> pattern="..."
+            lbl:X            -> title="X"
+            hint:X           -> description="X"
+            def:X            -> default=X
+            enum:a|b|c       -> Literal["a","b","c"]
+
+        Args:
+            code: Struct code without @ prefix (must be already registered)
+            model_name: Optional custom class name. If not provided, uses
+                code.title() (e.g., "CUSTOMER" -> "Customer")
+
+        Returns:
+            A dynamically created Pydantic BaseModel subclass
+
+        Raises:
+            ImportError: If pydantic is not installed
+            KeyError: If struct code is not registered
+
+        Examples:
+            # Register a struct
+            registry.register_struct('CUSTOMER', {
+                'name': 'T[min:1, max:100, lbl:Name]',
+                'email': 'T[reg:"^[^@]+@[^@]+$"]',
+                'status': 'T[enum:active|inactive, def:active]',
+            })
+
+            # Generate Pydantic model
+            Customer = registry.model_from_struct('CUSTOMER')
+
+            # Use it
+            customer = Customer(name="Mario", email="mario@example.com")
+            customer.model_validate(...)  # Pydantic validation
+        """
+        try:
+            import pydantic  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "pydantic is required for model_from_struct. "
+                "Install with: pip install genro-tytx[pydantic]"
+            ) from e
+
+        schema = self._structs.get(code)
+        if schema is None:
+            raise KeyError(f"Struct '{code}' not registered")
+
+        if model_name is None:
+            model_name = code.title()
+
+        return self._schema_to_model(code, schema, model_name, {})
+
+    def _schema_to_model(
+        self,
+        code: str,
+        schema: "list[str] | dict[str, str] | str",
+        model_name: str,
+        _cache: dict[str, type],
+    ) -> type:
+        """
+        Convert a TYTX schema to a Pydantic model class.
+
+        Args:
+            code: Struct code (for caching)
+            schema: TYTX schema (dict, list, or str)
+            model_name: Class name for the model
+            _cache: Cache of already-created models to avoid infinite recursion
+
+        Returns:
+            Pydantic BaseModel subclass
+        """
+        from typing import Any
+
+        from pydantic import create_model
+
+        # Check cache first
+        if code in _cache:
+            return _cache[code]
+
+        # Convert schema to dict if needed
+        if isinstance(schema, str):
+            schema_dict = self._string_schema_to_dict(schema)
+        elif isinstance(schema, list):
+            # List schema: positional types
+            schema_dict = {f"field_{i}": t for i, t in enumerate(schema)}
+        else:
+            schema_dict = schema
+
+        # Build field definitions
+        field_definitions: dict[str, Any] = {}
+
+        for field_name, type_def in schema_dict.items():
+            field_type, field_info = self._parse_type_def(type_def, _cache)
+            if field_info is not None:
+                field_definitions[field_name] = (field_type, field_info)
+            else:
+                field_definitions[field_name] = (field_type, ...)
+
+        # Create the model
+        model: type = create_model(model_name, **field_definitions)
+
+        # Cache it
+        _cache[code] = model
+
+        return model
+
+    def _string_schema_to_dict(self, schema: str) -> dict[str, str]:
+        """Convert string schema to dict schema."""
+        result: dict[str, str] = {}
+        for i, part in enumerate(schema.split(",")):
+            part = part.strip()
+            if ":" in part:
+                name, type_code = part.split(":", 1)
+                result[name.strip()] = type_code.strip()
+            else:
+                result[f"field_{i}"] = part
+        return result
+
+    def _parse_type_def(
+        self,
+        type_def: str,
+        _cache: dict[str, type],
+    ) -> "tuple[Any, Any]":
+        """
+        Parse a TYTX type definition to Python type and Pydantic FieldInfo.
+
+        Args:
+            type_def: Type definition like "T", "L[min:0]", "@CUSTOMER"
+            _cache: Cache of already-created models
+
+        Returns:
+            Tuple of (python_type, FieldInfo or None)
+        """
+        import re
+        from datetime import date, datetime, time
+        from decimal import Decimal
+        from typing import Any
+
+        from .metadata_parser import parse_metadata
+
+        # Extract base type and metadata
+        match = re.match(r"^([^[\]]+)(?:\[(.+)\])?$", type_def)
+        if not match:
+            return (str, None)
+
+        base_type = match.group(1).strip()
+        metadata_str = match.group(2)
+
+        # Parse metadata if present
+        metadata: dict[str, str] = {}
+        if metadata_str:
+            metadata = parse_metadata(metadata_str)
+
+        # Type mapping
+        type_map: dict[str, type] = {
+            "T": str,
+            "L": int,
+            "R": float,
+            "N": Decimal,
+            "B": bool,
+            "D": date,
+            "DHZ": datetime,
+            "H": time,
+        }
+
+        # Handle array types (#X)
+        if base_type.startswith("#"):
+            inner_type_code = base_type[1:]
+            inner_type, _ = self._parse_type_def(inner_type_code, _cache)
+            python_type: Any = list[inner_type]  # type: ignore[valid-type]
+            return self._apply_metadata(python_type, metadata, is_numeric=False)
+
+        # Handle dict type (JS)
+        if base_type == "JS":
+            python_type = dict[str, Any]
+            return self._apply_metadata(python_type, metadata, is_numeric=False)
+
+        # Handle nested struct (@CODE)
+        if base_type.startswith("@"):
+            nested_code = base_type[1:]
+            nested_schema = self._structs.get(nested_code)
+            if nested_schema is not None:
+                nested_model = self._schema_to_model(
+                    nested_code,
+                    nested_schema,
+                    nested_code.title(),
+                    _cache,
+                )
+                return self._apply_metadata(nested_model, metadata, is_numeric=False)
+            # Struct not found - fallback to dict
+            return (dict[str, Any], None)
+
+        # Basic type
+        python_type = type_map.get(base_type, str)
+        is_numeric = base_type in ("L", "R", "N")
+        return self._apply_metadata(python_type, metadata, is_numeric=is_numeric)
+
+    def _apply_metadata(
+        self,
+        python_type: "Any",
+        metadata: dict[str, str],
+        is_numeric: bool,
+    ) -> "tuple[Any, Any]":
+        """
+        Apply TYTX metadata to create Pydantic Field constraints.
+
+        Args:
+            python_type: Base Python type
+            metadata: Parsed metadata dict
+            is_numeric: True if the base type is numeric (for min/max interpretation)
+
+        Returns:
+            Tuple of (possibly modified type, FieldInfo or None)
+        """
+        import contextlib
+        from typing import Annotated, Any, Literal
+
+        from annotated_types import Ge, Le, MaxLen, MinLen
+        from pydantic import Field
+
+        if not metadata:
+            return (python_type, None)
+
+        # Handle enum -> Literal type
+        if "enum" in metadata:
+            enum_values = metadata["enum"].split("|")
+            # Create Literal type with the enum values
+            python_type = Literal[tuple(enum_values)]
+
+        # Build Field kwargs
+        field_kwargs: dict[str, Any] = {}
+
+        # Title and description
+        if "lbl" in metadata:
+            field_kwargs["title"] = metadata["lbl"]
+        if "hint" in metadata:
+            field_kwargs["description"] = metadata["hint"]
+
+        # Default value
+        if "def" in metadata:
+            default_str = metadata["def"]
+            # Try to convert to appropriate type
+            if is_numeric:
+                try:
+                    if "." in default_str:
+                        field_kwargs["default"] = float(default_str)
+                    else:
+                        field_kwargs["default"] = int(default_str)
+                except ValueError:
+                    field_kwargs["default"] = default_str
+            else:
+                field_kwargs["default"] = default_str
+
+        # Build annotations list for Annotated type
+        annotations: list[Any] = []
+
+        # String constraints: min_length, max_length
+        # Numeric constraints: ge, le
+        if "min" in metadata:
+            min_val = metadata["min"]
+            if is_numeric:
+                with contextlib.suppress(ValueError):
+                    annotations.append(Ge(int(min_val) if "." not in min_val else float(min_val)))
+            else:
+                with contextlib.suppress(ValueError):
+                    annotations.append(MinLen(int(min_val)))
+
+        if "max" in metadata:
+            max_val = metadata["max"]
+            if is_numeric:
+                with contextlib.suppress(ValueError):
+                    annotations.append(Le(int(max_val) if "." not in max_val else float(max_val)))
+            else:
+                with contextlib.suppress(ValueError):
+                    annotations.append(MaxLen(int(max_val)))
+
+        # Pattern constraint
+        if "reg" in metadata:
+            pattern = metadata["reg"]
+            if "pattern" not in field_kwargs:
+                field_kwargs["pattern"] = pattern
+
+        # Create FieldInfo if we have any constraints
+        if field_kwargs or annotations:
+            # If we have annotations, use Annotated
+            final_type: Any = python_type
+            if annotations:
+                # Build Annotated type compatible with Python 3.10
+                # Using tuple unpacking in subscript requires Python 3.11+
+                if len(annotations) == 1:
+                    final_type = Annotated[python_type, annotations[0]]
+                elif len(annotations) == 2:
+                    final_type = Annotated[python_type, annotations[0], annotations[1]]
+
+            # Create Field if we have kwargs
+            if field_kwargs:
+                return (final_type, Field(**field_kwargs))
+            return (final_type, ...)
+
+        return (python_type, None)
+
     def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | _StructType | None:
         """
         Retrieve a type by name or code.

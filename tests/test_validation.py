@@ -17,7 +17,8 @@ Tests for TYTX validation system.
 
 Tests cover:
 - ValidationRegistry basic operations
-- Standard validations (33 patterns)
+- Standard validations (29 patterns)
+- Italian locale validations (12 patterns)
 - Boolean expression operators (!&|)
 - Resolution order (local > global > registry)
 """
@@ -31,6 +32,7 @@ from genro_tytx.struct import (
     create_validation_registry,
     validation_registry,
 )
+from genro_tytx.validation_locale import it as it_validations
 
 
 class TestValidationRegistryBasic:
@@ -336,17 +338,17 @@ class TestStandardValidations:
     """Test pre-defined standard validations."""
 
     def test_standard_validations_count(self) -> None:
-        """33 standard validations are defined."""
-        assert len(STANDARD_VALIDATIONS) == 33
+        """29 standard validations are defined (locale-specific excluded)."""
+        assert len(STANDARD_VALIDATIONS) == 29
 
     def test_global_registry_has_standard(self) -> None:
         """Global validation_registry has standard validations."""
-        assert len(validation_registry.list_validations()) == 33
+        assert len(validation_registry.list_validations()) == 29
 
     def test_create_registry_with_standard(self) -> None:
         """create_validation_registry includes standard by default."""
         registry = create_validation_registry()
-        assert len(registry.list_validations()) == 33
+        assert len(registry.list_validations()) == 29
 
     def test_create_registry_without_standard(self) -> None:
         """create_validation_registry can exclude standard."""
@@ -433,35 +435,6 @@ class TestStandardValidations:
         """Slug validation rejects invalid slugs."""
         assert validation_registry.validate("My-Post", "slug") is False  # uppercase
         assert validation_registry.validate("my_post", "slug") is False  # underscore
-
-    # Italian Fiscal
-    def test_cf_valid(self) -> None:
-        """Codice Fiscale validation accepts valid codes."""
-        assert validation_registry.validate("RSSMRA85M01H501X", "cf") is True
-
-    def test_cf_invalid(self) -> None:
-        """Codice Fiscale validation rejects invalid codes."""
-        assert validation_registry.validate("RSSMRA85M01H501", "cf") is False  # too short
-        assert validation_registry.validate("rssmra85m01h501x", "cf") is False  # lowercase
-
-    def test_piva_valid(self) -> None:
-        """Partita IVA validation accepts valid codes."""
-        assert validation_registry.validate("12345678901", "piva") is True
-
-    def test_piva_invalid(self) -> None:
-        """Partita IVA validation rejects invalid codes."""
-        assert validation_registry.validate("1234567890", "piva") is False  # 10 digits
-        assert validation_registry.validate("123456789012", "piva") is False  # 12 digits
-
-    def test_cap_it_valid(self) -> None:
-        """Italian CAP validation accepts valid codes."""
-        assert validation_registry.validate("00100", "cap_it") is True
-        assert validation_registry.validate("20100", "cap_it") is True
-
-    def test_cap_it_invalid(self) -> None:
-        """Italian CAP validation rejects invalid codes."""
-        assert validation_registry.validate("0010", "cap_it") is False
-        assert validation_registry.validate("001000", "cap_it") is False
 
     # European Standards
     def test_iban_valid(self) -> None:
@@ -620,22 +593,96 @@ class TestStandardValidations:
         assert validation_registry.validate("Hello World!", "base64") is False
 
 
-class TestValidationExpressionRealWorld:
-    """Real-world use cases for validation expressions."""
+class TestItalianValidations:
+    """Test Italian locale validations from validation_locale.it."""
+
+    @pytest.fixture(autouse=True)
+    def setup_italian_validations(self) -> None:
+        """Register Italian validations before each test."""
+        # Create a fresh registry with Italian validations
+        self.registry = create_validation_registry(include_standard=True)
+        it_validations.register_all(self.registry)
+
+    def test_italian_validations_count(self) -> None:
+        """12 Italian validations are defined."""
+        assert len(it_validations.VALIDATIONS) == 12
+
+    def test_cf_valid(self) -> None:
+        """Codice Fiscale validation accepts valid codes."""
+        assert self.registry.validate("RSSMRA85M01H501X", "cf") is True
+
+    def test_cf_invalid(self) -> None:
+        """Codice Fiscale validation rejects invalid codes."""
+        assert self.registry.validate("RSSMRA85M01H501", "cf") is False  # too short
+        assert self.registry.validate("rssmra85m01h501x", "cf") is False  # lowercase
+
+    def test_piva_valid(self) -> None:
+        """Partita IVA validation accepts valid codes."""
+        assert self.registry.validate("12345678901", "piva") is True
+
+    def test_piva_invalid(self) -> None:
+        """Partita IVA validation rejects invalid codes."""
+        assert self.registry.validate("1234567890", "piva") is False  # 10 digits
+        assert self.registry.validate("123456789012", "piva") is False  # 12 digits
+
+    def test_cap_valid(self) -> None:
+        """Italian CAP validation accepts valid codes."""
+        assert self.registry.validate("00100", "cap") is True
+        assert self.registry.validate("20100", "cap") is True
+
+    def test_cap_invalid(self) -> None:
+        """Italian CAP validation rejects invalid codes."""
+        assert self.registry.validate("0010", "cap") is False
+        assert self.registry.validate("001000", "cap") is False
+
+    def test_targa_valid(self) -> None:
+        """Italian license plate validation accepts valid plates."""
+        assert self.registry.validate("AA000AA", "targa") is True
+        assert self.registry.validate("ZZ999ZZ", "targa") is True
+
+    def test_targa_invalid(self) -> None:
+        """Italian license plate validation rejects invalid plates."""
+        assert self.registry.validate("AA00AA", "targa") is False  # only 2 digits
+        assert self.registry.validate("AA0000AA", "targa") is False  # 4 digits
+
+    def test_sdi_valid(self) -> None:
+        """SDI code validation accepts valid codes."""
+        assert self.registry.validate("ABCD123", "sdi") is True
+        assert self.registry.validate("0000000", "sdi") is True
+
+    def test_sdi_invalid(self) -> None:
+        """SDI code validation rejects invalid codes."""
+        assert self.registry.validate("ABCD12", "sdi") is False  # 6 chars
+        assert self.registry.validate("ABCD1234", "sdi") is False  # 8 chars
+
+    def test_pec_valid(self) -> None:
+        """PEC validation accepts valid addresses."""
+        assert self.registry.validate("info@example.pec.it", "pec") is True
+
+    def test_pec_invalid(self) -> None:
+        """PEC validation rejects non-PEC addresses."""
+        assert self.registry.validate("info@example.com", "pec") is False
+
+    def test_iban_it_valid(self) -> None:
+        """Italian IBAN validation accepts valid IBANs."""
+        assert self.registry.validate("IT60X0542811101000000123456", "iban_it") is True
+
+    def test_iban_it_invalid(self) -> None:
+        """Italian IBAN validation rejects non-Italian IBANs."""
+        assert self.registry.validate("DE89370400440532013000", "iban_it") is False
 
     def test_cf_or_piva(self) -> None:
-        """Accept either CF or PIVA."""
+        """Accept either CF or PIVA using expression."""
         # Valid CF
-        assert (
-            validation_registry.validate_expression("RSSMRA85M01H501X", "cf|piva")
-            is True
-        )
+        assert self.registry.validate_expression("RSSMRA85M01H501X", "cf|piva") is True
         # Valid PIVA
-        assert (
-            validation_registry.validate_expression("12345678901", "cf|piva") is True
-        )
+        assert self.registry.validate_expression("12345678901", "cf|piva") is True
         # Neither
-        assert validation_registry.validate_expression("invalid", "cf|piva") is False
+        assert self.registry.validate_expression("invalid", "cf|piva") is False
+
+
+class TestValidationExpressionRealWorld:
+    """Real-world use cases for validation expressions."""
 
     def test_latin_uppercase(self) -> None:
         """Accept only uppercase latin characters."""

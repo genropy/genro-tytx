@@ -320,27 +320,6 @@ export const STANDARD_VALIDATIONS: Record<string, ValidationDef> = {
     message: 'Invalid slug (use lowercase, numbers, hyphens)',
   },
 
-  // Italian Fiscal
-  cf: {
-    pattern: '^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$',
-    len: 16,
-    message: 'Invalid Italian fiscal code (Codice Fiscale)',
-  },
-  piva: {
-    pattern: '^[0-9]{11}$',
-    len: 11,
-    message: 'Invalid Italian VAT number (Partita IVA)',
-  },
-  phone_it: {
-    pattern: '^(\\+39)?[ ]?[0-9]{2,4}[ ]?[0-9]{4,8}$',
-    message: 'Invalid Italian phone number',
-  },
-  cap_it: {
-    pattern: '^[0-9]{5}$',
-    len: 5,
-    message: 'Invalid Italian postal code (CAP)',
-  },
-
   // European Standards
   iban: {
     pattern: '^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$',

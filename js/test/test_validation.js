@@ -3,7 +3,8 @@
  *
  * Tests cover:
  * - ValidationRegistry basic operations
- * - Standard validations (33 patterns)
+ * - Standard validations (29 patterns)
+ * - Italian locale validations (12 patterns)
  * - Boolean expression operators (!&|)
  * - Resolution order (local > global > registry)
  */
@@ -17,6 +18,7 @@ const {
     validationRegistry,
     createValidationRegistry
 } = require('../src/validation');
+const itValidations = require('../src/validation-locale/it');
 
 describe('ValidationRegistry basic operations', () => {
     it('register and get', () => {
@@ -273,17 +275,17 @@ describe('Resolution order: local > global > registry', () => {
 });
 
 describe('Standard validations', () => {
-    it('33 standard validations defined', () => {
-        assert.strictEqual(Object.keys(STANDARD_VALIDATIONS).length, 33);
+    it('29 standard validations defined', () => {
+        assert.strictEqual(Object.keys(STANDARD_VALIDATIONS).length, 29);
     });
 
     it('global registry has standard validations', () => {
-        assert.strictEqual(validationRegistry.list_validations().length, 33);
+        assert.strictEqual(validationRegistry.list_validations().length, 29);
     });
 
     it('createValidationRegistry includes standard by default', () => {
         const registry = createValidationRegistry();
-        assert.strictEqual(registry.list_validations().length, 33);
+        assert.strictEqual(registry.list_validations().length, 29);
     });
 
     it('createValidationRegistry can exclude standard', () => {
@@ -362,35 +364,6 @@ describe('Standard validations', () => {
     it('slug invalid', () => {
         assert.strictEqual(validationRegistry.validate('My-Post', 'slug'), false);
         assert.strictEqual(validationRegistry.validate('my_post', 'slug'), false);
-    });
-
-    // Italian Fiscal
-    it('cf valid', () => {
-        assert.strictEqual(validationRegistry.validate('RSSMRA85M01H501X', 'cf'), true);
-    });
-
-    it('cf invalid', () => {
-        assert.strictEqual(validationRegistry.validate('RSSMRA85M01H501', 'cf'), false);
-        assert.strictEqual(validationRegistry.validate('rssmra85m01h501x', 'cf'), false);
-    });
-
-    it('piva valid', () => {
-        assert.strictEqual(validationRegistry.validate('12345678901', 'piva'), true);
-    });
-
-    it('piva invalid', () => {
-        assert.strictEqual(validationRegistry.validate('1234567890', 'piva'), false);
-        assert.strictEqual(validationRegistry.validate('123456789012', 'piva'), false);
-    });
-
-    it('cap_it valid', () => {
-        assert.strictEqual(validationRegistry.validate('00100', 'cap_it'), true);
-        assert.strictEqual(validationRegistry.validate('20100', 'cap_it'), true);
-    });
-
-    it('cap_it invalid', () => {
-        assert.strictEqual(validationRegistry.validate('0010', 'cap_it'), false);
-        assert.strictEqual(validationRegistry.validate('001000', 'cap_it'), false);
     });
 
     // European Standards
@@ -555,21 +528,6 @@ describe('Standard validations', () => {
 });
 
 describe('Real-world validation expressions', () => {
-    it('CF or PIVA', () => {
-        assert.strictEqual(
-            validationRegistry.validate_expression('RSSMRA85M01H501X', 'cf|piva'),
-            true
-        );
-        assert.strictEqual(
-            validationRegistry.validate_expression('12345678901', 'cf|piva'),
-            true
-        );
-        assert.strictEqual(
-            validationRegistry.validate_expression('invalid', 'cf|piva'),
-            false
-        );
-    });
-
     it('latin AND uppercase', () => {
         assert.strictEqual(
             validationRegistry.validate_expression('HELLO', 'latin&uppercase'),
@@ -764,5 +722,174 @@ describe('Additional coverage tests', () => {
         registry.register('any', {});  // No constraints
         assert.strictEqual(registry.validate('anything', 'any'), true);
         assert.strictEqual(registry.validate('', 'any'), true);
+    });
+});
+
+describe('Italian locale validations', () => {
+    let registry;
+
+    beforeEach(() => {
+        registry = createValidationRegistry(true);
+        itValidations.registerAll(registry);
+    });
+
+    it('12 Italian validations defined', () => {
+        assert.strictEqual(Object.keys(itValidations.VALIDATIONS).length, 12);
+    });
+
+    it('registerAll adds all Italian validations', () => {
+        const newRegistry = createValidationRegistry(false);
+        assert.strictEqual(newRegistry.list_validations().length, 0);
+        itValidations.registerAll(newRegistry);
+        assert.strictEqual(newRegistry.list_validations().length, 12);
+    });
+
+    it('unregisterAll removes all Italian validations', () => {
+        const newRegistry = createValidationRegistry(false);
+        itValidations.registerAll(newRegistry);
+        assert.strictEqual(newRegistry.list_validations().length, 12);
+        itValidations.unregisterAll(newRegistry);
+        assert.strictEqual(newRegistry.list_validations().length, 0);
+    });
+
+    // Codice Fiscale
+    it('cf valid', () => {
+        assert.strictEqual(registry.validate('RSSMRA85M01H501X', 'cf'), true);
+    });
+
+    it('cf invalid', () => {
+        assert.strictEqual(registry.validate('RSSMRA85M01H501', 'cf'), false);
+        assert.strictEqual(registry.validate('rssmra85m01h501x', 'cf'), false);
+    });
+
+    // Partita IVA
+    it('piva valid', () => {
+        assert.strictEqual(registry.validate('12345678901', 'piva'), true);
+    });
+
+    it('piva invalid', () => {
+        assert.strictEqual(registry.validate('1234567890', 'piva'), false);
+        assert.strictEqual(registry.validate('123456789012', 'piva'), false);
+    });
+
+    // Telefono italiano
+    it('phone_it valid', () => {
+        assert.strictEqual(registry.validate('+39 02 12345678', 'phone_it'), true);
+        assert.strictEqual(registry.validate('02 12345678', 'phone_it'), true);
+    });
+
+    // CAP
+    it('cap valid', () => {
+        assert.strictEqual(registry.validate('00100', 'cap'), true);
+        assert.strictEqual(registry.validate('20100', 'cap'), true);
+    });
+
+    it('cap invalid', () => {
+        assert.strictEqual(registry.validate('0010', 'cap'), false);
+        assert.strictEqual(registry.validate('001000', 'cap'), false);
+    });
+
+    // Targa
+    it('targa valid', () => {
+        assert.strictEqual(registry.validate('AA000AA', 'targa'), true);
+        assert.strictEqual(registry.validate('ZZ999ZZ', 'targa'), true);
+    });
+
+    it('targa invalid', () => {
+        assert.strictEqual(registry.validate('AA00AA', 'targa'), false);
+        assert.strictEqual(registry.validate('aa000aa', 'targa'), false);
+    });
+
+    // Codice SDI
+    it('sdi valid', () => {
+        assert.strictEqual(registry.validate('ABC1234', 'sdi'), true);
+        assert.strictEqual(registry.validate('0000000', 'sdi'), true);
+    });
+
+    it('sdi invalid', () => {
+        assert.strictEqual(registry.validate('ABC123', 'sdi'), false);
+        assert.strictEqual(registry.validate('abc1234', 'sdi'), false);
+    });
+
+    // PEC
+    it('pec valid', () => {
+        assert.strictEqual(registry.validate('test@example.pec.it', 'pec'), true);
+    });
+
+    it('pec invalid', () => {
+        assert.strictEqual(registry.validate('test@example.com', 'pec'), false);
+        assert.strictEqual(registry.validate('test@pec.it', 'pec'), false);
+    });
+
+    // Codice ATECO
+    it('ateco valid', () => {
+        assert.strictEqual(registry.validate('62.01', 'ateco'), true);
+        assert.strictEqual(registry.validate('62.01.0', 'ateco'), true);
+        assert.strictEqual(registry.validate('62.01.00', 'ateco'), true);
+    });
+
+    it('ateco invalid', () => {
+        assert.strictEqual(registry.validate('6201', 'ateco'), false);
+        assert.strictEqual(registry.validate('62.1', 'ateco'), false);
+    });
+
+    // Numero REA
+    it('rea valid', () => {
+        assert.strictEqual(registry.validate('MI1234567', 'rea'), true);
+        assert.strictEqual(registry.validate('RM123456', 'rea'), true);
+    });
+
+    it('rea invalid', () => {
+        assert.strictEqual(registry.validate('MI12345', 'rea'), false);
+        assert.strictEqual(registry.validate('mi1234567', 'rea'), false);
+    });
+
+    // IBAN italiano
+    it('iban_it valid', () => {
+        assert.strictEqual(registry.validate('IT60X0542811101000000123456', 'iban_it'), true);
+    });
+
+    it('iban_it invalid', () => {
+        assert.strictEqual(registry.validate('DE89370400440532013000', 'iban_it'), false);
+        assert.strictEqual(registry.validate('IT60X054281110100000012345', 'iban_it'), false);
+    });
+
+    // Codice CIG
+    it('cig valid', () => {
+        assert.strictEqual(registry.validate('ABC1234567', 'cig'), true);
+        assert.strictEqual(registry.validate('0123456789', 'cig'), true);
+    });
+
+    it('cig invalid', () => {
+        assert.strictEqual(registry.validate('ABC123456', 'cig'), false);
+        assert.strictEqual(registry.validate('abc1234567', 'cig'), false);
+    });
+
+    // Codice CUP
+    it('cup valid', () => {
+        assert.strictEqual(registry.validate('J31B17000510007', 'cup'), true);
+        assert.strictEqual(registry.validate('A00B00AAAAAAAAA', 'cup'), true);
+    });
+
+    it('cup invalid', () => {
+        assert.strictEqual(registry.validate('131B17000510007', 'cup'), false);  // starts with digit
+        assert.strictEqual(registry.validate('J31B1700051000', 'cup'), false);   // too short (14)
+        assert.strictEqual(registry.validate('J31B170005100071', 'cup'), false); // too long (16)
+    });
+
+    // Boolean expressions with Italian validations
+    it('CF or PIVA expression', () => {
+        assert.strictEqual(
+            registry.validate_expression('RSSMRA85M01H501X', 'cf|piva'),
+            true
+        );
+        assert.strictEqual(
+            registry.validate_expression('12345678901', 'cf|piva'),
+            true
+        );
+        assert.strictEqual(
+            registry.validate_expression('invalid', 'cf|piva'),
+            false
+        );
     });
 });

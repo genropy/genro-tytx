@@ -98,11 +98,14 @@ export {
 } from './metadata.js';
 export type { MetadataDict } from './metadata.js';
 
+// Validation Locales
+export * as validationLocale from './validation-locale/index.js';
+
 // Model
 export { TytxModel } from './model.js';
 
 // Version
-export const VERSION = '0.2.5';
+export const VERSION = '0.3.1';
 
 // Convenience re-exports from registry
 import { registry } from './registry.js';
