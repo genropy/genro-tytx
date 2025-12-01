@@ -275,13 +275,39 @@ from_text("550e8400-e29b-41d4-a716-446655440000::U")
 - [JSON Utilities](docs/guide/json.md)
 - [XML Utilities](docs/guide/xml.md)
 - [MessagePack](docs/guide/msgpack.md)
-- [Pydantic Integration](docs/guide/pydantic.md)
-- [Custom Types](docs/guide/custom-types.md)
+- **[Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)**: Deep dive into design choices.
+- **[OpenAPI Integration](docs/openapi_integration.md)**: How to use TYTX to optimize API specifications.
+- **[UI Generation](docs/ui_generation.md)**: Automatic form rendering from Structs.
+- **[FAQ](docs/faq.md)**: Common questions and answers.md)
 - [API Reference](docs/api/reference.md)
 
 ## Development Status
 
 **Beta** - Core implementation complete. API is stabilizing.
+
+### Feature Status
+
+| Feature | Status |
+|---------|--------|
+| Base serialization (10 types) | :white_check_mark: Done |
+| Array handling (`#` prefix) | :white_check_mark: Done |
+| Custom types (`~` prefix) | :white_check_mark: Done |
+| Struct schemas (`@` prefix) | :white_check_mark: Done |
+| XTYTX envelope | :white_check_mark: Done |
+| Metadata/validation facets | :white_check_mark: Done |
+| XSD to TYTX converter | :white_check_mark: Done |
+| Visual struct editor | :white_check_mark: Done |
+| Pydantic → TYTX struct | :red_circle: Planned |
+| TYTX struct → Pydantic | :red_circle: Planned |
+| Visual data editor | :red_circle: Planned |
+
+See [spec/roadmap.md](spec/roadmap.md) for detailed feature documentation.
+
+### Tools & Examples
+
+- **XSD Converter**: `scripts/xsd_to_tytx.py` - Convert XSD schemas to TYTX
+- **Visual Editor**: `examples/visualizer/index.html` - Interactive struct editor
+- **Sample Schemas**: `examples/schemas/` - FatturaPA, GeoJSON, etc.
 
 ## License
 
