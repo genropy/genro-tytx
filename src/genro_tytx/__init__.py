@@ -61,6 +61,7 @@ from .json_utils import (
     from_json,
 )
 from .registry import TypeRegistry, registry
+from .schema_utils import struct_from_jsonschema, struct_to_jsonschema
 from .struct import StructType, ValidationDef, ValidationRegistry, validation_registry
 from .utils import (
     model_to_schema,
@@ -109,6 +110,9 @@ __all__ = [
     # XTYTX envelope
     "XtytxResult",
     "process_envelope",
+    # JSON Schema utilities
+    "struct_from_jsonschema",
+    "struct_to_jsonschema",
     # Pydantic utilities
     "model_to_schema",
     "schema_to_model",

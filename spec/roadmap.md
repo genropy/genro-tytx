@@ -32,7 +32,7 @@ This document provides a comprehensive overview of all TYTX features, their impl
 | 9 | Generate structures from XSD | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 10 | Visual structure editor | :white_check_mark: DONE | N/A | :white_check_mark: | N/A |
 | 11 | Visual data editor using structures | :red_circle: TODO | N/A | :red_circle: | N/A |
-| 12 | JSON Schema / OpenAPI integration | :red_circle: TODO | :red_circle: | :red_circle: | :red_circle: |
+| 12 | JSON Schema / OpenAPI integration | :white_check_mark: DONE | :white_check_mark: | :red_circle: | :red_circle: |
 
 ---
 
@@ -380,11 +380,11 @@ Edit data instances using struct schemas.
 
 ---
 
-### 12. JSON Schema / OpenAPI Integration :red_circle: TODO
+### 12. JSON Schema / OpenAPI Integration :white_check_mark: DONE
 
 Bidirectional conversion between TYTX structs and JSON Schema / OpenAPI schemas.
 
-**Planned API**:
+**API**:
 
 ```python
 from genro_tytx import struct_from_jsonschema, struct_to_jsonschema
@@ -460,7 +460,7 @@ schema = struct_to_jsonschema(struct)
 - Integration with JSON Schema validation libraries
 - Bridge between TYTX and REST API definitions
 
-**Planned Files**: `schema_utils.py`
+**Files**: `schema_utils.py`, `tests/test_schema_utils.py`
 
 ---
 
