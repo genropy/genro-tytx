@@ -1,10 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from .base import DataType
 from .extension import CUSTOM_PREFIX
 from .extension import ExtensionType as _ExtensionType
-from .struct import STRUCT_PREFIX
+from .struct import STRUCT_PREFIX, FieldValue
 from .struct import StructType as _StructType
 
 # Symbol prefix for typed arrays (hash = each element #i)
@@ -40,7 +40,7 @@ class TypeRegistry:
         self._codes: dict[str, type[DataType] | _ExtensionType | _StructType] = {}
         self._python_types: dict[type, type[DataType] | _ExtensionType] = {}
         # Struct schemas registry: code -> schema (list, dict, or str)
-        self._structs: dict[str, list[str] | dict[str, str] | str] = {}
+        self._structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] = {}
 
     def register(self, type_cls: type[DataType]) -> None:
         """
@@ -126,7 +126,7 @@ class TypeRegistry:
                 del self._python_types[ext_type.python_type]
 
     def register_struct(
-        self, code: str, schema: "list[str] | dict[str, str] | str"
+        self, code: str, schema: "Sequence[FieldValue] | Mapping[str, FieldValue] | str"
     ) -> None:
         """
         Register a struct schema for schema-based hydration.
@@ -147,8 +147,14 @@ class TypeRegistry:
             register_struct('POINT', 'x:R,y:R')          # string → dict output
             register_struct('COORDS', 'R,R')             # string → list output
         """
-        self._structs[code] = schema
-        struct_type = _StructType(code, schema, self)
+        # Store schema (convert Mapping/Sequence to concrete types for storage)
+        if isinstance(schema, str):
+            self._structs[code] = schema
+        elif isinstance(schema, Mapping):
+            self._structs[code] = dict(schema)
+        else:
+            self._structs[code] = list(schema)
+        struct_type = _StructType(code, self._structs[code], self)
         self._codes[struct_type.code] = struct_type
         self._types[struct_type.name] = struct_type
 
@@ -486,7 +492,7 @@ class TypeRegistry:
         # Fallback
         return "T"
 
-    def get_struct(self, code: str) -> list[str] | dict[str, str] | str | None:
+    def get_struct(self, code: str) -> list[FieldValue] | dict[str, FieldValue] | str | None:
         """
         Get a struct schema by code.
 
@@ -581,7 +587,7 @@ class TypeRegistry:
     def _schema_to_model(
         self,
         code: str,
-        schema: "list[str] | dict[str, str] | str",
+        schema: "list[FieldValue] | dict[str, FieldValue] | str",
         model_name: str,
         _cache: dict[str, type],
     ) -> type:
@@ -606,6 +612,7 @@ class TypeRegistry:
             return _cache[code]
 
         # Convert schema to dict if needed
+        schema_dict: dict[str, FieldValue]
         if isinstance(schema, str):
             schema_dict = self._string_schema_to_dict(schema)
         elif isinstance(schema, list):
@@ -632,9 +639,9 @@ class TypeRegistry:
 
         return model
 
-    def _string_schema_to_dict(self, schema: str) -> dict[str, str]:
+    def _string_schema_to_dict(self, schema: str) -> dict[str, FieldValue]:
         """Convert string schema to dict schema."""
-        result: dict[str, str] = {}
+        result: dict[str, FieldValue] = {}
         for i, part in enumerate(schema.split(",")):
             part = part.strip()
             if ":" in part:
@@ -646,14 +653,15 @@ class TypeRegistry:
 
     def _parse_type_def(
         self,
-        type_def: str,
+        type_def: FieldValue,
         _cache: dict[str, type],
     ) -> "tuple[Any, Any]":
         """
         Parse a TYTX type definition to Python type and Pydantic FieldInfo.
 
         Args:
-            type_def: Type definition like "T", "L[min:0]", "@CUSTOMER"
+            type_def: Type definition - either a string like "T", "L[min:0]", "@CUSTOMER"
+                     or a FieldDef dict with type/validate/ui sections (v2 format)
             _cache: Cache of already-created models
 
         Returns:
@@ -666,18 +674,25 @@ class TypeRegistry:
 
         from .metadata_parser import parse_metadata
 
-        # Extract base type and metadata
-        match = re.match(r"^([^[\]]+)(?:\[(.+)\])?$", type_def)
-        if not match:
-            return (str, None)
-
-        base_type = match.group(1).strip()
-        metadata_str = match.group(2)
-
-        # Parse metadata if present
-        metadata: dict[str, str] = {}
-        if metadata_str:
-            metadata = parse_metadata(metadata_str)
+        # Handle v2 FieldDef format
+        if isinstance(type_def, dict):
+            base_type = type_def.get("type", "T")
+            validate = type_def.get("validate", {})
+            ui = type_def.get("ui", {})
+            # Convert v2 format to metadata dict for unified processing
+            metadata: dict[str, Any] = {}
+            if validate:
+                metadata.update(validate)
+            if ui:
+                metadata.update(ui)
+        else:
+            # Legacy string format: extract base type and metadata
+            match = re.match(r"^([^[\]]+)(?:\[(.+)\])?$", type_def)
+            if not match:
+                return (str, None)
+            base_type = match.group(1).strip()
+            metadata_str = match.group(2)
+            metadata = parse_metadata(metadata_str) if metadata_str else {}
 
         # Type mapping
         type_map: dict[str, type] = {
@@ -726,7 +741,7 @@ class TypeRegistry:
     def _apply_metadata(
         self,
         python_type: "Any",
-        metadata: dict[str, str],
+        metadata: "dict[str, Any]",
         is_numeric: bool,
     ) -> "tuple[Any, Any]":
         """
@@ -856,7 +871,7 @@ class TypeRegistry:
         self,
         text: str,
         type_code: str | None = None,
-        local_structs: dict[str, list[str] | dict[str, str] | str] | None = None,
+        local_structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None = None,
     ) -> Any:
         """
         Parse a string to a Python value.
@@ -930,7 +945,7 @@ class TypeRegistry:
     def _get_struct_type(
         self,
         code: str,
-        local_structs: dict[str, list[str] | dict[str, str] | str] | None = None,
+        local_structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None = None,
     ) -> _StructType | None:
         """
         Get a struct type by code, checking local_structs first.

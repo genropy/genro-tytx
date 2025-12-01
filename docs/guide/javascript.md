@@ -1,6 +1,6 @@
-# JavaScript API
+# JavaScript / TypeScript API
 
-TYTX includes a full JavaScript implementation for use in Node.js and browsers.
+TYTX includes full JavaScript and TypeScript implementations for use in Node.js and browsers. TypeScript type definitions are included in the package.
 
 ## Installation
 
@@ -343,4 +343,187 @@ ws.on('message', (data) => {
     const msg = from_json(data);
     // msg.timestamp is Date, msg.value is number
 });
+```
+
+## XTYTX Envelope Processing
+
+XTYTX (Extended TYTX) provides self-describing payloads with embedded struct definitions.
+
+### processEnvelope(envelope, options?)
+
+Process an XTYTX envelope containing struct definitions and data.
+
+```javascript
+const { processEnvelope } = require('genro-tytx');
+
+const envelope = {
+    struct: { name: 'T', balance: 'N', active: 'B' },
+    data: { name: 'Acme Corp', balance: '1000.50', active: 'true' }
+};
+
+const result = processEnvelope(envelope);
+// result.data → { name: 'Acme Corp', balance: 1000.50, active: true }
+```
+
+#### With Validations
+
+XTYTX supports global and local validations:
+
+```javascript
+const envelope = {
+    struct: { code: 'T', email: 'T' },
+    gvalidation: {
+        code: { pattern: '^[A-Z]{3}$' }
+    },
+    lvalidation: {
+        email: { pattern: '^[^@]+@[^@]+$' }
+    },
+    data: { code: 'ABC', email: 'test@example.com' }
+};
+
+const result = processEnvelope(envelope);
+// result.data is hydrated
+// result.gvalidation contains global validations (registered in ValidationRegistry)
+// result.lvalidation contains local validations (not registered)
+```
+
+## JSON Schema Conversion
+
+Convert between JSON Schema / OpenAPI and TYTX struct definitions.
+
+### structFromJsonSchema(schema, options?)
+
+Convert JSON Schema to TYTX v2 struct definition.
+
+```javascript
+const { structFromJsonSchema } = require('genro-tytx');
+
+const schema = {
+    type: 'object',
+    properties: {
+        id: { type: 'integer' },
+        name: { type: 'string', minLength: 1, maxLength: 100 },
+        email: { type: 'string', title: 'Email', description: 'User email' },
+        price: { type: 'number', format: 'decimal' }
+    },
+    required: ['id', 'name']
+};
+
+const struct = structFromJsonSchema(schema);
+// {
+//     id: { type: 'L', validate: { required: true } },
+//     name: { type: 'T', validate: { min: 1, max: 100, required: true } },
+//     email: { type: 'T', ui: { label: 'Email', hint: 'User email' } },
+//     price: 'N'
+// }
+```
+
+**Options:**
+
+- `name` (string): Name for root struct (used for nested struct naming)
+- `registry` (TypeRegistry): Registry to register nested structs
+- `registerNested` (boolean): Whether to register nested structs (default: true)
+
+### structToJsonSchema(struct, options?)
+
+Convert TYTX v2 struct to JSON Schema.
+
+```javascript
+const { structToJsonSchema } = require('genro-tytx');
+
+const struct = {
+    id: { type: 'L', validate: { required: true } },
+    name: { type: 'T', validate: { min: 1, max: 100 } },
+    email: { type: 'T', ui: { label: 'Email', hint: 'User email' } },
+    price: 'N'
+};
+
+const schema = structToJsonSchema(struct, { name: 'User' });
+// {
+//     title: 'User',
+//     type: 'object',
+//     properties: {
+//         id: { type: 'integer' },
+//         name: { type: 'string', minLength: 1, maxLength: 100 },
+//         email: { type: 'string', title: 'Email', description: 'User email' },
+//         price: { type: 'number', format: 'decimal' }
+//     },
+//     required: ['id']
+// }
+```
+
+**Options:**
+
+- `name` (string): Title for the schema
+- `registry` (TypeRegistry): Registry to resolve struct references (@NAME)
+- `includeDefinitions` (boolean): Include definitions for nested structs (default: true)
+
+## Struct v2 Format
+
+The v2 struct format separates type, validation, and UI metadata.
+
+### Field Formats
+
+```javascript
+// Simple field (no constraints)
+{ name: 'T' }
+
+// Field with constraints
+{
+    name: {
+        type: 'T',                              // TYTX type code
+        validate: {                             // Validation constraints
+            min: 1,                             // minLength for strings, minimum for numbers
+            max: 100,                           // maxLength for strings, maximum for numbers
+            length: 10,                         // exact length
+            pattern: '^[A-Z]+$',                // regex pattern
+            enum: ['active', 'inactive'],       // allowed values
+            required: true,                     // field is required
+            default: 'value'                    // default value
+        },
+        ui: {                                   // UI presentation hints
+            label: 'Name',                      // display label
+            hint: 'Enter your name',            // help text
+            placeholder: 'John Doe',            // input placeholder
+            readonly: true                      // read-only field
+        }
+    }
+}
+```
+
+### Field Helper Functions
+
+```javascript
+const { getFieldType, getFieldValidate, getFieldUI } = require('genro-tytx');
+
+const field = { type: 'T', validate: { min: 1 }, ui: { label: 'Name' } };
+
+getFieldType(field);     // → 'T'
+getFieldValidate(field); // → { min: 1 }
+getFieldUI(field);       // → { label: 'Name' }
+
+// Works with simple strings too
+getFieldType('L');       // → 'L'
+getFieldValidate('L');   // → undefined
+getFieldUI('L');         // → undefined
+```
+
+## TypeScript Types
+
+TypeScript includes full type definitions for struct v2:
+
+```typescript
+import type {
+    FieldDef,       // { type, validate?, ui? }
+    FieldValidate,  // { min?, max?, pattern?, enum?, required?, default? }
+    FieldUI,        // { label?, hint?, placeholder?, readonly? }
+    FieldValue,     // string | FieldDef
+    StructSchema    // FieldValue[] | Record<string, FieldValue> | string
+} from 'genro-tytx';
+
+// Type-safe struct definition
+const struct: Record<string, FieldValue> = {
+    id: { type: 'L', validate: { required: true } },
+    name: 'T'
+};
 ```

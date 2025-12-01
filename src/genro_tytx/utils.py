@@ -13,12 +13,23 @@
 # limitations under the License.
 
 """
-Utility functions for TYTX schema generation.
+Utility functions for TYTX schema generation (v2 format).
 
 This module provides helpers for:
-- Pydantic model → TYTX struct conversion
-- TYTX struct → Pydantic model generation (Feature 8)
+- Pydantic model → TYTX v2 struct conversion (extracts Field() constraints)
+- TYTX struct → Pydantic model generation
 - Python type → TYTX code mapping
+
+TYTX v2 Field Format:
+    Simple field (no constraints):
+        "name": "T"
+
+    Field with constraints (extracted from Pydantic Field()):
+        "name": {
+            "type": "T",
+            "validate": {"min": 1, "max": 100, "required": true},
+            "ui": {"label": "Name", "hint": "Enter name"}
+        }
 """
 
 from __future__ import annotations
@@ -163,9 +174,11 @@ def model_to_schema(
     include_nested: bool = True,
     register_callback: Any | None = None,
     _registered: set[type] | None = None,
-) -> dict[str, str]:
+) -> dict[str, str | dict[str, Any]]:
     """
-    Convert a Pydantic model to a TYTX dict schema.
+    Convert a Pydantic model to a TYTX v2 dict schema.
+
+    Extracts Field() constraints and metadata into validate/ui sections.
 
     Args:
         model_class: Pydantic BaseModel subclass
@@ -174,22 +187,25 @@ def model_to_schema(
         _registered: Internal set to track already registered models
 
     Returns:
-        Dict schema mapping field names to TYTX type codes
+        Dict schema mapping field names to TYTX type codes or FieldDef objects
 
     Raises:
         ImportError: If pydantic is not installed
         TypeError: If model_class is not a Pydantic BaseModel subclass
 
     Example:
-        from pydantic import BaseModel
+        from pydantic import BaseModel, Field
         from decimal import Decimal
 
         class Customer(BaseModel):
-            name: str
-            balance: Decimal
+            name: str = Field(min_length=1, max_length=100)
+            balance: Decimal = Field(ge=0)
 
         schema = model_to_schema(Customer)
-        # {'name': 'T', 'balance': 'N'}
+        # {
+        #     'name': {'type': 'T', 'validate': {'min': 1, 'max': 100}},
+        #     'balance': {'type': 'N', 'validate': {'min': 0}}
+        # }
     """
     try:
         from pydantic import BaseModel
@@ -207,7 +223,7 @@ def model_to_schema(
     if _registered is None:
         _registered = set()
 
-    schema: dict[str, str] = {}
+    schema: dict[str, str | dict[str, Any]] = {}
 
     for field_name, field_info in model_class.model_fields.items():
         annotation = field_info.annotation
@@ -217,25 +233,100 @@ def model_to_schema(
             register_callback=register_callback,
             _registered=_registered,
         )
-        schema[field_name] = type_code
+
+        # Extract Field() constraints into validate/ui sections
+        field_def = _extract_field_constraints(field_info, type_code)
+        schema[field_name] = field_def
 
     return schema
 
 
+def _extract_field_constraints(field_info: Any, type_code: str) -> str | dict[str, Any]:
+    """
+    Extract Pydantic Field() constraints into TYTX v2 FieldDef format.
+
+    Args:
+        field_info: Pydantic FieldInfo object
+        type_code: Base TYTX type code
+
+    Returns:
+        Simple type code if no constraints, or FieldDef dict with validate/ui.
+    """
+    validate: dict[str, Any] = {}
+    ui: dict[str, Any] = {}
+
+    # Check if field is required (no default)
+    if field_info.is_required():
+        validate["required"] = True
+
+    # Extract constraints from field_info metadata
+    # String constraints
+    if hasattr(field_info, "min_length") and field_info.min_length is not None:
+        validate["min"] = field_info.min_length
+    if hasattr(field_info, "max_length") and field_info.max_length is not None:
+        validate["max"] = field_info.max_length
+    if hasattr(field_info, "pattern") and field_info.pattern is not None:
+        validate["pattern"] = field_info.pattern
+
+    # Numeric constraints (ge, gt, le, lt)
+    if hasattr(field_info, "ge") and field_info.ge is not None:
+        validate["min"] = field_info.ge
+    if hasattr(field_info, "gt") and field_info.gt is not None:
+        validate["min"] = field_info.gt
+        validate["minExclusive"] = True
+    if hasattr(field_info, "le") and field_info.le is not None:
+        validate["max"] = field_info.le
+    if hasattr(field_info, "lt") and field_info.lt is not None:
+        validate["max"] = field_info.lt
+        validate["maxExclusive"] = True
+
+    # Multiple of (for decimals)
+    if hasattr(field_info, "multiple_of") and field_info.multiple_of is not None:
+        validate["multipleOf"] = field_info.multiple_of
+
+    # Default value
+    if field_info.default is not None and not field_info.is_required():
+        # Check if default is not PydanticUndefined
+        try:
+            from pydantic_core import PydanticUndefined
+            if field_info.default is not PydanticUndefined:
+                validate["default"] = field_info.default
+        except ImportError:
+            if field_info.default is not ...:
+                validate["default"] = field_info.default
+
+    # UI hints from title/description
+    if field_info.title:
+        ui["label"] = field_info.title
+    if field_info.description:
+        ui["hint"] = field_info.description
+
+    # Build FieldDef or return simple type
+    if validate or ui:
+        field_def: dict[str, Any] = {"type": type_code}
+        if validate:
+            field_def["validate"] = validate
+        if ui:
+            field_def["ui"] = ui
+        return field_def
+
+    return type_code
+
+
 def schema_to_model(
     code: str,
-    schema: dict[str, str],
+    schema: dict[str, str | dict[str, Any]],
     *,
-    struct_registry: dict[str, dict[str, str]] | None = None,
+    struct_registry: dict[str, dict[str, str | dict[str, Any]]] | None = None,
 ) -> type:
     """
-    Generate a Pydantic model from a TYTX struct schema.
+    Generate a Pydantic model from a TYTX v2 struct schema.
 
-    This is Feature 8: TYTX struct → Pydantic model generation.
+    Converts FieldDef validate/ui sections into Pydantic Field() constraints.
 
     Args:
         code: Struct code (used as model class name)
-        schema: TYTX dict schema mapping field names to type codes
+        schema: TYTX v2 dict schema (type codes or FieldDef objects)
         struct_registry: Optional dict of known structs for nested references
 
     Returns:
@@ -245,11 +336,14 @@ def schema_to_model(
         ImportError: If pydantic is not installed
 
     Example:
-        Model = schema_to_model('CUSTOMER', {'name': 'T', 'balance': 'N'})
+        Model = schema_to_model('CUSTOMER', {
+            'name': {'type': 'T', 'validate': {'min': 1, 'required': True}},
+            'balance': 'N'
+        })
         instance = Model(name='John', balance=Decimal('100.50'))
     """
     try:
-        from pydantic import create_model
+        from pydantic import Field, create_model
     except ImportError as e:
         raise ImportError(
             "pydantic is required for schema_to_model. "
@@ -262,12 +356,66 @@ def schema_to_model(
     # Build field definitions
     field_definitions: dict[str, tuple[type, Any]] = {}
 
-    for field_name, type_code in schema.items():
+    for field_name, field_def in schema.items():
+        # Parse v2 FieldDef
+        if isinstance(field_def, dict):
+            type_code = field_def.get("type", "T")
+            validate = field_def.get("validate", {})
+            ui = field_def.get("ui", {})
+        else:
+            type_code = field_def
+            validate = {}
+            ui = {}
+
         python_type = tytx_code_to_python_type(
             type_code, struct_registry=struct_registry
         )
-        # All fields are required by default (use ... as default)
-        field_definitions[field_name] = (python_type, ...)
+
+        # Build Field() kwargs from validate/ui
+        field_kwargs: dict[str, Any] = {}
+
+        # Required/default
+        is_required = validate.get("required", False)
+        if "default" in validate:
+            field_kwargs["default"] = validate["default"]
+        elif not is_required:
+            field_kwargs["default"] = None
+
+        # String constraints
+        if "min" in validate and python_type is str:
+            field_kwargs["min_length"] = validate["min"]
+        if "max" in validate and python_type is str:
+            field_kwargs["max_length"] = validate["max"]
+        if "pattern" in validate:
+            field_kwargs["pattern"] = validate["pattern"]
+
+        # Numeric constraints
+        if "min" in validate and python_type is not str:
+            if validate.get("minExclusive"):
+                field_kwargs["gt"] = validate["min"]
+            else:
+                field_kwargs["ge"] = validate["min"]
+        if "max" in validate and python_type is not str:
+            if validate.get("maxExclusive"):
+                field_kwargs["lt"] = validate["max"]
+            else:
+                field_kwargs["le"] = validate["max"]
+        if "multipleOf" in validate:
+            field_kwargs["multiple_of"] = validate["multipleOf"]
+
+        # UI hints
+        if "label" in ui:
+            field_kwargs["title"] = ui["label"]
+        if "hint" in ui:
+            field_kwargs["description"] = ui["hint"]
+
+        # Create field definition
+        if field_kwargs:
+            field_definitions[field_name] = (python_type, Field(**field_kwargs))
+        elif is_required:
+            field_definitions[field_name] = (python_type, ...)
+        else:
+            field_definitions[field_name] = (python_type, None)
 
     # Create model dynamically
     model_name = code.title().replace("_", "")
@@ -277,7 +425,7 @@ def schema_to_model(
 def tytx_code_to_python_type(
     type_code: str,
     *,
-    struct_registry: dict[str, dict[str, str]] | None = None,
+    struct_registry: dict[str, dict[str, str | dict[str, Any]]] | None = None,
 ) -> type:
     """
     Map a TYTX type code to a Python type.
