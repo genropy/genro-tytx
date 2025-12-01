@@ -2,235 +2,16 @@ from collections.abc import Callable
 from typing import Any
 
 from .base import DataType
+from .extension import CUSTOM_PREFIX
+from .extension import ExtensionType as _ExtensionType
+from .struct import STRUCT_PREFIX
+from .struct import StructType as _StructType
 
-# Symbol prefix for custom extension types (tilde = eXtension)
-CUSTOM_PREFIX = "~"
 # Symbol prefix for typed arrays (hash = each element #i)
 ARRAY_PREFIX = "#"
-# Symbol prefix for struct schema types (at = @schema)
-STRUCT_PREFIX = "@"
 
-# Legacy prefixes for backwards compatibility
-X_PREFIX = "X_"
-Y_PREFIX = "Y_"
-Z_PREFIX = "Z_"
-
-
-class _ExtensionType:
-    """
-    Wrapper for custom extension types registered via register_class.
-    """
-
-    def __init__(
-        self,
-        code: str,
-        cls: type | None,
-        serialize: Callable[[Any], str],
-        parse: Callable[[str], Any],
-    ) -> None:
-        self.code = f"{CUSTOM_PREFIX}{code}"
-        self.name = f"custom_{code.lower()}"
-        self.cls = cls
-        self._serialize = serialize
-        self._parse = parse
-        # For compatibility with DataType interface
-        self.python_type = cls
-
-    def parse(self, value: str) -> Any:
-        return self._parse(value)
-
-    def serialize(self, value: Any) -> str:
-        return self._serialize(value)
-
-
-def _parse_string_schema(schema_str: str) -> tuple[list[tuple[str, str]], bool]:
-    """
-    Parse a string schema definition.
-
-    Args:
-        schema_str: Schema string like "x:R,y:R" (named) or "R,R" (anonymous)
-
-    Returns:
-        Tuple of (fields, has_names) where:
-        - fields: list of (name, type_code) tuples. For anonymous, name is ""
-        - has_names: True if schema has field names (output dict), False (output list)
-    """
-    fields: list[tuple[str, str]] = []
-    has_names = False
-
-    for part in schema_str.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        if ":" in part:
-            name, type_code = part.split(":", 1)
-            fields.append((name.strip(), type_code.strip()))
-            has_names = True
-        else:
-            fields.append(("", part.strip()))
-
-    return fields, has_names
-
-
-class _StructType:
-    """
-    Wrapper for struct schema types registered via register_struct.
-
-    Supports three schema formats:
-    - list: positional types ['T', 'L', 'N'] or homogeneous ['N']
-    - dict: keyed types {'name': 'T', 'balance': 'N'}
-    - str: ordered types "x:R,y:R" (named → dict) or "R,R" (anonymous → list)
-    """
-
-    code: str
-    name: str
-    python_type: None
-    schema: "list[str] | dict[str, str] | str"
-    _registry: "TypeRegistry"
-    _string_fields: "list[tuple[str, str]] | None"
-    _string_has_names: bool
-
-    def __init__(
-        self,
-        code: str,
-        schema: "list[str] | dict[str, str] | str",
-        registry: "TypeRegistry",
-    ) -> None:
-        self.code = f"{STRUCT_PREFIX}{code}"
-        self.name = f"struct_{code.lower()}"
-        self._registry = registry
-        self.python_type = None
-        self.schema = schema
-
-        # Parse string schema to internal representation
-        if isinstance(schema, str):
-            fields, has_names = _parse_string_schema(schema)
-            self._string_fields = fields
-            self._string_has_names = has_names
-        else:
-            self._string_fields = None
-            self._string_has_names = False
-
-    def parse(self, value: str) -> Any:
-        """Parse JSON string using schema."""
-        import json
-
-        data = json.loads(value)
-        return self._apply_schema(data)
-
-    def serialize(self, value: Any) -> str:
-        """Serialize value to JSON string."""
-        import json
-
-        return json.dumps(value, separators=(",", ":"))
-
-    def _apply_schema(self, data: Any) -> Any:
-        """Apply schema to hydrate data."""
-        # String schema: use parsed fields
-        if self._string_fields is not None:
-            return self._apply_string_schema(data)
-        # Dict schema
-        if isinstance(self.schema, dict):
-            return self._apply_dict_schema(data)
-        # List schema
-        return self._apply_list_schema(data)
-
-    def _apply_string_schema(self, data: Any) -> Any:
-        """Apply string schema to data (list input).
-
-        Always treats data as a single record. For batch processing
-        (array of records), use ::#@STRUCT syntax instead.
-        """
-        if not isinstance(data, list):
-            return data
-        return self._apply_string_schema_single(data)
-
-    def _apply_string_schema_single(self, data: list[Any]) -> Any:
-        """Apply string schema to a single list."""
-        # Type narrowing: this method is only called when _string_fields is set
-        assert self._string_fields is not None
-        result_list = []
-        for i, (_name, type_code) in enumerate(self._string_fields):
-            if i < len(data):
-                result_list.append(self._hydrate_value(data[i], type_code))
-            else:
-                result_list.append(None)
-
-        # If schema has names, return dict; otherwise return list
-        if self._string_has_names:
-            return {
-                name: value
-                for (name, _), value in zip(
-                    self._string_fields, result_list, strict=False
-                )
-            }
-        return result_list
-
-    def _apply_dict_schema(self, data: Any) -> Any:
-        """Apply dict schema to data."""
-        if not isinstance(data, dict):
-            return data
-        result = dict(data)
-        # Type narrowing: this method is only called when schema is a dict
-        assert isinstance(self.schema, dict)
-        for key, type_code in self.schema.items():
-            if key in result:
-                result[key] = self._hydrate_value(result[key], type_code)
-        return result
-
-    def _apply_list_schema(self, data: Any) -> Any:
-        """Apply list schema to data."""
-        if not isinstance(data, list):
-            return data
-        # Type narrowing: this method is only called when schema is a list
-        assert isinstance(self.schema, list)
-        if len(self.schema) == 1:
-            # Homogeneous: apply single type to all elements
-            type_code = self.schema[0]
-            return [self._apply_homogeneous(item, type_code) for item in data]
-        else:
-            # Positional: apply type at index i to data[i]
-            # If data is array of arrays, apply positionally to each sub-array
-            if data and isinstance(data[0], list):
-                return [self._apply_positional(item) for item in data]
-            return self._apply_positional(data)
-
-    def _apply_homogeneous(self, item: Any, type_code: str) -> Any:
-        """Apply homogeneous type recursively."""
-        if isinstance(item, list):
-            return [self._apply_homogeneous(i, type_code) for i in item]
-        return self._hydrate_value(item, type_code)
-
-    def _apply_positional(self, data: list[Any]) -> list[Any]:
-        """Apply positional schema to a single list."""
-        # Type narrowing: this method is only called when schema is a list
-        assert isinstance(self.schema, list)
-        result = []
-        for i, item in enumerate(data):
-            if i < len(self.schema):
-                result.append(self._hydrate_value(item, self.schema[i]))
-            else:
-                result.append(item)
-        return result
-
-    def _hydrate_value(self, value: Any, type_code: str) -> Any:
-        """Hydrate a single value using type code."""
-        # Check if it's a struct reference (recursive)
-        if type_code.startswith(STRUCT_PREFIX):
-            struct_type = self._registry.get(type_code)
-            if struct_type and isinstance(struct_type, _StructType):
-                return struct_type._apply_schema(value)
-            return value
-
-        # Regular type
-        type_cls = self._registry.get(type_code)
-        if type_cls:
-            type_instance = _get_type_instance(type_cls)
-            if not isinstance(value, str):
-                value = str(value)
-            return type_instance.parse(value)
-
-        return value
+# Re-export for backwards compatibility
+__all_prefixes__ = ["CUSTOM_PREFIX", "ARRAY_PREFIX", "STRUCT_PREFIX", "X_PREFIX", "Y_PREFIX", "Z_PREFIX"]
 
 
 def _get_type_instance(
@@ -386,6 +167,62 @@ class TypeRegistry:
             if struct_type.name in self._types:
                 del self._types[struct_type.name]
 
+    def struct_from_model(
+        self,
+        model_class: type,
+        *,
+        include_nested: bool = False,
+    ) -> dict[str, str]:
+        """
+        Generate a TYTX struct schema from a Pydantic model.
+
+        Extracts:
+        - Type mappings (str -> T, int -> L, Decimal -> N, etc.)
+        - Field constraints as metadata (min_length -> min, pattern -> reg, etc.)
+        - Literal types as enum metadata
+        - Nested Pydantic models as @STRUCT references
+
+        Args:
+            model_class: Pydantic BaseModel subclass
+            include_nested: If True, recursively register nested Pydantic models
+                as separate structs (default False - just generate references)
+
+        Returns:
+            Dict schema with TYTX type codes and metadata, e.g.:
+            {'name': 'T[min:1, max:100]', 'email': 'T[reg:"^[^@]+@[^@]+$"]'}
+
+        Raises:
+            ImportError: If pydantic is not installed
+            TypeError: If model_class is not a Pydantic BaseModel subclass
+
+        Examples:
+            from pydantic import BaseModel, Field
+
+            class Customer(BaseModel):
+                name: str = Field(min_length=1, max_length=100)
+                email: str = Field(pattern=r'^[^@]+@[^@]+$')
+
+            schema = registry.struct_from_model(Customer)
+            # → {'name': 'T[min:1, max:100]', 'email': 'T[reg:"^[^@]+@[^@]+$"]'}
+
+            # Then register:
+            registry.register_struct('CUSTOMER', schema)
+        """
+        try:
+            from pydantic import BaseModel
+        except ImportError as e:
+            raise ImportError(
+                "pydantic is required for struct_from_model. "
+                "Install with: pip install genro-tytx[pydantic]"
+            ) from e
+
+        if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
+            raise TypeError(
+                f"model_class must be a Pydantic BaseModel subclass, got {type(model_class)}"
+            )
+
+        return self._model_to_schema(model_class, include_nested)
+
     def register_struct_from_model(
         self,
         code: str,
@@ -395,6 +232,10 @@ class TypeRegistry:
     ) -> None:
         """
         Auto-generate and register a struct schema from a Pydantic model.
+
+        This is a convenience method that combines struct_from_model() and
+        register_struct(). For more control, use struct_from_model() to
+        generate the schema first, inspect/modify it, then register_struct().
 
         Args:
             code: Struct code (will be prefixed with @)
@@ -407,30 +248,17 @@ class TypeRegistry:
             TypeError: If model_class is not a Pydantic BaseModel subclass
 
         Examples:
-            from pydantic import BaseModel
+            from pydantic import BaseModel, Field
             from decimal import Decimal
 
             class Customer(BaseModel):
-                name: str
-                balance: Decimal
+                name: str = Field(min_length=1, title="Customer Name")
+                balance: Decimal = Field(ge=0)
 
             registry.register_struct_from_model('CUSTOMER', Customer)
-            # Equivalent to: registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+            # Registers: {'name': 'T[min:1, lbl:"Customer Name"]', 'balance': 'N[min:0]'}
         """
-        try:
-            from pydantic import BaseModel
-        except ImportError as e:
-            raise ImportError(
-                "pydantic is required for register_struct_from_model. "
-                "Install with: pip install genro-tytx[pydantic]"
-            ) from e
-
-        if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
-            raise TypeError(
-                f"model_class must be a Pydantic BaseModel subclass, got {type(model_class)}"
-            )
-
-        schema = self._model_to_schema(model_class, include_nested)
+        schema = self.struct_from_model(model_class, include_nested=include_nested)
         self.register_struct(code, schema)
 
     def _model_to_schema(
@@ -448,7 +276,7 @@ class TypeRegistry:
             _registered: Internal set to track already registered models (avoid infinite recursion)
 
         Returns:
-            Dict schema mapping field names to TYTX type codes
+            Dict schema mapping field names to TYTX type codes with metadata
         """
         if _registered is None:
             _registered = set()
@@ -461,9 +289,101 @@ class TypeRegistry:
             type_code = self._python_type_to_tytx_code(
                 annotation, include_nested, _registered
             )
+            # Extract metadata from field_info
+            metadata = self._extract_field_metadata(field_info, annotation)
+            if metadata:
+                type_code = f"{type_code}[{metadata}]"
             schema[field_name] = type_code
 
         return schema
+
+    def _extract_field_metadata(self, field_info: Any, annotation: Any) -> str:
+        """
+        Extract TYTX metadata from Pydantic FieldInfo.
+
+        Maps Pydantic constraints to TYTX metadata facets:
+        - min_length -> min (for strings)
+        - max_length -> max (for strings)
+        - pattern -> reg
+        - ge (>=) -> min (for numbers)
+        - le (<=) -> max (for numbers)
+        - gt (>) -> min+1 (for numbers)
+        - lt (<) -> max-1 (for numbers)
+        - title -> lbl
+        - description -> hint
+        - default -> def (if not None and not PydanticUndefined)
+        - Literal[...] -> enum
+
+        Returns:
+            Metadata string (without brackets) or empty string
+        """
+        import typing
+
+        from .metadata_parser import format_metadata
+
+        metadata: dict[str, str] = {}
+
+        # Extract constraints from field_info.metadata (Pydantic v2)
+        # In Pydantic v2, constraints are stored as annotated_types objects
+        if hasattr(field_info, "metadata") and field_info.metadata:
+            for constraint in field_info.metadata:
+                constraint_type = type(constraint).__name__
+
+                # String constraints
+                if constraint_type == "MinLen":
+                    metadata["min"] = str(constraint.min_length)
+                elif constraint_type == "MaxLen":
+                    metadata["max"] = str(constraint.max_length)
+                elif constraint_type == "Pattern":
+                    metadata["reg"] = constraint.pattern
+
+                # Numeric constraints
+                elif constraint_type == "Ge":
+                    metadata["min"] = str(constraint.ge)
+                elif constraint_type == "Le":
+                    metadata["max"] = str(constraint.le)
+                elif constraint_type == "Gt":
+                    # gt means > value, so min is value + 1 for integers
+                    metadata["min"] = str(constraint.gt + 1)
+                elif constraint_type == "Lt":
+                    # lt means < value, so max is value - 1 for integers
+                    metadata["max"] = str(constraint.lt - 1)
+
+                # Pydantic general metadata (includes pattern for strings)
+                elif (
+                    constraint_type == "_PydanticGeneralMetadata"
+                    and hasattr(constraint, "pattern")
+                    and constraint.pattern is not None
+                ):
+                    metadata["reg"] = constraint.pattern
+
+        # UI metadata (these are direct attributes on FieldInfo)
+        if hasattr(field_info, "title") and field_info.title is not None:
+            metadata["lbl"] = field_info.title
+        if hasattr(field_info, "description") and field_info.description is not None:
+            metadata["hint"] = field_info.description
+
+        # Default value (skip PydanticUndefined and None)
+        if hasattr(field_info, "default"):
+            default = field_info.default
+            # Check for PydanticUndefined
+            try:
+                from pydantic_core import PydanticUndefined
+
+                if default is not PydanticUndefined and default is not None:
+                    metadata["def"] = str(default)
+            except ImportError:
+                if default is not None:
+                    metadata["def"] = str(default)
+
+        # Handle Literal type for enum
+        origin = typing.get_origin(annotation)
+        if origin is typing.Literal:
+            args = typing.get_args(annotation)
+            if args:
+                metadata["enum"] = "|".join(str(a) for a in args)
+
+        return format_metadata(metadata)
 
     def _python_type_to_tytx_code(
         self,

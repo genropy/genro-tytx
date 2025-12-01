@@ -54,12 +54,20 @@ from .builtin import (
     StrType,
     TimeType,
 )
+from .extension import ExtensionType
 from .json_utils import (
     as_json,
     as_typed_json,
     from_json,
 )
 from .registry import TypeRegistry, registry
+from .struct import StructType, ValidationDef, ValidationRegistry, validation_registry
+from .utils import (
+    model_to_schema,
+    python_type_to_tytx_code,
+    schema_to_model,
+    tytx_code_to_python_type,
+)
 from .xml_utils import (
     as_typed_xml,
     as_xml,
@@ -90,6 +98,18 @@ __all__ = [
     "registry",
     "TypeRegistry",
     "DataType",
+    # Struct & Extension types
+    "StructType",
+    "ExtensionType",
+    # Validation
+    "ValidationRegistry",
+    "ValidationDef",
+    "validation_registry",
+    # Pydantic utilities
+    "model_to_schema",
+    "schema_to_model",
+    "python_type_to_tytx_code",
+    "tytx_code_to_python_type",
     # Type classes
     "BoolType",
     "DateTimeType",

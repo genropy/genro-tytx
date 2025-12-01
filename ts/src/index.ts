@@ -78,6 +78,26 @@ export { asTypedJson, asJson, fromJson, hydrateObject, hydrateArray } from './js
 // MessagePack utilities
 export { TYTX_EXT_TYPE, packb, unpackb, __setMsgpackLoader } from './msgpack.js';
 
+// Validation
+export {
+  ValidationRegistry,
+  ValidationError,
+  STANDARD_VALIDATIONS,
+  validationRegistry,
+  createValidationRegistry,
+} from './validation.js';
+export type { ValidationDef } from './validation.js';
+
+// Metadata
+export {
+  parseMetadata,
+  formatMetadata,
+  validateMetadata,
+  MetadataParseError,
+  KNOWN_KEYS,
+} from './metadata.js';
+export type { MetadataDict } from './metadata.js';
+
 // Model
 export { TytxModel } from './model.js';
 

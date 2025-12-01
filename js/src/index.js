@@ -47,6 +47,24 @@ const {
 // Import TytxModel
 const { TytxModel } = require('./tytx_model');
 
+// Import Validation
+const {
+    ValidationRegistry,
+    ValidationError,
+    STANDARD_VALIDATIONS,
+    validationRegistry,
+    createValidationRegistry
+} = require('./validation');
+
+// Import Metadata
+const {
+    parseMetadata,
+    formatMetadata,
+    validateMetadata,
+    MetadataParseError,
+    KNOWN_KEYS
+} = require('./metadata');
+
 // Public API functions (bound to registry)
 const from_text = registry.from_text.bind(registry);
 const as_text = registry.as_text.bind(registry);
@@ -89,5 +107,19 @@ module.exports = {
     DateTimeType,
 
     // Model base class
-    TytxModel
+    TytxModel,
+
+    // Validation
+    ValidationRegistry,
+    ValidationError,
+    STANDARD_VALIDATIONS,
+    validationRegistry,
+    createValidationRegistry,
+
+    // Metadata
+    parseMetadata,
+    formatMetadata,
+    validateMetadata,
+    MetadataParseError,
+    KNOWN_KEYS
 };
