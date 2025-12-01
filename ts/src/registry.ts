@@ -7,7 +7,7 @@
  * @module registry
  */
 
-import type { DataType, TytxValue, TypeCode } from './types.js';
+import type { DataType, TytxValue, TypeCode, StructSchema } from './types.js';
 import { isTypedString, extractTypeCode, extractValue } from './types.js';
 
 /**
@@ -55,13 +55,8 @@ export interface ExtensionType<T = unknown> {
   parse: (s: string) => T;
 }
 
-/**
- * Schema type for struct registration.
- * - string[]: positional types ['T', 'L', 'N'] or homogeneous ['N']
- * - Record<string, string>: keyed types {name: 'T', balance: 'N'}
- * - string: ordered types "x:R,y:R" (named → object) or "R,R" (anonymous → array)
- */
-export type StructSchema = string[] | Record<string, string> | string;
+// Re-export StructSchema from types.ts
+export type { StructSchema } from './types.js';
 
 /**
  * Parsed string schema field.
@@ -465,8 +460,16 @@ export class TypeRegistry {
    * Supports typed arrays: "[1,2,3]::#L" applies type to all leaf values.
    * Supports struct schemas: '{"a":1}::@CODE' applies schema to data.
    * Supports array of structs: '[...]::@#CODE' applies schema to each element.
+   *
+   * @param value - The typed string to parse
+   * @param typeCode - Optional explicit type code
+   * @param localStructs - Optional local struct definitions that take precedence over registry
    */
-  fromText(value: string, typeCode?: TypeCode): TytxValue {
+  fromText(
+    value: string,
+    typeCode?: TypeCode,
+    localStructs?: Record<string, StructSchema> | null,
+  ): TytxValue {
     if (typeCode) {
       const type = this.get(typeCode);
       return type ? (type.parse(value) as TytxValue) : value;
@@ -487,7 +490,7 @@ export class TypeRegistry {
       // Check if it's a struct reference (#@STRUCT)
       if (baseTypeCode.startsWith(STRUCT_PREFIX)) {
         const structCode = baseTypeCode.slice(STRUCT_PREFIX.length);
-        const structType = this.structs.get(structCode);
+        const structType = this.getStructType(structCode, localStructs);
         if (structType) {
           return this.parseStructArray(rawValue, structType) as TytxValue;
         }
@@ -502,10 +505,10 @@ export class TypeRegistry {
       return value;
     }
 
-    // Handle @ prefix (struct)
+    // Handle @ prefix (struct) - check localStructs first, then registry
     if (code.startsWith(STRUCT_PREFIX)) {
       const structCode = code.slice(STRUCT_PREFIX.length);
-      const structType = this.structs.get(structCode);
+      const structType = this.getStructType(structCode, localStructs);
       if (structType) {
         const data = JSON.parse(rawValue) as unknown;
         return this.applySchema(data, structType) as TytxValue;
@@ -524,6 +527,38 @@ export class TypeRegistry {
     }
 
     return value;
+  }
+
+  /**
+   * Get a struct type by code, checking localStructs first.
+   */
+  private getStructType(
+    code: string,
+    localStructs?: Record<string, StructSchema> | null,
+  ): StructType | undefined {
+    // Check localStructs first (higher precedence)
+    if (localStructs && code in localStructs) {
+      const schema = localStructs[code];
+      let stringFields: StringSchemaField[] | null = null;
+      let stringHasNames = false;
+
+      if (typeof schema === 'string') {
+        const parsed = this.parseStringSchema(schema);
+        stringFields = parsed.fields;
+        stringHasNames = parsed.hasNames;
+      }
+
+      return {
+        code: STRUCT_PREFIX + code,
+        name: `struct_${code.toLowerCase()}`,
+        schema,
+        stringFields,
+        stringHasNames,
+      };
+    }
+
+    // Fall back to registry
+    return this.structs.get(code);
   }
 
   /**

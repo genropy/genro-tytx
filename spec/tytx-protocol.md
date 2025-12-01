@@ -41,15 +41,20 @@ The core syntax is `value::type_code`.
 
 If a value does not contain `::`, it is treated as a standard string (or native JSON type if already parsed).
 
-### Global Marker
+### Global Marker (Protocol Prefix)
 
-For entire payloads containing TYTX values, append `::TYTX`:
+For entire payloads containing TYTX values, use the `TYTX://` prefix:
 
+```text
+TYTX://{"price": "100.50::N", "date": "2025-01-15::D"}
 ```
-{"price": "100.50::N", "date": "2025-01-15::D"}::TYTX
-```
 
-The `::TYTX` suffix indicates the payload contains typed values that need hydration. The format (JSON, XML, etc.) is auto-detected from the content.
+The `TYTX://` prefix is placed at the **beginning** (not end) to allow:
+
+- Immediate format detection without buffering the entire payload
+- Streaming-friendly processing
+
+The `://` separator (URL-style) is distinct from the `::` separator used for inline type codes (`value::TYPE`).
 
 ---
 
@@ -72,7 +77,11 @@ The `::TYTX` suffix indicates the payload contains typed values that need hydrat
 
 ### Custom Types (Extension Types)
 
-Custom types use the `X_` prefix and are registered via `register_class`. See [type-codes.md](type-codes.md#custom-types-extension-types) for details.
+Custom types use the `~` prefix and are registered via `register_class`. See [type-codes.md](type-codes.md#custom-types-extension-types) for details.
+
+### Extended Envelope (XTYTX)
+
+For self-contained payloads that include struct definitions, use XTYTX. See [xtytx.md](xtytx.md) for details.
 
 ---
 

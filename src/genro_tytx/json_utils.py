@@ -7,6 +7,10 @@ JSON-native types (int, float, bool, str, null) are NOT marked with type codes
 because JSON already preserves their type. Only non-native types (Decimal, date,
 datetime, time) receive type markers.
 
+Protocol Prefixes:
+    TYTX://   - Standard typed payload
+    XTYTX://  - Extended envelope with struct definitions
+
 Usage:
     # Typed JSON (TYTX format - reversible)
     as_typed_json({"count": 5, "price": Decimal("99.50")})
@@ -16,6 +20,9 @@ Usage:
 
     # Standard JSON (for external systems - may lose precision)
     as_json(data)  # → '{"price": 99.5}'
+
+    # XTYTX envelope with inline struct definitions
+    from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "TYTX://..."}')
 """
 
 import json
@@ -24,6 +31,10 @@ from decimal import Decimal
 from typing import Any
 
 from .registry import registry
+
+# Protocol prefix constants
+TYTX_PREFIX = "TYTX://"
+XTYTX_PREFIX = "XTYTX://"
 
 
 def _typed_encoder(obj: Any) -> str:
@@ -74,23 +85,64 @@ def _standard_encoder(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def _hydrate(obj: Any) -> Any:
+def _hydrate(obj: Any, local_structs: dict | None = None) -> Any:
     """
     Recursively hydrate typed strings in parsed JSON.
 
     Args:
         obj: Parsed JSON value (dict, list, str, etc.).
+        local_structs: Optional dict of local struct definitions that take
+                       precedence over registry during hydration.
 
     Returns:
         Value with typed strings converted to Python objects.
     """
     if isinstance(obj, str):
-        return registry.from_text(obj)
+        return registry.from_text(obj, local_structs=local_structs)
     if isinstance(obj, dict):
-        return {k: _hydrate(v) for k, v in obj.items()}
+        return {k: _hydrate(v, local_structs) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_hydrate(v) for v in obj]
+        return [_hydrate(v, local_structs) for v in obj]
     return obj
+
+
+def _process_xtytx(envelope: dict) -> Any:
+    """
+    Process XTYTX envelope.
+
+    1. Register gstruct entries globally (overwrites existing)
+    2. Build local_structs context from lstruct
+    3. Decode data using combined context
+    4. Return decoded data (or None if data is empty)
+
+    Args:
+        envelope: Parsed XTYTX envelope with gstruct, lstruct, data fields.
+
+    Returns:
+        Decoded data or None if data is empty.
+
+    Raises:
+        KeyError: If required fields are missing.
+    """
+    gstruct = envelope["gstruct"]
+    lstruct = envelope["lstruct"]
+    data = envelope["data"]
+
+    # Register gstruct entries globally (overwrites existing)
+    for code, schema in gstruct.items():
+        registry.register_struct(code, schema)
+
+    # If data is empty, return None
+    if not data:
+        return None
+
+    # Strip TYTX:// prefix from data if present
+    if data.startswith(TYTX_PREFIX):
+        data = data[len(TYTX_PREFIX):]
+
+    # Parse and hydrate data with lstruct as local context
+    parsed = json.loads(data)
+    return _hydrate(parsed, local_structs=lstruct if lstruct else None)
 
 
 def as_typed_json(obj: Any, **kwargs: Any) -> str:
@@ -136,14 +188,35 @@ def from_json(s: str, **kwargs: Any) -> Any:
     """
     Parse JSON string and hydrate typed values.
 
-    Typed strings (e.g., "123.45::D") are converted to Python objects.
-    Non-typed values are returned as-is.
+    Supports three formats:
+    - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
+    - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
+    - XTYTX:// prefix: 'XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "..."}'
+      - gstruct entries are registered globally
+      - lstruct entries are used only during this decode
+      - data is decoded using combined struct context
 
     Args:
-        s: JSON string to parse.
+        s: JSON string to parse (may have TYTX:// or XTYTX:// prefix).
         **kwargs: Additional arguments passed to json.loads.
 
     Returns:
         Python object with typed values hydrated.
+        Returns None if XTYTX envelope has empty data.
+
+    Raises:
+        KeyError: If XTYTX envelope is missing required fields.
+        json.JSONDecodeError: If JSON is invalid.
     """
+    # Check for XTYTX:// prefix
+    if s.startswith(XTYTX_PREFIX):
+        envelope_json = s[len(XTYTX_PREFIX):]
+        envelope = json.loads(envelope_json, **kwargs)
+        return _process_xtytx(envelope)
+
+    # Check for TYTX:// prefix
+    if s.startswith(TYTX_PREFIX):
+        s = s[len(TYTX_PREFIX):]
+
+    # Regular JSON with TYTX typed values
     return _hydrate(json.loads(s, **kwargs))

@@ -1,41 +1,41 @@
-# TYTX - Decisioni Architetturali
+# TYTX - Architectural Decisions
 
-**Versione**: 0.2.0
-**Data**: 2025-11-30
-**Status**: 🟡 PARZIALMENTE APPROVATO
+**Version**: 0.3.0
+**Date**: 2025-12-01
+**Status**: Partially Approved
 
 ---
 
-## 1. Tre Implementazioni Parallele
+## 1. Three Parallel Implementations
 
-### Decisione
+### Decision
 
-TYTX ha **tre implementazioni ufficiali** indipendenti che seguono la stessa specifica:
+TYTX has **three official implementations** that follow the same specification:
 
-| Implementazione | Package | Runtime |
+| Implementation | Package | Runtime |
 |----------------|---------|---------|
 | **Python** | `genro-tytx` (PyPI) | Python 3.10+ |
 | **JavaScript** | `genro-tytx` (npm) | Node.js, Browser |
 | **TypeScript** | `genro-tytx` (npm) | Node.js, Browser |
 
-Non c'è generazione automatica di codice tra le implementazioni.
+There is no automatic code generation between implementations.
 
-### Motivazione
+### Rationale
 
-1. **Ottimizzazione per piattaforma**: ogni linguaggio usa idiomi nativi
-2. **Zero dipendenze di build**: non serve codegen
-3. **Semplicità**: la specifica è la fonte di verità, non il codice
-4. **Type safety**: TypeScript fornisce tipi statici per sviluppatori TS
+1. **Platform optimization**: each language uses native idioms
+2. **Zero build dependencies**: no codegen required
+3. **Simplicity**: the specification is the source of truth, not the code
+4. **Type safety**: TypeScript provides static types for TS developers
 
 ---
 
-## 2. Type Codes Mnemonici
+## 2. Mnemonic Type Codes
 
-### Decisione
+### Decision
 
-I codici tipo sono **mnemonici** per facilitare la memorizzazione.
+Type codes are **mnemonic** to facilitate memorization.
 
-### Type Codes Built-in
+### Built-in Type Codes
 
 | Code | Python Type | Note |
 |------|-------------|------|
@@ -50,221 +50,241 @@ I codici tipo sono **mnemonici** per facilitare la memorizzazione.
 | `N` | Decimal | **N**umeric |
 | `JS` | list/dict | **J**ava**S**cript object |
 
-### Motivazione
+### Rationale
 
-1. **Memorizzazione facile**: ogni codice è un acronimo del tipo
-2. **Compattezza**: codici brevi per payload compatti
-3. **Leggibilità**: facile capire il tipo guardando il codice
+1. **Easy memorization**: each code is an acronym of the type
+2. **Compactness**: short codes for compact payloads
+3. **Readability**: easy to understand the type by looking at the code
 
 ---
 
 ## 3. Type Code Prefixes
 
-### Decisione
+### Decision
 
-TYTX usa **tre prefissi simbolici** per distinguere categorie di tipi:
+TYTX uses **three symbolic prefixes** to distinguish type categories:
 
-| Prefisso | Categoria | Registrazione | Esempio |
-|----------|-----------|---------------|---------|
-| (nessuno) | Built-in | TYTX core | `::L`, `::D`, `::DHZ` |
+| Prefix | Category | Registration | Example |
+|--------|----------|--------------|---------|
+| (none) | Built-in | TYTX core | `::L`, `::D`, `::DHZ` |
 | `~` | Custom class | `register_class` | `::~UUID`, `::~INV` |
 | `@` | Struct schema | `register_struct` | `::@CUSTOMER`, `::@ROW` |
 | `#` | Typed array | (inline) | `::#L`, `::#N`, `::#@ROW` |
 
-### Motivazione
+### Rationale
 
-1. **Nessuna collisione**: simboli riservati, impossibile conflitto con codici alfanumerici
-2. **Chiaro nel wire format**: si vede subito la categoria del tipo
-3. **Composizione**: `#@ROW` combina array + struct
-4. **Futuro-proof**: TYTX può aggiungere nuovi built-in senza conflitti
+1. **No collision**: reserved symbols, impossible conflict with alphanumeric codes
+2. **Clear in wire format**: category is immediately visible
+3. **Composition**: `#@ROW` combines array + struct
+4. **Future-proof**: TYTX can add new built-ins without conflicts
 
 ---
 
-## 4. Custom Types con Prefisso `~`
+## 4. Custom Types with `~` Prefix
 
-### Decisione
+### Decision
 
-I tipi custom definiti dall'utente usano il prefisso `~` (tilde) per evitare collisioni con i tipi built-in.
+User-defined custom types use the `~` (tilde) prefix to avoid collisions with built-in types.
 
-### Pattern `register_class`
+### `register_class` Pattern
 
 ```python
 # Python
 registry.register_class(
-    code="UUID",  # diventa "~UUID"
+    code="UUID",  # becomes "~UUID"
     cls=uuid.UUID,
     serialize=lambda u: str(u),
     parse=lambda s: uuid.UUID(s)
 )
 
-as_typed_text(my_uuid)  # → "550e8400-...::~UUID"
+as_typed_text(my_uuid)  # -> "550e8400-...::~UUID"
 ```
 
 ```javascript
 // JavaScript
 registry.register_class({
-    code: "UUID",  // diventa "~UUID"
+    code: "UUID",  // becomes "~UUID"
     cls: null,
     serialize: (u) => String(u),
     parse: (s) => s
 });
 
-from_text("550e8400-...::~UUID");  // → "550e8400-..."
+from_text("550e8400-...::~UUID");  // -> "550e8400-..."
 ```
 
-### Motivazione
+### Rationale
 
-1. **Simbolo compatto**: `~` è più leggibile di `X_`
-2. **Convenzione Unix**: `~` evoca "custom/home"
-3. **Fallback sicuro**: se JS non conosce `~XXX`, resta stringa
+1. **Compact symbol**: `~` is more readable than `X_`
+2. **Unix convention**: `~` evokes "custom/home"
+3. **Safe fallback**: if JS doesn't know `~XXX`, it remains a string
 
 ---
 
-## 5. Struct Schemas con Prefisso `@`
+## 5. Struct Schemas with `@` Prefix
 
-### Decisione
+### Decision
 
-Gli struct schema usano il prefisso `@` e supportano tre formati di definizione:
+Struct schemas use the `@` prefix and support three definition formats:
 
-| Formato | Esempio | Input | Output |
-|---------|---------|-------|--------|
+| Format | Example | Input | Output |
+|--------|---------|-------|--------|
 | Dict | `{name: 'T', balance: 'N'}` | `{...}` | `{...}` |
 | List | `['T', 'L', 'N']` | `[...]` | `[...]` |
-| String | `'x:R,y:R'` | `[...]` | `{...}` o `[...]` |
+| String | `'x:R,y:R'` | `[...]` | `{...}` or `[...]` |
 
-### Pattern `register_struct`
+### `register_struct` Pattern
 
 ```python
-# Dict schema - per oggetti
+# Dict schema - for objects
 registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
 
-# List schema - per tuple posizionali
+# List schema - for positional tuples
 registry.register_struct('ROW', ['T', 'L', 'N'])
 
-# String schema - per dati CSV-like
+# String schema - for CSV-like data
 registry.register_struct('POINT', 'x:R,y:R')
 ```
 
-### Array di Struct con `#@`
+### Array of Structs with `#@`
 
-Il prefisso `#` si combina con `@` per array di struct:
+The `#` prefix combines with `@` for arrays of structs:
 
 ```python
 from_text('[["A", 1], ["B", 2]]::#@ROW')
-# → [["A", 1], ["B", 2]] (con tipi applicati)
+# -> [["A", 1], ["B", 2]] (with types applied)
 ```
 
-### Motivazione
+### Rationale
 
-1. **Schema-based**: definisci una volta, usa ovunque
-2. **CSV-ready**: string schema perfetto per dati tabulari
-3. **Composizione**: `#@` combina array + struct elegantemente
-
----
-
-## 6. Struttura XML con attrs/value
-
-### Decisione
-
-La struttura XML usa `{"tag": {"attrs": {...}, "value": ...}}` sia in Python che JS.
-
-### Motivazione
-
-1. **Separazione chiara**: attributi e contenuto sono distinti
-2. **Parità Python/JS**: stessa struttura su entrambe le piattaforme
-3. **Gestione di casi complessi**: elementi con attributi e figli
+1. **Schema-based**: define once, use everywhere
+2. **CSV-ready**: string schema perfect for tabular data
+3. **Composition**: `#@` combines array + struct elegantly
 
 ---
 
-## 7. MessagePack con ExtType 42
+## 6. Protocol Prefix Syntax (`://`)
 
-### Decisione
+### Decision
 
-TYTX usa MessagePack ExtType code **42** per payload tipizzati.
+Global payloads use the `://` separator (URL-style) instead of `::`:
 
-### Formato
+| Protocol | Syntax | Description |
+|----------|--------|-------------|
+| TYTX | `TYTX://{"price": "100::N"}` | Standard typed payload |
+| XTYTX | `XTYTX://{"gstruct": {...}, ...}` | Extended envelope with structs |
+
+### Rationale
+
+1. **Universal familiarity**: everyone knows `http://`, `ftp://`, `file://`
+2. **Clear semantics**: indicates "this is the protocol, what follows is data"
+3. **Clear distinction**: from `::` used for inline type codes
+4. **Easy to parse**: just search for `://` to find the boundary
+
+---
+
+## 7. XML Structure with attrs/value
+
+### Decision
+
+The XML structure uses `{"tag": {"attrs": {...}, "value": ...}}` in both Python and JS.
+
+### Rationale
+
+1. **Clear separation**: attributes and content are distinct
+2. **Python/JS parity**: same structure on both platforms
+3. **Complex case handling**: elements with both attributes and children
+
+---
+
+## 8. MessagePack with ExtType 42
+
+### Decision
+
+TYTX uses MessagePack ExtType code **42** for typed payloads.
+
+### Format
 
 ```python
 ExtType(42, b'{"price": "100::N"}')
 ```
 
-Il contenuto è JSON con valori TYTX encoded.
+The content is JSON with TYTX encoded values.
 
-### Motivazione
+### Rationale
 
-1. **Identificazione univoca**: ExtType 42 è riservato a TYTX
-2. **Interoperabilità**: JSON interno è leggibile ovunque
-3. **Efficienza**: msgpack per il trasporto, JSON per la struttura
+1. **Unique identification**: ExtType 42 is reserved for TYTX
+2. **Interoperability**: internal JSON is readable everywhere
+3. **Efficiency**: msgpack for transport, JSON for structure
 
 ---
 
-## 8. API Pubblica snake_case
+## 9. Public API snake_case
 
-### Decisione
+### Decision
 
-Tutte le API pubbliche usano **snake_case** sia in Python che JavaScript.
+All public APIs use **snake_case** in both Python and JavaScript.
 
-### API Core
+### Core API
 
-| Funzione | Descrizione |
+| Function | Description |
 |----------|-------------|
-| `from_text(text, type_code=None)` | Parse stringa tipizzata |
-| `as_text(value, format=None, locale=None)` | Serializza senza tipo |
-| `as_typed_text(value, compact_array=False)` | Serializza con tipo |
-| `from_json(json_str)` | Parse JSON con idratazione |
-| `as_json(data)` | JSON standard |
-| `as_typed_json(data)` | JSON con tipi TYTX |
+| `from_text(text, type_code=None)` | Parse typed string |
+| `as_text(value, format=None, locale=None)` | Serialize without type |
+| `as_typed_text(value, compact_array=False)` | Serialize with type |
+| `from_json(json_str)` | Parse JSON with hydration |
+| `as_json(data)` | Standard JSON |
+| `as_typed_json(data)` | JSON with TYTX types |
 | `from_xml(xml_str)` | Parse XML |
-| `as_xml(data, root_tag=None)` | XML standard |
-| `as_typed_xml(data, root_tag=None)` | XML con tipi TYTX |
+| `as_xml(data, root_tag=None)` | Standard XML |
+| `as_typed_xml(data, root_tag=None)` | XML with TYTX types |
 | `from_msgpack(data)` | Parse MessagePack |
-| `as_msgpack(data)` | MessagePack standard |
-| `as_typed_msgpack(data)` | MessagePack con ExtType 42 |
+| `as_msgpack(data)` | Standard MessagePack |
+| `as_typed_msgpack(data)` | MessagePack with ExtType 42 |
 
-### Motivazione
+### Rationale
 
-1. **Consistenza**: stesso stile su tutte le piattaforme
-2. **Python-friendly**: snake_case è lo standard Python (PEP 8)
-3. **Predicibilità**: utenti sanno sempre cosa aspettarsi
+1. **Consistency**: same style across all platforms
+2. **Python-friendly**: snake_case is the Python standard (PEP 8)
+3. **Predictability**: users always know what to expect
 
 ---
 
-## 9. Zero Dipendenze Core
+## 10. Zero Core Dependencies
 
-### Decisione
+### Decision
 
-Il core TYTX non ha dipendenze runtime, solo stdlib.
+The TYTX core has no runtime dependencies, only stdlib.
 
-### Dipendenze Opzionali
+### Optional Dependencies
 
 **Python:**
 
-- `orjson` - JSON più veloce
-- `msgpack` - supporto MessagePack
+- `orjson` - faster JSON
+- `msgpack` - MessagePack support
 
 **JavaScript:**
 
-- `big.js` o `decimal.js` - Decimal preciso
+- `big.js` or `decimal.js` - precise Decimal
 - `@msgpack/msgpack` - MessagePack
 
-### Motivazione
+### Rationale
 
-1. **Installazione leggera**: funziona out-of-the-box
-2. **Nessun conflitto**: no dependency hell
-3. **Opt-in performance**: chi vuole può aggiungere orjson/msgpack
+1. **Lightweight installation**: works out-of-the-box
+2. **No conflicts**: no dependency hell
+3. **Opt-in performance**: those who want can add orjson/msgpack
 
 ---
 
-## 10. Dual Output: Standard e Typed
+## 11. Dual Output: Standard and Typed
 
-### Decisione
+### Decision
 
-Ogni formato ha due funzioni di output:
+Each format has two output functions:
 
-- `as_*` → output standard (per sistemi esterni)
-- `as_typed_*` → output con tipi TYTX
+- `as_*` -> standard output (for external systems)
+- `as_typed_*` -> output with TYTX types
 
-### Esempio
+### Example
 
 ```python
 data = {"price": Decimal("100.50")}
@@ -273,48 +293,80 @@ as_json(data)        # '{"price": 100.5}'      (standard)
 as_typed_json(data)  # '{"price": "100.50::N"}' (TYTX)
 ```
 
-### Motivazione
+### Rationale
 
-1. **Interoperabilità**: `as_json` produce JSON valido per qualsiasi sistema
-2. **Preservazione tipi**: `as_typed_json` mantiene informazione di tipo
-3. **Scelta esplicita**: l'utente decide quale usare
-
----
-
-## 11. DataType Interno per Built-in
-
-### Decisione
-
-`DataType` è una classe base **interna** usata solo per i tipi built-in.
-Gli utenti usano `register_class` per tipi custom.
-
-### Motivazione
-
-1. **API semplice**: `register_class` è più facile da usare
-2. **Nessuna ereditarietà**: pattern funzionale
-3. **Separazione**: core stabile, custom flessibile
+1. **Interoperability**: `as_json` produces valid JSON for any system
+2. **Type preservation**: `as_typed_json` maintains type information
+3. **Explicit choice**: user decides which to use
 
 ---
 
-## 12. Fallback Graceful
+## 12. Internal DataType for Built-ins
 
-### Decisione
+### Decision
 
-Tipi sconosciuti vengono restituiti come stringhe, senza errori.
+`DataType` is an **internal** base class used only for built-in types.
+Users use `register_class` for custom types.
 
-### Comportamento
+### Rationale
+
+1. **Simple API**: `register_class` is easier to use
+2. **No inheritance**: functional pattern
+3. **Separation**: stable core, flexible custom
+
+---
+
+## 13. Graceful Fallback
+
+### Decision
+
+Unknown types are returned as strings, without errors.
+
+### Behavior
 
 ```python
-from_text("value::UNKNOWN")  # → "value::UNKNOWN" (stringa)
-from_text("value::~FOO")  # → "value::~FOO" (se non registrato)
-from_text("value::@BAR")  # → "value::@BAR" (struct non registrato)
+from_text("value::UNKNOWN")  # -> "value::UNKNOWN" (string)
+from_text("value::~FOO")  # -> "value::~FOO" (if not registered)
+from_text("value::@BAR")  # -> "value::@BAR" (struct not registered)
 ```
 
-### Motivazione
+### Rationale
 
-1. **Robustezza**: nessun crash per tipi mancanti
-2. **Debugging facile**: il valore originale è preservato
-3. **Interoperabilità**: Python e JS possono avere tipi diversi registrati
+1. **Robustness**: no crash for missing types
+2. **Easy debugging**: original value is preserved
+3. **Interoperability**: Python and JS can have different registered types
+
+---
+
+## 14. XTYTX Extended Envelope
+
+### Decision
+
+XTYTX is an envelope format for self-contained payloads with struct definitions:
+
+```text
+XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "TYTX://..."}
+```
+
+### Fields
+
+| Field | Description |
+|-------|-------------|
+| `gstruct` | Global structs - registered permanently (overwrites existing) |
+| `lstruct` | Local structs - valid only for this payload |
+| `data` | TYTX payload (can be empty for struct-only registration) |
+
+### Lookup Precedence
+
+During decoding: `lstruct` > `registry` (lstruct wins on conflict)
+
+### Rationale
+
+1. **Self-contained**: no pre-registration needed
+2. **Flexible**: global + local struct definitions
+3. **Streaming-friendly**: prefix allows early detection
+
+See [xtytx.md](../spec/xtytx.md) for full specification.
 
 ---
 

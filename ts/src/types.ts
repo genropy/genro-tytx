@@ -103,6 +103,14 @@ export interface FetchOptions extends RequestInit {
 }
 
 /**
+ * Schema type for struct registration.
+ * - string[]: positional types ['T', 'L', 'N'] or homogeneous ['N']
+ * - Record<string, string>: keyed types {name: 'T', balance: 'N'}
+ * - string: ordered types "x:R,y:R" (named → object) or "R,R" (anonymous → array)
+ */
+export type StructSchema = string[] | Record<string, string> | string;
+
+/**
  * Type guard for typed strings.
  */
 export function isTypedString(value: unknown): value is TypedString {

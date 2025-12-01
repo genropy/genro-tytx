@@ -423,7 +423,12 @@ class TypeRegistry:
         _, type_part = text.rsplit("::", 1)
         return self.get(type_part) is not None
 
-    def from_text(self, text: str, type_code: str | None = None) -> Any:
+    def from_text(
+        self,
+        text: str,
+        type_code: str | None = None,
+        local_structs: dict[str, list[str] | dict[str, str] | str] | None = None,
+    ) -> Any:
         """
         Parse a string to a Python value.
 
@@ -433,6 +438,9 @@ class TypeRegistry:
                 Supports struct schemas with @ prefix: '{"a":1}::@CODE'.
                 Supports custom types with ~ prefix: 'uuid::~UUID'.
             type_code: Optional explicit type code. If provided, uses this type.
+            local_structs: Optional dict of local struct definitions that take
+                precedence over registry during hydration. Used by XTYTX for
+                lstruct entries.
 
         Returns:
             Parsed Python value, or original string if no type found.
@@ -457,8 +465,9 @@ class TypeRegistry:
             base_type_code = type_part[len(ARRAY_PREFIX) :]
             # Check if it's a struct reference (#@STRUCT)
             if base_type_code.startswith(STRUCT_PREFIX):
-                struct_type = self.get(base_type_code)
-                if struct_type and isinstance(struct_type, _StructType):
+                struct_code = base_type_code[len(STRUCT_PREFIX) :]
+                struct_type = self._get_struct_type(struct_code, local_structs)
+                if struct_type:
                     return self._parse_struct_array(val_part, struct_type)
                 return text
             # Regular typed array (#L, #N, etc.)
@@ -467,10 +476,11 @@ class TypeRegistry:
                 return self._parse_typed_array(val_part, base_type)
             return text
 
-        # Handle @ prefix (struct) - delegate to _StructType.parse()
+        # Handle @ prefix (struct) - check local_structs first, then registry
         if type_part.startswith(STRUCT_PREFIX):
-            struct_type = self.get(type_part)
-            if struct_type and isinstance(struct_type, _StructType):
+            struct_code = type_part[len(STRUCT_PREFIX) :]
+            struct_type = self._get_struct_type(struct_code, local_structs)
+            if struct_type:
                 return struct_type.parse(val_part)
             return text
 
@@ -487,6 +497,33 @@ class TypeRegistry:
             return _get_type_instance(type_cls).parse(val_part)
 
         return text
+
+    def _get_struct_type(
+        self,
+        code: str,
+        local_structs: dict[str, list[str] | dict[str, str] | str] | None = None,
+    ) -> _StructType | None:
+        """
+        Get a struct type by code, checking local_structs first.
+
+        Args:
+            code: Struct code without @ prefix
+            local_structs: Optional dict of local struct definitions
+
+        Returns:
+            _StructType instance or None if not found
+        """
+        # Check local_structs first (higher precedence)
+        if local_structs and code in local_structs:
+            # Create temporary _StructType for local schema
+            return _StructType(code, local_structs[code], self)
+
+        # Fall back to registry
+        full_code = f"{STRUCT_PREFIX}{code}"
+        struct_type = self.get(full_code)
+        if struct_type and isinstance(struct_type, _StructType):
+            return struct_type
+        return None
 
     def _parse_typed_array(
         self, json_str: str, type_cls: "type[DataType] | _ExtensionType | _StructType"

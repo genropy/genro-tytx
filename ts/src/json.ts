@@ -1,30 +1,90 @@
 /**
  * JSON utilities for TYTX TypeScript implementation.
  *
+ * Protocol Prefixes:
+ *     TYTX://   - Standard typed payload
+ *     XTYTX://  - Extended envelope with struct definitions
+ *
  * @module json
  */
 
-import type { TytxValue, TytxObject, JsonOptions } from './types.js';
+import type { TytxValue, TytxObject, JsonOptions, StructSchema } from './types.js';
 import { registry } from './registry.js';
+
+/** Protocol prefix for standard TYTX payloads */
+export const TYTX_PREFIX = 'TYTX://';
+
+/** Protocol prefix for extended TYTX envelopes with struct definitions */
+export const XTYTX_PREFIX = 'XTYTX://';
+
+/** XTYTX envelope structure */
+interface XtytxEnvelope {
+  gstruct: Record<string, StructSchema>;
+  lstruct: Record<string, StructSchema>;
+  data: string;
+}
 
 /**
  * Recursively hydrate typed strings in parsed JSON.
  */
-function hydrate(obj: unknown): TytxValue {
+function hydrate(obj: unknown, localStructs: Record<string, StructSchema> | null = null): TytxValue {
   if (typeof obj === 'string') {
-    return registry.fromText(obj);
+    return registry.fromText(obj, undefined, localStructs);
   }
   if (Array.isArray(obj)) {
-    return obj.map(hydrate);
+    return obj.map((item) => hydrate(item, localStructs));
   }
   if (obj !== null && typeof obj === 'object') {
     const result: TytxObject = {};
     for (const [k, v] of Object.entries(obj)) {
-      result[k] = hydrate(v);
+      result[k] = hydrate(v, localStructs);
     }
     return result;
   }
   return obj as TytxValue;
+}
+
+/**
+ * Process XTYTX envelope.
+ *
+ * 1. Register gstruct entries globally (overwrites existing)
+ * 2. Build localStructs context from lstruct
+ * 3. Decode data using combined context
+ * 4. Return decoded data (or null if data is empty)
+ */
+function processXtytx(envelope: XtytxEnvelope): TytxValue {
+  const { gstruct, lstruct, data } = envelope;
+
+  if (gstruct === undefined) {
+    throw new Error('XTYTX envelope missing required field: gstruct');
+  }
+  if (lstruct === undefined) {
+    throw new Error('XTYTX envelope missing required field: lstruct');
+  }
+  if (data === undefined) {
+    throw new Error('XTYTX envelope missing required field: data');
+  }
+
+  // Register gstruct entries globally (overwrites existing)
+  for (const [code, schema] of Object.entries(gstruct)) {
+    registry.register_struct(code, schema);
+  }
+
+  // If data is empty, return null
+  if (!data) {
+    return null;
+  }
+
+  // Strip TYTX:// prefix from data if present
+  let dataStr = data;
+  if (dataStr.startsWith(TYTX_PREFIX)) {
+    dataStr = dataStr.slice(TYTX_PREFIX.length);
+  }
+
+  // Parse and hydrate data with lstruct as local context
+  const parsed = JSON.parse(dataStr) as unknown;
+  const localStructs = Object.keys(lstruct).length > 0 ? lstruct : null;
+  return hydrate(parsed, localStructs);
 }
 
 /**
@@ -96,14 +156,38 @@ export function asJson(obj: unknown, options: JsonOptions = {}): string {
 /**
  * Parse JSON string and hydrate typed values.
  *
+ * Supports three formats:
+ * - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
+ * - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
+ * - XTYTX:// prefix: 'XTYTX://{"gstruct": {...}, "lstruct": {...}, "data": "..."}'
+ *   - gstruct entries are registered globally
+ *   - lstruct entries are used only during this decode
+ *   - data is decoded using combined struct context
+ *
  * @example
  * ```ts
  * const data = fromJson('{"price":"99.99::N","date":"2025-01-15::D"}');
  * // { price: 99.99, date: Date }
+ *
+ * const data2 = fromJson('XTYTX://{"gstruct": {"X": {...}}, "lstruct": {}, "data": "TYTX://..."}');
  * ```
  */
 export function fromJson<T = TytxValue>(jsonStr: string): T {
-  return hydrate(JSON.parse(jsonStr)) as T;
+  // Check for XTYTX:// prefix
+  if (jsonStr.startsWith(XTYTX_PREFIX)) {
+    const envelopeJson = jsonStr.slice(XTYTX_PREFIX.length);
+    const envelope = JSON.parse(envelopeJson) as XtytxEnvelope;
+    return processXtytx(envelope) as T;
+  }
+
+  // Check for TYTX:// prefix
+  let s = jsonStr;
+  if (s.startsWith(TYTX_PREFIX)) {
+    s = s.slice(TYTX_PREFIX.length);
+  }
+
+  // Regular JSON with TYTX typed values
+  return hydrate(JSON.parse(s)) as T;
 }
 
 /**

@@ -316,9 +316,11 @@ class TypeRegistry {
      * Supports structs: "data::@STRUCT" and arrays of structs: "data::#@STRUCT"
      * @param {string} text - The string to parse. May contain embedded type (value::type).
      * @param {string} [type_code] - Optional explicit type code.
+     * @param {Object|null} [localStructs] - Optional local struct definitions that take
+     *                                       precedence over registry during hydration.
      * @returns {*} Parsed value, or original string if no type found.
      */
-    from_text(text, type_code = null) {
+    from_text(text, type_code = null, localStructs = null) {
         // If explicit type provided, use it
         if (type_code !== null) {
             const type_def = this.get(type_code);
@@ -341,7 +343,7 @@ class TypeRegistry {
         // Check for array of structs: #@STRUCT
         if (type_part.startsWith(ARRAY_PREFIX + STRUCT_PREFIX)) {
             const struct_name = type_part.slice(2); // Remove #@
-            const struct_type = this._structs.get(struct_name);
+            const struct_type = this._getStructType(struct_name, localStructs);
             if (struct_type) {
                 return this._parseStructArray(val_part, struct_type);
             }
@@ -351,7 +353,7 @@ class TypeRegistry {
         // Check for struct: @STRUCT
         if (type_part.startsWith(STRUCT_PREFIX)) {
             const struct_name = type_part.slice(1); // Remove @
-            const struct_type = this._structs.get(struct_name);
+            const struct_type = this._getStructType(struct_name, localStructs);
             if (struct_type) {
                 const data = JSON.parse(val_part);
                 return this._applySchema(data, struct_type);
@@ -369,6 +371,40 @@ class TypeRegistry {
         }
 
         return text;
+    }
+
+    /**
+     * Get a struct type by name, checking localStructs first.
+     * @param {string} name - Struct name without @ prefix
+     * @param {Object|null} localStructs - Optional local struct definitions
+     * @returns {StructType|null} Struct type or null if not found
+     * @private
+     */
+    _getStructType(name, localStructs = null) {
+        // Check localStructs first (higher precedence)
+        if (localStructs && name in localStructs) {
+            // Create temporary struct type for local schema
+            const schema = localStructs[name];
+            let stringFields = null;
+            let stringHasNames = false;
+
+            if (typeof schema === 'string') {
+                const parsed = this._parseStringSchema(schema);
+                stringFields = parsed.fields;
+                stringHasNames = parsed.hasNames;
+            }
+
+            return {
+                code: STRUCT_PREFIX + name,
+                name: name,
+                schema: schema,
+                stringFields: stringFields,
+                stringHasNames: stringHasNames
+            };
+        }
+
+        // Fall back to registry
+        return this._structs.get(name) || null;
     }
 
     /**
