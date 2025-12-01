@@ -56,6 +56,77 @@ class ValidationDef(TypedDict, total=False):
     code: str  # Machine-readable error code
 
 
+class FieldValidate(TypedDict, total=False):
+    """Validation constraints for a struct field."""
+
+    min: int | float  # Minimum value or length
+    max: int | float  # Maximum value or length
+    length: int  # Exact length
+    pattern: str  # Regex pattern
+    enum: list[str]  # Allowed values
+    validation: str  # Named validation reference
+    required: bool  # Field is required
+    default: Any  # Default value if missing
+
+
+class FieldUI(TypedDict, total=False):
+    """UI presentation hints for a struct field."""
+
+    label: str  # Display label
+    placeholder: str  # Input placeholder text
+    hint: str  # Help text / tooltip
+    readonly: bool | str  # Read-only (bool or condition)
+    hidden: bool | str  # Hidden (bool or condition)
+    format: str  # Display format
+    width: int | str  # Field width
+    rows: int  # Textarea rows
+
+
+class FieldDef(TypedDict, total=False):
+    """Extended field definition with type and metadata."""
+
+    type: str  # Required: TYTX type code
+    validate: FieldValidate  # Validation constraints
+    ui: FieldUI  # UI presentation hints
+
+
+# Type alias for field value: string (simple) or FieldDef (extended)
+FieldValue = str | FieldDef
+
+
+def get_field_type(field: FieldValue) -> str:
+    """
+    Extract the type code from a field definition.
+
+    Args:
+        field: Either a string type code or a FieldDef object
+
+    Returns:
+        The TYTX type code
+
+    Examples:
+        get_field_type("T") -> "T"
+        get_field_type({"type": "T", "validate": {"min": 1}}) -> "T"
+    """
+    if isinstance(field, str):
+        return field
+    return field.get("type", "T")
+
+
+def get_field_validate(field: FieldValue) -> FieldValidate | None:
+    """Extract validation constraints from a field definition."""
+    if isinstance(field, str):
+        return None
+    return field.get("validate")
+
+
+def get_field_ui(field: FieldValue) -> FieldUI | None:
+    """Extract UI hints from a field definition."""
+    if isinstance(field, str):
+        return None
+    return field.get("ui")
+
+
 class ValidationError(Exception):
     """Raised when validation fails."""
 
@@ -334,7 +405,7 @@ class StructType:
     code: str
     name: str
     python_type: None
-    schema: list[str] | dict[str, str] | str
+    schema: list[FieldValue] | dict[str, FieldValue] | str
     _registry: Any  # TypeRegistry - avoid circular import
     _string_fields: list[tuple[str, str]] | None
     _string_has_names: bool
@@ -342,7 +413,7 @@ class StructType:
     def __init__(
         self,
         code: str,
-        schema: list[str] | dict[str, str] | str,
+        schema: list[FieldValue] | dict[str, FieldValue] | str,
         registry: Any,  # TypeRegistry
     ) -> None:
         self.code = f"{STRUCT_PREFIX}{code}"
@@ -422,7 +493,8 @@ class StructType:
         result = dict(data)
         # Type narrowing: this method is only called when schema is a dict
         assert isinstance(self.schema, dict)
-        for key, type_code in self.schema.items():
+        for key, field_def in self.schema.items():
+            type_code = get_field_type(field_def)
             if key in result:
                 result[key] = self._hydrate_value(result[key], type_code)
         return result
@@ -435,7 +507,8 @@ class StructType:
         assert isinstance(self.schema, list)
         if len(self.schema) == 1:
             # Homogeneous: apply single type to all elements
-            type_code = self.schema[0]
+            field_def = self.schema[0]
+            type_code = get_field_type(field_def)
             return [self._apply_homogeneous(item, type_code) for item in data]
         else:
             # Positional: apply type at index i to data[i]
@@ -457,7 +530,9 @@ class StructType:
         result = []
         for i, item in enumerate(data):
             if i < len(self.schema):
-                result.append(self._hydrate_value(item, self.schema[i]))
+                field_def = self.schema[i]
+                type_code = get_field_type(field_def)
+                result.append(self._hydrate_value(item, type_code))
             else:
                 result.append(item)
         return result
@@ -663,4 +738,12 @@ __all__ = [
     "_parse_string_schema",
     "create_validation_registry",
     "validation_registry",
+    # Struct v2 types
+    "FieldDef",
+    "FieldUI",
+    "FieldValidate",
+    "FieldValue",
+    "get_field_type",
+    "get_field_ui",
+    "get_field_validate",
 ]
