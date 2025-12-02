@@ -46,7 +46,65 @@ __all__ = [
     "as_typed_json",
     "as_json",
     "from_json",
+    "hydrate_dict",
+    "is_tytx_payload",
+    "detect_tytx_mode",
 ]
+
+
+def is_tytx_payload(data: str | bytes) -> bool:
+    """
+    Check if a payload is a TYTX or XTYTX formatted string.
+
+    Args:
+        data: String or bytes to check.
+
+    Returns:
+        True if the data starts with TYTX:// or XTYTX:// prefix.
+
+    Example:
+        >>> is_tytx_payload('TYTX://{"price": "100::N"}')
+        True
+        >>> is_tytx_payload('{"price": 100}')
+        False
+    """
+    if isinstance(data, bytes):
+        return data.startswith(b"TYTX://") or data.startswith(b"XTYTX://")
+    return data.startswith(TYTX_PREFIX) or data.startswith(XTYTX_PREFIX)
+
+
+def detect_tytx_mode(data: str | bytes) -> str | None:
+    """
+    Detect the TYTX mode from a payload.
+
+    Args:
+        data: String or bytes to analyze.
+
+    Returns:
+        "tytx" if payload starts with TYTX://
+        "xtytx" if payload starts with XTYTX://
+        None if no TYTX prefix is detected
+
+    Example:
+        >>> detect_tytx_mode('XTYTX://{"data": "..."}')
+        'xtytx'
+        >>> detect_tytx_mode('TYTX://{"price": "100::N"}')
+        'tytx'
+        >>> detect_tytx_mode('{"price": 100}')
+        None
+    """
+    if isinstance(data, bytes):
+        if data.startswith(b"XTYTX://"):
+            return "xtytx"
+        if data.startswith(b"TYTX://"):
+            return "tytx"
+        return None
+
+    if data.startswith(XTYTX_PREFIX):
+        return "xtytx"
+    if data.startswith(TYTX_PREFIX):
+        return "tytx"
+    return None
 
 
 def _typed_encoder(obj: Any) -> str:
@@ -116,6 +174,43 @@ def _hydrate(obj: Any, local_structs: dict | None = None) -> Any:
     if isinstance(obj, list):
         return [_hydrate(v, local_structs) for v in obj]
     return obj
+
+
+def hydrate_dict(
+    data: dict[str, Any],
+    *,
+    local_structs: dict | None = None,
+    inplace: bool = False,
+) -> dict[str, Any]:
+    """
+    Hydrate typed values in an existing dictionary.
+
+    Useful when you already have a parsed dict (e.g., from a web framework)
+    and want to hydrate TYTX typed strings without re-parsing.
+
+    Args:
+        data: Dictionary with potential TYTX typed strings.
+        local_structs: Optional dict of local struct definitions.
+        inplace: If True, modify the original dict. If False (default),
+                 return a new dict with hydrated values.
+
+    Returns:
+        Dictionary with typed strings converted to Python objects.
+
+    Example:
+        >>> hydrate_dict({"price": "100::N", "date": "2025-01-15::D"})
+        {"price": Decimal("100"), "date": date(2025, 1, 15)}
+
+        >>> # From Flask/FastAPI parsed JSON:
+        >>> request_data = request.get_json()
+        >>> hydrated = hydrate_dict(request_data)
+    """
+    if inplace:
+        for key, value in data.items():
+            data[key] = _hydrate(value, local_structs)
+        return data
+    result = _hydrate(data, local_structs)
+    return result  # type: ignore[no-any-return]
 
 
 def _hydrate_json(data: str, local_structs: dict | None = None) -> Any:

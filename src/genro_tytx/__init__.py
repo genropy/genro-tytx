@@ -67,9 +67,14 @@ from .http_utils import (
     fetch_xtytx,
 )
 from .json_utils import (
+    TYTX_PREFIX,
+    XTYTX_PREFIX,
     as_json,
     as_typed_json,
+    detect_tytx_mode,
     from_json,
+    hydrate_dict,
+    is_tytx_payload,
 )
 from .middleware.asgi import TytxASGIMiddleware
 from .middleware.wsgi import TytxWSGIMiddleware
@@ -112,6 +117,9 @@ as_typed_text = registry.as_typed_text
 __version__ = "0.5.0"
 __all__ = [
     "__version__",
+    # Protocol constants
+    "TYTX_PREFIX",
+    "XTYTX_PREFIX",
     # Text API
     "from_text",
     "as_text",
@@ -120,6 +128,10 @@ __all__ = [
     "as_json",
     "as_typed_json",
     "from_json",
+    "hydrate_dict",
+    # Detection helpers
+    "is_tytx_payload",
+    "detect_tytx_mode",
     # HTTP helpers
     "fetch_typed",
     "fetch_typed_request",
