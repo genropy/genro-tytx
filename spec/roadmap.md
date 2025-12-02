@@ -30,9 +30,7 @@ This document provides a comprehensive overview of all TYTX features, their impl
 | 7 | Generate structures from Pydantic | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 8 | Generate Pydantic models from structures | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 9 | Generate structures from XSD | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
-| 10 | Visual structure editor | :white_check_mark: DONE | N/A | :white_check_mark: | N/A |
-| 11 | Visual data editor using structures | :red_circle: TODO | N/A | :red_circle: | N/A |
-| 12 | JSON Schema / OpenAPI integration | :white_check_mark: DONE | :white_check_mark: | :red_circle: | :red_circle: |
+| 10 | JSON Schema / OpenAPI integration | :white_check_mark: DONE | :white_check_mark: | :red_circle: | :red_circle: |
 
 ---
 
