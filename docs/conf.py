@@ -36,6 +36,9 @@ myst_enable_extensions = [
 # Theme
 html_theme = "sphinx_rtd_theme"
 
+# Logo
+html_logo = "_static/logo.png"
+
 # Source files
 source_suffix = {
     ".rst": "restructuredtext",

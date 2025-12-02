@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/_static/logo.png" alt="TYTX Logo" width="300">
+</p>
+
 # TYTX - Typed Text Protocol
 
 **A multi-language protocol for type-safe data exchange over JSON, XML, and MessagePack.**
