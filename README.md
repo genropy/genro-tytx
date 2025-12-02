@@ -7,6 +7,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml)
+[![Documentation](https://readthedocs.org/projects/genro-tytx/badge/?version=latest)](https://genro-tytx.readthedocs.io/en/latest/)
 
 ---
 
