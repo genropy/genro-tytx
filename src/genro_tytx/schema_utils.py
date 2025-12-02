@@ -94,7 +94,7 @@ _JSONSCHEMA_TO_TYTX: dict[tuple[str, str | None], str] = {
     ("string", None): "T",
     # Date/time formats
     ("string", "date"): "D",
-    ("string", "date-time"): "DH",
+    ("string", "date-time"): "DHZ",
     ("string", "time"): "H",
     # Other string formats (still strings in TYTX)
     ("string", "email"): "T",

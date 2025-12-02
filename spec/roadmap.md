@@ -402,7 +402,7 @@ schema = struct_to_jsonschema(struct)
 | `boolean` | `B` |
 | `string` | `T` |
 | `string` + `format: date` | `D` |
-| `string` + `format: date-time` | `DH` / `DHZ` |
+| `string` + `format: date-time` | `DHZ` (canonical) |
 | `string` + `format: time` | `H` |
 | `array` + `items` | `#X` or `#@STRUCT` |
 | `object` + `properties` | `@STRUCT` (nested) |

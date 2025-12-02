@@ -30,7 +30,7 @@ const JSONSCHEMA_TO_TYTX = {
   'boolean:': 'B',
   'string:': 'T',
   'string:date': 'D',
-  'string:date-time': 'DH',
+  'string:date-time': 'DHZ', // DHZ is canonical for timezone-aware datetime
   'string:time': 'H',
   'string:email': 'T',
   'string:uri': 'T',

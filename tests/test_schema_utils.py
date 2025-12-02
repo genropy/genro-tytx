@@ -67,7 +67,7 @@ class TestStructFromJsonschema:
         struct = struct_from_jsonschema(schema)
         assert struct == {
             "birth_date": "D",
-            "created_at": "DH",
+            "created_at": "DHZ",  # DHZ is canonical for timezone-aware datetime
             "start_time": "H",
         }
 

@@ -63,7 +63,7 @@ describe('structFromJsonSchema (v2)', () => {
     const struct = structFromJsonSchema(schema);
     expect(struct).toEqual({
       birth_date: 'D',
-      created_at: 'DH',
+      created_at: 'DHZ', // DHZ is canonical for timezone-aware datetime
       start_time: 'H',
     });
   });
