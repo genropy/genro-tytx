@@ -116,11 +116,10 @@ export type {
   FetchTypedRequestOptions,
   FetchSendKind,
   FetchXtytxOptions,
-  XtytxEnvelope,
 } from './fetch.js';
 
 // Version
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
 
 // Convenience re-exports from registry
 import { registry } from './registry.js';

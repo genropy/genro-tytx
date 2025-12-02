@@ -38,7 +38,7 @@ export interface FetchXtytxOptions extends FetchTypedOptions {
   autoStructs?: boolean;
 }
 
-function serializeTypedBody(body: any, kind: FetchSendKind): { body: BodyInit; headers: HeadersInit } {
+function serializeTypedBody(body: any, kind: FetchSendKind): { body: string | Uint8Array; headers: Record<string, string> } {
   if (kind === 'msgpack') {
     const packed = packb(body);
     return { body: packed, headers: { 'Content-Type': 'application/msgpack', 'X-TYTX-Request': 'msgpack' } };
