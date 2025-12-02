@@ -208,6 +208,9 @@ class TestRegisterStructFromModel:
             value: str
             children: list["Node"] = []
 
+        # Force Pydantic to resolve forward references (needed for Python 3.10)
+        Node.model_rebuild()
+
         # Should not raise RecursionError
         registry.register_struct_from_model("NODE", Node)
 
