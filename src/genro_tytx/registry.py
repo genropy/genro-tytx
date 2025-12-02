@@ -126,7 +126,10 @@ class TypeRegistry:
             if ext_type.name in self._types:
                 del self._types[ext_type.name]
             # Remove from _python_types if cls was registered
-            if ext_type.python_type is not None and ext_type.python_type in self._python_types:
+            if (
+                ext_type.python_type is not None
+                and ext_type.python_type in self._python_types
+            ):
                 del self._python_types[ext_type.python_type]
 
     def register_struct(
@@ -297,9 +300,13 @@ class TypeRegistry:
         # model_class is validated as BaseModel in register_struct_from_model
         for field_name, field_info in model_class.model_fields.items():
             annotation = field_info.annotation
-            type_code = self._python_type_to_tytx_code(annotation, include_nested, _registered)
+            type_code = self._python_type_to_tytx_code(
+                annotation, include_nested, _registered
+            )
             # Extract metadata from field_info as v2 FieldDef
-            field_def = self._extract_field_metadata_v2(field_info, annotation, type_code)
+            field_def = self._extract_field_metadata_v2(
+                field_info, annotation, type_code
+            )
             schema[field_name] = field_def
 
         return schema
@@ -439,16 +446,22 @@ class TypeRegistry:
             # Filter out NoneType
             non_none_args = [a for a in args if a is not type(None)]
             if len(non_none_args) == 1:
-                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
             # Multiple types - use first one
             if non_none_args:
-                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
             return "T"
 
         # Handle list[X] -> #X
         if origin is list:
             if args:
-                inner_code = self._python_type_to_tytx_code(args[0], include_nested, _registered)
+                inner_code = self._python_type_to_tytx_code(
+                    args[0], include_nested, _registered
+                )
                 return f"#{inner_code}"
             return "#T"  # list without type arg
 
@@ -466,7 +479,9 @@ class TypeRegistry:
 
                 if include_nested and python_type not in _registered:
                     _registered.add(python_type)
-                    nested_schema = self._model_to_schema(python_type, include_nested, _registered)
+                    nested_schema = self._model_to_schema(
+                        python_type, include_nested, _registered
+                    )
                     # Only register if not already registered
                     if struct_code not in self._structs:
                         self.register_struct(struct_code, nested_schema)
@@ -494,7 +509,9 @@ class TypeRegistry:
         # Fallback
         return "T"
 
-    def get_struct(self, code: str) -> list[FieldValue] | dict[str, FieldValue] | str | None:
+    def get_struct(
+        self, code: str
+    ) -> list[FieldValue] | dict[str, FieldValue] | str | None:
         """
         Get a struct schema by code.
 
@@ -778,7 +795,9 @@ class TypeRegistry:
             field_kwargs["description"] = hint
 
         # Default value (v2: default, legacy: def)
-        default_val = metadata.get("default") if "default" in metadata else metadata.get("def")
+        default_val = (
+            metadata.get("default") if "default" in metadata else metadata.get("def")
+        )
         if default_val is not None:
             field_kwargs["default"] = default_val
 
@@ -796,7 +815,11 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Ge(int(min_val) if "." not in str(min_val) else float(min_val))
+                            Ge(
+                                int(min_val)
+                                if "." not in str(min_val)
+                                else float(min_val)
+                            )
                         )
             else:
                 if isinstance(min_val, int):
@@ -814,7 +837,11 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Le(int(max_val) if "." not in str(max_val) else float(max_val))
+                            Le(
+                                int(max_val)
+                                if "." not in str(max_val)
+                                else float(max_val)
+                            )
                         )
             else:
                 if isinstance(max_val, int):
@@ -847,7 +874,9 @@ class TypeRegistry:
 
         return (python_type, None)
 
-    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | _StructType | None:
+    def get(
+        self, name_or_code: str
+    ) -> type[DataType] | _ExtensionType | _StructType | None:
         """
         Retrieve a type by name or code.
         """
@@ -876,7 +905,9 @@ class TypeRegistry:
         self,
         text: str,
         type_code: str | None = None,
-        local_structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None = None,
+        local_structs: (
+            dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None
+        ) = None,
     ) -> Any:
         """
         Parse a string to a Python value.
@@ -950,7 +981,9 @@ class TypeRegistry:
     def _get_struct_type(
         self,
         code: str,
-        local_structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None = None,
+        local_structs: (
+            dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None
+        ) = None,
     ) -> _StructType | None:
         """
         Get a struct type by code, checking local_structs first.
@@ -1174,7 +1207,12 @@ class TypeRegistry:
 
         # Serialize all leaf values with # prefix for typed arrays
         serialized = self._serialize_leaf(value, type_cls)
-        return json.dumps(serialized, separators=(",", ":")) + "::" + ARRAY_PREFIX + type_code
+        return (
+            json.dumps(serialized, separators=(",", ":"))
+            + "::"
+            + ARRAY_PREFIX
+            + type_code
+        )
 
     def _serialize_array_elements(self, value: list[Any]) -> str:
         """Serialize array with each element typed individually."""

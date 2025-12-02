@@ -1134,4 +1134,71 @@ describe('struct schemas', () => {
       expect(getFieldUI({ type: 'T', validate: { min: 1 } })).toBeUndefined();
     });
   });
+
+  describe('additional coverage tests', () => {
+    it('applyPositional covers data longer than schema', () => {
+      // Positional schema shorter than data - extra elements pass through
+      registry.register_struct('SHORT_POS', ['L', 'T']);
+      try {
+        const result = registry.fromText('["1", "hello", "extra", "more"]::@SHORT_POS') as unknown[];
+        expect(result[0]).toBe(1);
+        expect(result[1]).toBe('hello');
+        expect(result[2]).toBe('extra'); // unchanged
+        expect(result[3]).toBe('more'); // unchanged
+      } finally {
+        registry.unregister_struct('SHORT_POS');
+      }
+    });
+
+    it('hydrateValue with struct reference to missing struct', () => {
+      // Struct reference @MISSING not registered
+      registry.register_struct('HAS_MISSING_REF', { data: '@MISSING_STRUCT' });
+      try {
+        const result = registry.fromText('{"data": {"inner": 1}}::@HAS_MISSING_REF') as Record<string, unknown>;
+        // Should return value unchanged since @MISSING_STRUCT not found
+        expect(result.data).toEqual({ inner: 1 });
+      } finally {
+        registry.unregister_struct('HAS_MISSING_REF');
+      }
+    });
+
+    it('hydrateValue returns original for unknown type code', () => {
+      registry.register_struct('UNKNOWN_TYPE_SCHEMA', { x: 'UNKNOWN_CODE' });
+      try {
+        const result = registry.fromText('{"x": "some_value"}::@UNKNOWN_TYPE_SCHEMA') as Record<string, unknown>;
+        // Unknown type code should leave value unchanged
+        expect(result.x).toBe('some_value');
+      } finally {
+        registry.unregister_struct('UNKNOWN_TYPE_SCHEMA');
+      }
+    });
+
+    it('getTypeCodeForValue with string returns null', () => {
+      // String type code is null (no typing needed)
+      // @ts-expect-error - testing private method
+      const code = registry.getTypeCodeForValue('hello');
+      expect(code).toBeNull();
+    });
+
+    it('getTypeCodeForValue with null object', () => {
+      // Objects without constructor don't match custom types
+      // @ts-expect-error - testing private method
+      const code = registry.getTypeCodeForValue({ x: 1, y: 2 });
+      expect(code).toBeNull();
+    });
+
+    it('collectLeafTypes with nested arrays', () => {
+      // Test deep nesting for collectLeafTypes
+      const nested = [[[1, 2], [3, 4]], [[5, 6]]];
+      const result = registry.asTypedText(nested, true);
+      expect(result).toContain('::L');
+    });
+
+    it('serializeLeaf with nested arrays', () => {
+      // Force serializeLeaf to process nested arrays
+      const deep = [[[[1]]]];
+      const result = registry.asTypedText(deep, true);
+      expect(result).toContain('::L');
+    });
+  });
 });

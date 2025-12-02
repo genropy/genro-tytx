@@ -203,7 +203,9 @@ class StructType:
         (array of records), use ::#@STRUCT syntax instead.
         """
         if not isinstance(data, list):
-            return data
+            raise TypeError(
+                f"Expected list for struct {self.code}, got {type(data).__name__}"
+            )
         return self._apply_string_schema_single(data)
 
     def _apply_string_schema_single(self, data: list[Any]) -> Any:
@@ -221,14 +223,18 @@ class StructType:
         if self._string_has_names:
             return {
                 name: value
-                for (name, _), value in zip(self._string_fields, result_list, strict=False)
+                for (name, _), value in zip(
+                    self._string_fields, result_list, strict=False
+                )
             }
         return result_list
 
     def _apply_dict_schema(self, data: Any) -> Any:
         """Apply dict schema to data."""
         if not isinstance(data, dict):
-            return data
+            raise TypeError(
+                f"Expected dict for struct {self.code}, got {type(data).__name__}"
+            )
         result = dict(data)
         # Type narrowing: this method is only called when schema is a dict
         assert isinstance(self.schema, dict)
@@ -241,7 +247,9 @@ class StructType:
     def _apply_list_schema(self, data: Any) -> Any:
         """Apply list schema to data."""
         if not isinstance(data, list):
-            return data
+            raise TypeError(
+                f"Expected list for struct {self.code}, got {type(data).__name__}"
+            )
         # Type narrowing: this method is only called when schema is a list
         assert isinstance(self.schema, list)
         if len(self.schema) == 1:
@@ -258,6 +266,9 @@ class StructType:
 
     def _apply_homogeneous(self, item: Any, type_code: str) -> Any:
         """Apply homogeneous type recursively."""
+        # Struct references should be hydrated as a single value, even if the payload is a list
+        if type_code.startswith(STRUCT_PREFIX):
+            return self._hydrate_value(item, type_code)
         if isinstance(item, list):
             return [self._apply_homogeneous(i, type_code) for i in item]
         return self._hydrate_value(item, type_code)

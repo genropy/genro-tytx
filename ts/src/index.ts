@@ -108,9 +108,19 @@ export type { MetadataDict } from './metadata.js';
 
 // Model
 export { TytxModel } from './model.js';
+export { fetchTyped, fetchTypedRequest, fetchXtytx, buildXtytxEnvelope } from './fetch.js';
+export { hydrateTypedBody, detectExpect as detectExpectFromHeaders } from './server.js';
+export type {
+  FetchTypedOptions,
+  FetchExpect,
+  FetchTypedRequestOptions,
+  FetchSendKind,
+  FetchXtytxOptions,
+  XtytxEnvelope,
+} from './fetch.js';
 
 // Version
-export const VERSION = '0.3.1';
+export const VERSION = '0.5.0';
 
 // Convenience re-exports from registry
 import { registry } from './registry.js';

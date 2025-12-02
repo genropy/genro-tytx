@@ -2,13 +2,14 @@
 
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import pytest
 from pydantic import BaseModel, Field
 
 from genro_tytx.utils import (
     TYPE_MAPPING,
+    _extract_field_constraints,
     model_to_schema,
     python_type_to_tytx_code,
     schema_to_model,
@@ -59,9 +60,8 @@ class TestPythonTypeToTytxCode:
 
     def test_list_without_arg(self):
         """list without type arg - may return JS or #T depending on origin."""
-        result = python_type_to_tytx_code(list)
-        # list without args has no origin, so it might hit dict check or fallback
-        assert result in ["#T", "JS", "T"]
+        result = python_type_to_tytx_code(List)
+        assert result == "#T"
 
     def test_dict_type(self):
         """dict maps to JS."""
@@ -407,6 +407,87 @@ class TestSchemaToModel:
         # Should require name
         with pytest.raises(Exception):
             Model()
+
+    def test_schema_with_multiple_of_and_inclusive_bounds(self):
+        """Covers inclusive min/max and multipleOf branch."""
+        schema = {"qty": {"type": "N", "validate": {"min": 1, "max": 10, "multipleOf": 2}}}
+        Model = schema_to_model("QTY", schema)
+        instance = Model(qty=Decimal("2"))
+        assert instance.qty == Decimal("2")
+
+
+class TestExtractFieldConstraints:
+    """Direct tests for _extract_field_constraints to cover all branches."""
+
+    def test_extract_string_constraints_and_default_import_error(self, monkeypatch):
+        """Covers min/max/pattern/default/ui with ImportError on pydantic_core."""
+
+        class DummyField:
+            def __init__(self):
+                self.min_length = 1
+                self.max_length = 5
+                self.pattern = r"^[A-Z]+$"
+                self.default = "ABC"
+                self.title = "Code"
+                self.description = "Uppercase code"
+
+            def is_required(self):
+                return False
+
+        # Force ImportError for pydantic_core to hit fallback branch
+        import builtins
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "pydantic_core":
+                raise ImportError("forced")
+            return orig_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        field_def = _extract_field_constraints(DummyField(), "T")
+        assert field_def["type"] == "T"
+        validate = field_def["validate"]
+        assert validate["min"] == 1
+        assert validate["max"] == 5
+        assert validate["pattern"] == r"^[A-Z]+$"
+        assert validate["default"] == "ABC"
+        ui = field_def["ui"]
+        assert ui["label"] == "Code"
+        assert ui["hint"] == "Uppercase code"
+
+    def test_extract_numeric_constraints(self):
+        """Covers ge/gt/le/lt/multipleOf/required branches."""
+
+        class DummyField:
+            def __init__(self):
+                self.min_length = None
+                self.max_length = None
+                self.pattern = None
+                self.ge = 0
+                self.gt = 1
+                self.le = 10
+                self.lt = 9
+                self.multiple_of = 2
+                self.default = None
+                self.title = None
+                self.description = None
+
+            def is_required(self):
+                return True
+
+        field_def = _extract_field_constraints(DummyField(), "N")
+        assert field_def["type"] == "N"
+        validate = field_def["validate"]
+        assert validate["required"] is True
+        # gt overrides ge and sets minExclusive
+        assert validate["min"] == 1
+        assert validate["minExclusive"] is True
+        # lt overrides le and sets maxExclusive
+        assert validate["max"] == 9
+        assert validate["maxExclusive"] is True
+        assert validate["multipleOf"] == 2
 
 
 class TestTypeMapping:

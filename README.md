@@ -55,6 +55,47 @@ TYTX is available in **three implementations**:
 | `genro-tytx` | **JavaScript** | `npm install genro-tytx` | Pure JS (CommonJS + ESM) |
 | `genro-tytx-ts` | **TypeScript** | `npm install genro-tytx-ts` | Native TS with full type definitions |
 
+### HTTP helpers (Python / JS / TS)
+
+Use the cross-language helpers to fetch APIs and get hydrated data via TYTX:
+
+```ts
+import { fetchTyped } from 'genro-tytx-ts';
+
+// JSON with TYTX markers
+const order = await fetchTyped('/api/order/123');
+
+// Typed text
+const active = await fetchTyped('/api/flag', { expect: 'text' });
+
+// Typed XML (JS: from_xml, TS: falls back to fromText)
+const qty = await fetchTyped('/api/xml/qty', { expect: 'xml' });
+
+// Send typed payloads
+import { fetchTypedRequest } from 'genro-tytx-ts';
+const resp = await fetchTypedRequest('/api/order', {
+    method: 'POST',
+    body: { price: 99.99, qty: 5 },
+    sendAs: 'json',               // default
+    expect: 'json',
+}); // headers include X-TYTX-Request and matching Content-Type
+
+// Python: same behavior
+from genro_tytx.http_utils import fetch_typed_request
+resp = fetch_typed_request(
+    "https://api.example.com/order",
+    body={"price": Decimal("10.5")},
+    send_as="json",
+    expect="json",
+)
+```
+
+Also available in JS (`genro-tytx`) as `fetch_typed` / `fetch_typed_request`.
+See the HTTP helpers guide for XTYTX envelopes, MessagePack, and middleware usage.
+For Node.js servers, use `hydrateTypedBody` (TS) to hydrate request bodies in Express/Koa/Fastify.
+Async in Python: mirror helpers via `genro_tytx.http_async_utils` (`fetch_typed_async`, `fetch_typed_request_async`, `fetch_xtytx_async`).
+Server-side hydration in Python: ASGI (`TytxASGIMiddleware`) and WSGI (`TytxWSGIMiddleware`) to auto-hydrate incoming TYTX/XTYTX/json/text/msgpack bodies.
+
 ### Python
 
 ```bash
@@ -181,8 +222,7 @@ from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")
 
 ### Level 4: Struct Schemas
 
-Define reusable schemas for data structures with `@` prefix.
-
+Define reusable schemas for data structures with `@` prefix. Try the structure editor: `gui/index.html`
 ```python
 # Dict schema - for objects
 registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})

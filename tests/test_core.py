@@ -48,6 +48,9 @@ class TestFromText:
         # DHZ is the canonical code (timezone-aware) - returns UTC datetime
         result = from_text("2025-01-15T10:00:00Z::DHZ")
         assert result == datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+        # DHZ without Z suffix but with offset should still parse
+        offset_dt = from_text("2025-01-15T12:00:00+02:00::DHZ")
+        assert offset_dt.utcoffset().total_seconds() == 7200
         # DH is deprecated but still supported (naive datetime)
         assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
 

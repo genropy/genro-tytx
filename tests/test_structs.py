@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from genro_tytx import from_text, registry
 
 
@@ -440,6 +441,7 @@ class TestFieldHelperFunctions:
 
         assert get_field_type({"ui": {"label": "Notes"}}) == "T"
         assert get_field_type({}) == "T"
+        assert get_field_type({"validate": {"min": 1}}) == "T"
 
     def test_get_field_validate_from_string(self):
         """get_field_validate returns None for string fields."""
@@ -489,3 +491,126 @@ class TestFieldHelperFunctions:
 
         assert get_field_ui({"type": "T"}) is None
         assert get_field_ui({"type": "T", "validate": {"min": 1}}) is None
+
+
+class TestStructEdgeCases:
+    """Edge cases for struct application."""
+
+    def test_unknown_type_leaves_value(self):
+        """Unknown type codes should leave values unchanged."""
+        registry.register_struct("UNKNOWN_FIELD", {"a": "UNKNOWN"})
+        try:
+            result = from_text('{"a": 1}::@UNKNOWN_FIELD')
+            assert result == {"a": 1}
+        finally:
+            registry.unregister_struct("UNKNOWN_FIELD")
+
+    def test_list_schema_with_non_list_data(self):
+        """List schema should raise if input is not a list."""
+        registry.register_struct("LIST_SCHEMA", ["L"])
+        try:
+            with pytest.raises(TypeError):
+                from_text('"not-a-list"::@LIST_SCHEMA')
+        finally:
+            registry.unregister_struct("LIST_SCHEMA")
+
+    def test_dict_schema_with_non_dict_data(self):
+        """Dict schema should raise if input is not a dict."""
+        registry.register_struct("DICT_SCHEMA", {"a": "L"})
+        try:
+            with pytest.raises(TypeError):
+                from_text('["a", 1]::@DICT_SCHEMA')
+        finally:
+            registry.unregister_struct("DICT_SCHEMA")
+
+    def test_dict_schema_with_null(self):
+        """Dict schema with JSON null raises TypeError."""
+        registry.register_struct("DICT_NULL", {"a": "L"})
+        try:
+            with pytest.raises(TypeError):
+                from_text("null::@DICT_NULL")
+        finally:
+            registry.unregister_struct("DICT_NULL")
+
+    def test_string_schema_with_non_list_data(self):
+        """String schema should raise if input is not a list."""
+        registry.register_struct("STRING_SCHEMA", "x:T,y:T")
+        try:
+            with pytest.raises(TypeError):
+                from_text('{"x": "a"}::@STRING_SCHEMA')
+        finally:
+            registry.unregister_struct("STRING_SCHEMA")
+
+    def test_string_schema_missing_values(self):
+        """String schema fills missing positions with None."""
+        registry.register_struct("STRING_MISS", "x:L,y:L")
+        try:
+            result = from_text('["1"]::@STRING_MISS')
+            assert result == {"x": 1, "y": None}
+        finally:
+            registry.unregister_struct("STRING_MISS")
+
+    def test_positional_schema_extra_elements(self):
+        """Extra elements in data are passed through unchanged."""
+        registry.register_struct("POS", ["L", "T"])
+        try:
+            result = from_text('[1, "two", "extra"]::@POS')
+            assert result == [1, "two", "extra"]
+        finally:
+            registry.unregister_struct("POS")
+
+    def test_positional_schema_empty_list(self):
+        """Empty list returns empty list for positional schema."""
+        registry.register_struct("POS_EMPTY", ["L", "T"])
+        try:
+            result = from_text("[]::@POS_EMPTY")
+            assert result == []
+        finally:
+            registry.unregister_struct("POS_EMPTY")
+
+    def test_positional_schema_null_input(self):
+        """List schema with non-list (null) raises TypeError."""
+        registry.register_struct("POS_NULL", ["L", "T"])
+        try:
+            with pytest.raises(TypeError):
+                from_text("null::@POS_NULL")
+        finally:
+            registry.unregister_struct("POS_NULL")
+
+    def test_homogeneous_nested_list(self):
+        """Homogeneous list handles nested lists recursively."""
+        registry.register_struct("HOMO_NESTED", ["L"])
+        try:
+            result = from_text("[[1,2],[3,[4]]]::@HOMO_NESTED")
+            assert result == [[1, 2], [3, [4]]]
+        finally:
+            registry.unregister_struct("HOMO_NESTED")
+
+    def test_get_type_instance_with_instance(self):
+        """_get_type_instance returns the instance when already instantiated."""
+        from genro_tytx.struct import _get_type_instance, StructType
+        dummy = StructType("TMP", ["T"], registry)
+        assert _get_type_instance(dummy) is dummy
+
+    def test_struct_reference_missing(self):
+        """Unknown struct reference returns value unchanged."""
+        registry.register_struct("HAS_REF", ["@MISSING"])
+        try:
+            result = from_text('["foo"]::@HAS_REF')
+            assert result == ["foo"]
+        finally:
+            registry.unregister_struct("HAS_REF")
+
+    def test_parse_string_schema_with_empty_parts(self):
+        """Empty segments in string schema are skipped."""
+        from genro_tytx.struct import _parse_string_schema
+        fields, has_names = _parse_string_schema("a:T,,b:L")
+        assert fields == [("a", "T"), ("b", "L")]
+        assert has_names is True
+
+    def test_struct_serialize_compact_json(self):
+        """StructType.serialize uses compact JSON (no spaces)."""
+        from genro_tytx.struct import StructType
+
+        st = StructType("SERIAL", {"a": "L"}, registry)
+        assert st.serialize({"a": 1, "b": 2}) == '{"a":1,"b":2}'

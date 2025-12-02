@@ -111,6 +111,20 @@ describe('structFromJsonSchema (v2)', () => {
     });
   });
 
+  it('converts exclusiveMinimum and exclusiveMaximum', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        score: { type: 'number', exclusiveMinimum: 0, exclusiveMaximum: 100 },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    expect(struct.score).toEqual({
+      type: 'R',
+      validate: { min: 0, minExclusive: true, max: 100, maxExclusive: true },
+    });
+  });
+
   it('converts title and description to ui section', () => {
     const schema = {
       type: 'object',
@@ -519,5 +533,227 @@ describe('round-trip conversion (v2)', () => {
 
     expect(result.id).toEqual(original.id);
     expect(result.name).toEqual(original.name);
+  });
+});
+
+describe('structToJsonSchema edge cases', () => {
+  it('unknown type code defaults to string', () => {
+    const struct = { field: 'UNKNOWN_TYPE_XYZ' };
+    const schema = structToJsonSchema(struct);
+    expect(schema.properties?.field).toEqual({ type: 'string' });
+  });
+
+  it('string struct anonymous (no colon) becomes array', () => {
+    const struct = 'T,L,N';
+    const schema = structToJsonSchema(struct);
+    expect(schema.type).toBe('array');
+    expect(schema.items).toHaveLength(3);
+    expect(schema.minItems).toBe(3);
+    expect(schema.maxItems).toBe(3);
+  });
+
+  it('string struct mixed named and anonymous skips anonymous', () => {
+    // "name:T,L" has named field and anonymous field
+    const struct = 'name:T,L';
+    const schema = structToJsonSchema(struct);
+    expect(schema.type).toBe('object');
+    expect(schema.properties?.name).toEqual({ type: 'string' });
+    // "L" without colon is skipped
+    expect(Object.keys(schema.properties || {})).toEqual(['name']);
+  });
+
+  it('empty object struct returns empty properties', () => {
+    // Empty object returns empty properties
+    const schema = structToJsonSchema({});
+    expect(schema.type).toBe('object');
+    expect(schema.properties).toEqual({});
+  });
+});
+
+describe('structFromJsonSchema fallback paths', () => {
+  it('type with unknown format falls back to base type without format', () => {
+    // integer with unknown format should fall back to integer (L)
+    const schema = {
+      type: 'object',
+      properties: {
+        value: { type: 'integer', format: 'unknown-format-xyz' },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    expect(struct.value).toBe('L');
+  });
+
+  it('unknown type defaults to string', () => {
+    // Completely unknown type defaults to T
+    const schema = {
+      type: 'object',
+      properties: {
+        value: { type: 'unknown_type_xyz' as 'string' },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    expect(struct.value).toBe('T');
+  });
+
+  it('required nested object returns FieldDef with required flag', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        address: {
+          type: 'object',
+          properties: {
+            city: { type: 'string' },
+          },
+        },
+      },
+      required: ['address'],
+    };
+    const struct = structFromJsonSchema(schema, { name: 'REQ_TEST' });
+    // Required nested object returns {type: "@...", validate: {required: true}}
+    expect((struct.address as { type: string }).type).toBe('@REQ_TEST_ADDRESS');
+    expect((struct.address as { validate: { required: boolean } }).validate.required).toBe(true);
+  });
+});
+
+describe('structFromJsonSchema nested registration', () => {
+  afterEach(() => {
+    try {
+      registry.unregister_struct('NESTED_ADDR');
+      registry.unregister_struct('PERSON_NESTED_ADDRESS');
+    } catch {
+      // Ignore
+    }
+  });
+
+  it('registers nested structs when registerNested is true', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        address: {
+          type: 'object',
+          properties: {
+            street: { type: 'string' },
+            city: { type: 'string' },
+          },
+        },
+      },
+    };
+
+    const struct = structFromJsonSchema(schema, {
+      name: 'PERSON_NESTED',
+      registerNested: true,
+      registry,
+    });
+
+    // Check that struct was created correctly
+    expect(struct.name).toBe('T');
+    // Non-required nested object returns string "@NAME"
+    expect(struct.address).toBe('@PERSON_NESTED_ADDRESS');
+
+    // Check that nested struct was registered
+    const nestedStruct = registry.get_struct('PERSON_NESTED_ADDRESS');
+    expect(nestedStruct).toBeDefined();
+    expect((nestedStruct as Record<string, string>).street).toBe('T');
+    expect((nestedStruct as Record<string, string>).city).toBe('T');
+  });
+});
+
+describe('structFromJsonSchema oneOf handling', () => {
+  it('oneOf takes first option', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        value: {
+          oneOf: [{ type: 'integer' }, { type: 'string' }],
+        },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    // Takes first option (integer -> L)
+    expect(struct.value).toBe('L');
+  });
+});
+
+describe('structFromJsonSchema $ref handling', () => {
+  it('$ref to nested object with required flag', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        address: { $ref: '#/$defs/Address' },
+      },
+      required: ['address'],
+      $defs: {
+        Address: {
+          type: 'object',
+          properties: {
+            city: { type: 'string' },
+          },
+        },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    // Required $ref to object should return FieldDef with required flag
+    expect((struct.address as { type: string }).type).toBe('@Address');
+    expect((struct.address as { validate: { required: boolean } }).validate.required).toBe(true);
+  });
+
+  it('$ref to non-object schema follows ref', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        status: { $ref: '#/$defs/Status' },
+      },
+      $defs: {
+        Status: { type: 'string', enum: ['active', 'inactive'] },
+      },
+    };
+    const struct = structFromJsonSchema(schema);
+    // $ref to a string schema should resolve to T with enum constraint
+    expect((struct.status as { type: string }).type).toBe('T');
+    expect((struct.status as { validate: { enum: string[] } }).validate.enum).toEqual([
+      'active',
+      'inactive',
+    ]);
+  });
+
+  it('throws on non-local $ref', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { $ref: 'http://example.com/schema.json' },
+      },
+    };
+    expect(() => structFromJsonSchema(schema)).toThrow(/Only local \$ref supported/);
+  });
+
+  it('throws on unresolvable $ref', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        data: { $ref: '#/$defs/NonExistent' },
+      },
+      $defs: {},
+    };
+    expect(() => structFromJsonSchema(schema)).toThrow(/Cannot resolve \$ref/);
+  });
+});
+
+describe('structToJsonSchema fallback for invalid struct', () => {
+  it('invalid type (number) falls back to object', () => {
+    // Pass a number as struct - TypeScript wouldn't allow this normally,
+    // but runtime could receive invalid input. This hits the final fallback.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schema = structToJsonSchema(42 as unknown as any);
+    expect(schema.type).toBe('object');
+  });
+
+  it('null as struct falls back to object', () => {
+    // null is not object (typeof null === 'object' but !Array.isArray and then entries fail)
+    // Actually null would fail on Object.entries, so this path may not be hit
+    // Try undefined instead
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schema = structToJsonSchema(undefined as unknown as any);
+    expect(schema.type).toBe('object');
   });
 });

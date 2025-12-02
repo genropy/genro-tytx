@@ -179,7 +179,9 @@ def _jsonschema_type_to_tytx(
         ref_name = prop_schema["$ref"].split("/")[-1]
         # Process the referenced schema as a nested struct
         if resolved.get("type") == "object" and "properties" in resolved:
-            nested_struct = _convert_object_schema(resolved, ref_name, root_schema, nested_structs)
+            nested_struct = _convert_object_schema(
+                resolved, ref_name, root_schema, nested_structs
+            )
             nested_structs[ref_name] = nested_struct
             ref_type = f"@{ref_name}"
             if is_required:
@@ -205,7 +207,12 @@ def _jsonschema_type_to_tytx(
         non_null = [s for s in prop_schema["anyOf"] if s.get("type") != "null"]
         if non_null:
             return _jsonschema_type_to_tytx(
-                non_null[0], prop_name, root_schema, nested_structs, parent_name, is_required
+                non_null[0],
+                prop_name,
+                root_schema,
+                nested_structs,
+                parent_name,
+                is_required,
             )
 
     schema_type = prop_schema.get("type")
@@ -245,7 +252,9 @@ def _jsonschema_type_to_tytx(
     # Fallback: try without format
     key_no_format: tuple[str, str | None] = (schema_type or "", None)
     if key_no_format in _JSONSCHEMA_TO_TYTX:
-        return _build_field_def(prop_schema, _JSONSCHEMA_TO_TYTX[key_no_format], is_required)
+        return _build_field_def(
+            prop_schema, _JSONSCHEMA_TO_TYTX[key_no_format], is_required
+        )
 
     # Default to string
     return _build_field_def(prop_schema, "T", is_required)
@@ -558,7 +567,9 @@ def _struct_to_schema_object(
             item_schema = _tytx_field_to_jsonschema(struct[0], definitions, registry)
             return {"type": "array", "items": item_schema}
         # Positional (tuple-like)
-        items_list = [_tytx_field_to_jsonschema(t, definitions, registry) for t in struct]
+        items_list = [
+            _tytx_field_to_jsonschema(t, definitions, registry) for t in struct
+        ]
         return {
             "type": "array",
             "items": items_list,
@@ -581,7 +592,8 @@ def _struct_to_schema_object(
             return {"type": "object", "properties": properties}
         # Anonymous fields (e.g., "T,L,N")
         items_list = [
-            _tytx_field_to_jsonschema(t.strip(), definitions, registry) for t in struct.split(",")
+            _tytx_field_to_jsonschema(t.strip(), definitions, registry)
+            for t in struct.split(",")
         ]
         return {
             "type": "array",

@@ -47,7 +47,7 @@ describe('structFromJsonSchema (v2)', () => {
         assert.deepStrictEqual(struct, {
             amount: 'N',
             created: 'D',
-            updated: 'DH',
+            updated: 'DHZ',  // DHZ is canonical for timezone-aware datetime
             startTime: 'H'
         });
     });

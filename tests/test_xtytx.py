@@ -72,8 +72,8 @@ class TestXtytxGstruct:
             # Should still exist
             assert registry.get_struct("XPERSIST") == {"x": "R"}
             # Can use it in subsequent calls
-            result = from_json('{"point": "3.14::@XPERSIST"}')
-            # Note: this tests that the struct is usable
+            result = from_json('{"point": "{\\"x\\": \\"3.14\\"}::@XPERSIST"}')
+            assert result == {"point": {"x": 3.14}}
         finally:
             registry.unregister_struct("XPERSIST")
 
@@ -353,6 +353,18 @@ class TestXtytxGschema:
         finally:
             schema_registry.unregister("XA")
             schema_registry.unregister("XB")
+
+    def test_schema_registry_list_schemas(self):
+        """list_schemas returns the registered names."""
+        try:
+            schema_registry.register("X1", {"type": "string"})
+            schema_registry.register("X2", {"type": "number"})
+            names = schema_registry.list_schemas()
+            assert "X1" in names
+            assert "X2" in names
+        finally:
+            schema_registry.unregister("X1")
+            schema_registry.unregister("X2")
 
 
 class TestXtytxLschema:

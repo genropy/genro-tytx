@@ -13,4 +13,5 @@ msgpack
 pydantic
 javascript
 registry
+http_helpers
 ```

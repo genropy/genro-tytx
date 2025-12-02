@@ -312,3 +312,43 @@ describe('SchemaRegistry', () => {
     expect(names).toContain('test_schema');
   });
 });
+
+describe('XTYTX error handling', () => {
+  it('throws when data field is missing', () => {
+    // data field undefined should throw
+    const payload = 'XTYTX://{"gstruct": {}, "lstruct": {}}';
+    expect(() => fromJson(payload)).toThrow(/missing required field: data/);
+  });
+
+  it('throws when gstruct field is missing', () => {
+    const payload = 'XTYTX://{"lstruct": {}, "data": ""}';
+    expect(() => fromJson(payload)).toThrow(/missing required field: gstruct/);
+  });
+
+  it('throws when lstruct field is missing', () => {
+    const payload = 'XTYTX://{"gstruct": {}, "data": ""}';
+    expect(() => fromJson(payload)).toThrow(/missing required field: lstruct/);
+  });
+});
+
+describe('XTYTX data prefix stripping', () => {
+  it('strips TYTX:// prefix from data field', () => {
+    const payload = `XTYTX://${JSON.stringify({
+      gstruct: {},
+      lstruct: {},
+      data: 'TYTX://{"value": "42::L"}'
+    })}`;
+    const result = fromJson(payload) as { data: { value: number } };
+    expect(result.data).toEqual({ value: 42 });
+  });
+
+  it('data without TYTX:// prefix works normally', () => {
+    const payload = `XTYTX://${JSON.stringify({
+      gstruct: {},
+      lstruct: {},
+      data: '{"value": "42::L"}'
+    })}`;
+    const result = fromJson(payload) as { data: { value: number } };
+    expect(result.data).toEqual({ value: 42 });
+  });
+});

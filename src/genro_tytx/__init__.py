@@ -55,11 +55,24 @@ from .builtin import (
     TimeType,
 )
 from .extension import ExtensionType
+from .http_async_utils import (
+    fetch_typed_async,
+    fetch_typed_request_async,
+    fetch_xtytx_async,
+)
+from .http_utils import (
+    build_xtytx_envelope,
+    fetch_typed,
+    fetch_typed_request,
+    fetch_xtytx,
+)
 from .json_utils import (
     as_json,
     as_typed_json,
     from_json,
 )
+from .middleware.asgi import TytxASGIMiddleware
+from .middleware.wsgi import TytxWSGIMiddleware
 from .registry import TypeRegistry, registry
 from .schema_utils import struct_from_jsonschema, struct_to_jsonschema
 from .struct import (
@@ -83,14 +96,20 @@ from .xml_utils import (
     as_xml,
     from_xml,
 )
-from .xtytx import JsonSchema, SchemaRegistry, XtytxResult, process_envelope, schema_registry
+from .xtytx import (
+    JsonSchema,
+    SchemaRegistry,
+    XtytxResult,
+    process_envelope,
+    schema_registry,
+)
 
 # Public API functions
 from_text = registry.from_text
 as_text = registry.as_text
 as_typed_text = registry.as_typed_text
 
-__version__ = "0.3.1"
+__version__ = "0.5.0"
 __all__ = [
     "__version__",
     # Text API
@@ -101,6 +120,14 @@ __all__ = [
     "as_json",
     "as_typed_json",
     "from_json",
+    # HTTP helpers
+    "fetch_typed",
+    "fetch_typed_request",
+    "fetch_xtytx",
+    "build_xtytx_envelope",
+    "fetch_typed_async",
+    "fetch_typed_request_async",
+    "fetch_xtytx_async",
     # XML API
     "as_xml",
     "as_typed_xml",
@@ -146,4 +173,7 @@ __all__ = [
     "NaiveDateTimeType",
     "StrType",
     "TimeType",
+    # Middleware
+    "TytxASGIMiddleware",
+    "TytxWSGIMiddleware",
 ]

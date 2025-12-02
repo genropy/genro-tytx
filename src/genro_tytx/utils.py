@@ -368,7 +368,9 @@ def schema_to_model(
             validate = {}
             ui = {}
 
-        python_type = tytx_code_to_python_type(type_code, struct_registry=struct_registry)
+        python_type = tytx_code_to_python_type(
+            type_code, struct_registry=struct_registry
+        )
 
         # Build Field() kwargs from validate/ui
         field_kwargs: dict[str, Any] = {}
@@ -442,7 +444,9 @@ def tytx_code_to_python_type(
     # Handle array prefix
     if type_code.startswith(ARRAY_PREFIX):
         inner_code = type_code[len(ARRAY_PREFIX) :]
-        inner_type = tytx_code_to_python_type(inner_code, struct_registry=struct_registry)
+        inner_type = tytx_code_to_python_type(
+            inner_code, struct_registry=struct_registry
+        )
         return list[inner_type]  # type: ignore[valid-type]
 
     # Handle struct prefix

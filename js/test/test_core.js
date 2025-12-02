@@ -1140,3 +1140,819 @@ describe('struct schemas', () => {
         });
     });
 });
+
+// =============================================================================
+// Types Coverage Tests
+// =============================================================================
+
+describe('types coverage', () => {
+    test('DateType.format with locale', () => {
+        const dateType = registry.get('D');
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const formatted = dateType.format(date, null, 'en-US');
+        // Should return a formatted string
+        assert.ok(typeof formatted === 'string');
+        assert.ok(formatted.includes('2025') || formatted.includes('01') || formatted.includes('15'));
+    });
+
+    test('DateType.format without locale', () => {
+        const dateType = registry.get('D');
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const formatted = dateType.format(date);
+        assert.strictEqual(formatted, '2025-01-15');
+    });
+
+    test('DateTimeType (DHZ) format with locale', () => {
+        const dateTimeType = registry.get('DHZ');
+        const datetime = new Date('2025-01-15T10:30:45.000Z');
+        const formatted = dateTimeType.format(datetime, null, 'en-US');
+        assert.ok(typeof formatted === 'string');
+        assert.ok(formatted.includes('2025') || formatted.includes('10') || formatted.includes('30'));
+    });
+
+    test('DateTimeType (DHZ) format without locale', () => {
+        const dateTimeType = registry.get('DHZ');
+        const datetime = new Date('2025-01-15T10:30:45.000Z');
+        const formatted = dateTimeType.format(datetime);
+        assert.strictEqual(formatted, '2025-01-15T10:30:45Z');
+    });
+
+    test('NaiveDateTimeType (DH) serialize', () => {
+        const naiveDateTimeType = registry.get('DH');
+        const datetime = new Date('2025-01-15T10:30:45.000Z');
+        const serialized = naiveDateTimeType.serialize(datetime);
+        // Should NOT have Z suffix
+        assert.strictEqual(serialized, '2025-01-15T10:30:45');
+        assert.ok(!serialized.endsWith('Z'));
+    });
+
+    test('NaiveDateTimeType (DH) format with locale', () => {
+        const naiveDateTimeType = registry.get('DH');
+        const datetime = new Date('2025-01-15T10:30:45.000Z');
+        const formatted = naiveDateTimeType.format(datetime, null, 'en-US');
+        assert.ok(typeof formatted === 'string');
+    });
+
+    test('NaiveDateTimeType (DH) format without locale', () => {
+        const naiveDateTimeType = registry.get('DH');
+        const datetime = new Date('2025-01-15T10:30:45.000Z');
+        const formatted = naiveDateTimeType.format(datetime);
+        assert.strictEqual(formatted, '2025-01-15T10:30:45');
+    });
+
+    test('TimeType serialize with Date object', () => {
+        const timeType = registry.get('H');
+        const time = new Date('1970-01-01T14:30:45.000Z');
+        const serialized = timeType.serialize(time);
+        assert.strictEqual(serialized, '14:30:45');
+    });
+
+    test('TimeType serialize with non-Date value', () => {
+        const timeType = registry.get('H');
+        const serialized = timeType.serialize('10:30:00');
+        assert.strictEqual(serialized, '10:30:00');
+    });
+
+    test('TimeType parse', () => {
+        const timeType = registry.get('H');
+        const time = timeType.parse('14:30:45');
+        assert.ok(time instanceof Date);
+        assert.strictEqual(time.getUTCHours(), 14);
+        assert.strictEqual(time.getUTCMinutes(), 30);
+        assert.strictEqual(time.getUTCSeconds(), 45);
+    });
+});
+
+// =============================================================================
+// XML Coverage Tests
+// =============================================================================
+
+describe('xml coverage', () => {
+    test('duplicate child elements become array', () => {
+        const xml = '<root><item>1</item><item>2</item><item>3</item></root>';
+        const result = from_xml(xml);
+        // Multiple <item> elements should become an array
+        assert.ok(Array.isArray(result.root.value.item));
+        assert.strictEqual(result.root.value.item.length, 3);
+        assert.strictEqual(result.root.value.item[0].value, '1');
+        assert.strictEqual(result.root.value.item[1].value, '2');
+        assert.strictEqual(result.root.value.item[2].value, '3');
+    });
+
+    test('element with children and text has #text', () => {
+        const xml = '<root>Some text<child>val</child></root>';
+        const result = from_xml(xml);
+        // Should have both children and #text
+        assert.ok(result.root.value.child);
+        assert.strictEqual(result.root.value['#text'], 'Some text');
+    });
+
+    test('element with only whitespace content returns null', () => {
+        const xml = '<empty>   </empty>';
+        const result = from_xml(xml);
+        assert.strictEqual(result.empty.value, null);
+    });
+
+    test('malformed XML without closing tag', () => {
+        const xml = '<unclosed>';
+        const result = from_xml(xml);
+        // Should return value: null since content cannot be extracted
+        assert.strictEqual(result.unclosed.value, null);
+    });
+});
+
+// =============================================================================
+// TytxModel Coverage Tests
+// =============================================================================
+
+describe('TytxModel coverage', () => {
+    const { TytxModel } = require('../src/index');
+
+    class TestModel extends TytxModel {}
+
+    test('fromTytx handles null values', () => {
+        const model = TestModel.fromTytx({ value: null, name: 'test' });
+        assert.strictEqual(model.value, null);
+        assert.strictEqual(model.name, 'test');
+    });
+
+    test('fromTytx handles undefined values', () => {
+        const model = TestModel.fromTytx({ value: undefined, name: 'test' });
+        assert.strictEqual(model.value, undefined);
+        assert.strictEqual(model.name, 'test');
+    });
+
+    test('fromTytx handles nested arrays', () => {
+        const data = { items: ['1::L', '2::L', '3::L'] };
+        const model = TestModel.fromTytx(data);
+        assert.deepStrictEqual(model.items, [1, 2, 3]);
+    });
+
+    test('fromTytx handles deeply nested objects', () => {
+        const data = {
+            order: {
+                customer: {
+                    name: 'John',
+                    id: '123::L'
+                },
+                total: '99.99::N'
+            }
+        };
+        const model = TestModel.fromTytx(data);
+        assert.strictEqual(model.order.customer.name, 'John');
+        assert.strictEqual(model.order.customer.id, 123);
+        assert.strictEqual(Number(model.order.total), 99.99);
+    });
+
+    test('fromTytx handles numbers unchanged', () => {
+        const data = { count: 42, price: 99.99 };
+        const model = TestModel.fromTytx(data);
+        assert.strictEqual(model.count, 42);
+        assert.strictEqual(model.price, 99.99);
+    });
+
+    test('fromTytx handles booleans unchanged', () => {
+        const data = { active: true, deleted: false };
+        const model = TestModel.fromTytx(data);
+        assert.strictEqual(model.active, true);
+        assert.strictEqual(model.deleted, false);
+    });
+});
+
+// =============================================================================
+// Registry Coverage Tests
+// =============================================================================
+
+describe('registry coverage', () => {
+    test('as_text with format parameter (date)', () => {
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const formatted = registry.as_text(date, null, 'en-US');
+        assert.ok(typeof formatted === 'string');
+    });
+
+    test('as_text with object serializes to JSON', () => {
+        const obj = { custom: 'object' };
+        const result = registry.as_text(obj);
+        // Objects get serialized to JSON string
+        assert.strictEqual(result, '{"custom":"object"}');
+    });
+
+    test('as_text with function falls back to String', () => {
+        const fn = function test() {};
+        const result = registry.as_text(fn);
+        assert.ok(typeof result === 'string');
+    });
+
+    test('_serializeArrayElements with nested arrays', () => {
+        // Heterogeneous nested array - each element typed individually
+        const arr = [[1, 'hello'], [true, 42]];
+        const result = as_typed_text(arr, true);
+        const parsed = JSON.parse(result);
+        // Should be array of arrays with individually typed elements
+        assert.ok(Array.isArray(parsed));
+        assert.ok(Array.isArray(parsed[0]));
+    });
+});
+
+// =============================================================================
+// FloatType Coverage Tests
+// =============================================================================
+
+describe('FloatType coverage', () => {
+    test('FloatType.format with locale', () => {
+        const floatType = registry.get('R');
+        const formatted = floatType.format(1234.5678, null, 'en-US');
+        assert.ok(typeof formatted === 'string');
+        // en-US should format with 2 decimal places
+        assert.ok(formatted.includes('.'));
+    });
+
+    test('FloatType.format without locale', () => {
+        const floatType = registry.get('R');
+        const formatted = floatType.format(1234.5678);
+        assert.strictEqual(formatted, '1234.57');
+    });
+
+    test('FloatType.format with de-DE locale', () => {
+        const floatType = registry.get('R');
+        const formatted = floatType.format(1234.5678, null, 'de-DE');
+        assert.ok(typeof formatted === 'string');
+        // German locale uses comma as decimal separator
+        assert.ok(formatted.includes(',') || formatted.includes('.'));
+    });
+});
+
+// =============================================================================
+// StrType Coverage Tests
+// =============================================================================
+
+describe('StrType coverage', () => {
+    test('StrType.serialize with number', () => {
+        const strType = registry.get('T');
+        const serialized = strType.serialize(42);
+        assert.strictEqual(serialized, '42');
+    });
+
+    test('StrType.serialize with boolean', () => {
+        const strType = registry.get('T');
+        assert.strictEqual(strType.serialize(true), 'true');
+        assert.strictEqual(strType.serialize(false), 'false');
+    });
+
+    test('StrType.serialize with object', () => {
+        const strType = registry.get('T');
+        const serialized = strType.serialize({ a: 1 });
+        assert.strictEqual(serialized, '[object Object]');
+    });
+});
+
+// =============================================================================
+// JSON Utils Coverage Tests
+// =============================================================================
+
+describe('json_utils coverage', () => {
+    test('from_json with TYTX:// prefix', () => {
+        const json = 'TYTX://{"price": "100::N", "count": "5::L"}';
+        const result = from_json(json);
+        assert.strictEqual(Number(result.price), 100);
+        assert.strictEqual(result.count, 5);
+    });
+
+    test('as_json with null value', () => {
+        const result = as_json({ value: null, name: 'test' });
+        const parsed = JSON.parse(result);
+        assert.strictEqual(parsed.value, null);
+        assert.strictEqual(parsed.name, 'test');
+    });
+
+    test('as_json with undefined value', () => {
+        const result = as_json({ value: undefined, name: 'test' });
+        const parsed = JSON.parse(result);
+        // undefined is not serialized in JSON
+        assert.strictEqual(parsed.name, 'test');
+        assert.ok(!('value' in parsed));
+    });
+
+    test('as_json with Date object (non-typed)', () => {
+        const date = new Date('2025-01-15T10:30:00.000Z');
+        const result = as_json({ created: date });
+        const parsed = JSON.parse(result);
+        // Non-typed JSON should convert Date to ISO string
+        assert.strictEqual(parsed.created, '2025-01-15T10:30:00.000Z');
+    });
+
+    test('as_typed_json with Date object', () => {
+        const date = new Date('2025-01-15T10:30:00.000Z');
+        const result = as_typed_json({ created: date });
+        const parsed = JSON.parse(result);
+        // Typed JSON should have ::D or ::DHZ marker
+        assert.ok(parsed.created.includes('::'));
+    });
+
+    test('as_json with nested arrays', () => {
+        const data = { matrix: [[1, 2], [3, 4]] };
+        const result = as_json(data);
+        const parsed = JSON.parse(result);
+        assert.deepStrictEqual(parsed.matrix, [[1, 2], [3, 4]]);
+    });
+
+    test('as_json with indent parameter', () => {
+        const data = { name: 'test', value: 42 };
+        const result = as_json(data, 2);
+        // Should contain newlines when indented
+        assert.ok(result.includes('\n'));
+    });
+
+    test('as_typed_json with indent parameter', () => {
+        const data = { name: 'test', value: 42 };
+        const result = as_typed_json(data, 2);
+        assert.ok(result.includes('\n'));
+    });
+});
+
+// =============================================================================
+// Metadata Coverage Tests
+// =============================================================================
+
+describe('metadata coverage', () => {
+    const { parseMetadata, formatMetadata, validateMetadata, MetadataParseError } = require('../src/metadata');
+
+    test('parseMetadata with escape sequences', () => {
+        // Test escaped backslash
+        const result = parseMetadata('reg:"test\\\\value"');
+        assert.strictEqual(result.reg, 'test\\value');
+    });
+
+    test('parseMetadata with escaped quote', () => {
+        const result = parseMetadata('reg:"say \\"hello\\""');
+        assert.strictEqual(result.reg, 'say "hello"');
+    });
+
+    test('parseMetadata throws on missing colon', () => {
+        assert.throws(() => {
+            parseMetadata('len5');
+        }, MetadataParseError);
+    });
+
+    test('parseMetadata throws on unterminated string', () => {
+        assert.throws(() => {
+            parseMetadata('reg:"unterminated');
+        }, MetadataParseError);
+    });
+
+    test('parseMetadata with empty key', () => {
+        assert.throws(() => {
+            parseMetadata(':value');
+        }, MetadataParseError);
+    });
+
+    test('formatMetadata with special chars needing quotes', () => {
+        const result = formatMetadata({ reg: '[A-Z]{2,5}' });
+        // Should quote the value because it contains brackets
+        assert.ok(result.includes('"'));
+        assert.ok(result.includes('reg:'));
+    });
+
+    test('formatMetadata with backslash needing escape', () => {
+        const result = formatMetadata({ reg: 'a\\b' });
+        // Should escape the backslash
+        assert.ok(result.includes('\\\\'));
+    });
+
+    test('formatMetadata with quote needing escape', () => {
+        const result = formatMetadata({ lbl: 'say "hi"' });
+        // Should escape the quote
+        assert.ok(result.includes('\\"'));
+    });
+
+    test('validateMetadata strict mode throws on unknown key', () => {
+        assert.throws(() => {
+            validateMetadata({ unknown_key: 'value' }, true);
+        }, /Unknown metadata key/);
+    });
+
+    test('validateMetadata non-strict mode allows unknown keys', () => {
+        // Should not throw
+        validateMetadata({ unknown_key: 'value' }, false);
+        assert.ok(true);
+    });
+
+    test('parseMetadata with whitespace around values', () => {
+        // Test that whitespace is handled properly
+        const result = parseMetadata('len :  5 , max :  10');
+        assert.strictEqual(result.len, '5');
+        assert.strictEqual(result.max, '10');
+    });
+});
+
+// =============================================================================
+// Schema Utils Coverage Tests
+// =============================================================================
+
+describe('schema_utils coverage', () => {
+    const { structFromJsonSchema } = require('../src/schema_utils');
+
+    test('nested object with required field', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                address: {
+                    type: 'object',
+                    properties: {
+                        street: { type: 'string' },
+                        city: { type: 'string' }
+                    }
+                }
+            },
+            required: ['address']
+        };
+        const struct = structFromJsonSchema(schema);
+        // Nested object should be required
+        assert.ok(struct.address);
+        assert.ok(struct.address.type.startsWith('@'));
+        assert.ok(struct.address.validate);
+        assert.strictEqual(struct.address.validate.required, true);
+    });
+
+    test('nested object without required field', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                address: {
+                    type: 'object',
+                    properties: {
+                        street: { type: 'string' },
+                        city: { type: 'string' }
+                    }
+                }
+            }
+        };
+        const struct = structFromJsonSchema(schema);
+        // Non-required nested object should be just a string reference
+        assert.strictEqual(struct.address, '@ROOT_ADDRESS');
+    });
+
+    test('type fallback without format', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                count: { type: 'number' }  // number without format
+            }
+        };
+        const struct = structFromJsonSchema(schema);
+        // number: is mapped to R (float), falling back from number:
+        assert.ok(struct.count === 'R' || struct.count.type === 'R');
+    });
+
+    test('unknown type defaults to string', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                weird: { type: 'custom_unknown_type' }
+            }
+        };
+        const struct = structFromJsonSchema(schema);
+        // Unknown type should default to T (string)
+        assert.ok(struct.weird === 'T' || struct.weird.type === 'T');
+    });
+
+    test('register nested structs with registry', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                person: {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string' },
+                        age: { type: 'integer' }
+                    }
+                }
+            }
+        };
+
+        // Use the main registry
+        structFromJsonSchema(schema, { registry: registry, registerNested: true });
+
+        // Nested struct should be registered
+        const nestedStruct = registry.get_struct('ROOT_PERSON');
+        assert.ok(nestedStruct);
+        assert.ok(nestedStruct.name);
+        assert.ok(nestedStruct.age);
+
+        // Clean up
+        try {
+            registry.unregister_struct('ROOT_PERSON');
+        } catch (e) {}
+    });
+
+    test('registerNested false does not register', () => {
+        const schema = {
+            type: 'object',
+            properties: {
+                location: {
+                    type: 'object',
+                    properties: {
+                        lat: { type: 'number' },
+                        lng: { type: 'number' }
+                    }
+                }
+            }
+        };
+
+        structFromJsonSchema(schema, { registry: registry, registerNested: false });
+
+        // Should NOT be registered (get_struct returns null for unknown)
+        const nestedStruct = registry.get_struct('ROOT_LOCATION');
+        assert.ok(nestedStruct === undefined || nestedStruct === null);
+    });
+
+    test('throws if schema is not object type', () => {
+        const schema = { type: 'array', items: { type: 'string' } };
+        assert.throws(() => {
+            structFromJsonSchema(schema);
+        }, /must have type: 'object'/);
+    });
+});
+
+// =============================================================================
+// XML Utils Extended Coverage Tests
+// =============================================================================
+
+describe('xml_utils extended coverage', () => {
+    test('as_xml with attributes', () => {
+        const data = {
+            order: {
+                attrs: { id: 123, status: 'active' },
+                value: 'test content'
+            }
+        };
+        const xml = as_xml(data);
+        assert.ok(xml.includes('id="123"'));
+        assert.ok(xml.includes('status="active"'));
+        assert.ok(xml.includes('test content'));
+    });
+
+    test('as_typed_xml with Date attribute', () => {
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const data = {
+            event: {
+                attrs: { date: date },
+                value: 'meeting'
+            }
+        };
+        const xml = as_typed_xml(data);
+        assert.ok(xml.includes('::D') || xml.includes('::DH'));
+    });
+
+    test('as_xml with nested children object', () => {
+        const data = {
+            order: {
+                attrs: {},
+                value: {
+                    item: { attrs: {}, value: 'widget' },
+                    price: { attrs: {}, value: '99.99' }
+                }
+            }
+        };
+        const xml = as_xml(data);
+        assert.ok(xml.includes('<item>'));
+        assert.ok(xml.includes('<price>'));
+    });
+
+    test('as_xml with array of children', () => {
+        const data = {
+            items: {
+                attrs: {},
+                value: {
+                    item: [
+                        { attrs: {}, value: 'first' },
+                        { attrs: {}, value: 'second' }
+                    ]
+                }
+            }
+        };
+        const xml = as_xml(data);
+        // Should have two <item> elements
+        const itemCount = (xml.match(/<item>/g) || []).length;
+        assert.strictEqual(itemCount, 2);
+    });
+
+    test('as_xml with empty element (null value)', () => {
+        const data = {
+            empty: {
+                attrs: { flag: 'true' },
+                value: null
+            }
+        };
+        const xml = as_xml(data);
+        // Should be self-closing
+        assert.ok(xml.includes('/>'));
+    });
+
+    test('as_xml with explicit root_tag', () => {
+        const data = {
+            attrs: { id: '1' },
+            value: 'content'
+        };
+        const xml = as_xml(data, 'custom');
+        assert.ok(xml.startsWith('<custom'));
+    });
+
+    test('as_xml throws with multiple root keys and no root_tag', () => {
+        const data = {
+            first: { attrs: {}, value: '1' },
+            second: { attrs: {}, value: '2' }
+        };
+        assert.throws(() => {
+            as_xml(data);
+        }, /exactly one root key/);
+    });
+
+    test('from_xml with typed attribute', () => {
+        const xml = '<item price="99.99::N">Widget</item>';
+        const result = from_xml(xml);
+        assert.strictEqual(Number(result.item.attrs.price), 99.99);
+    });
+
+    test('from_xml with self-closing tag', () => {
+        const xml = '<empty flag="true" />';
+        const result = from_xml(xml);
+        assert.strictEqual(result.empty.value, null);
+        assert.strictEqual(result.empty.attrs.flag, 'true');
+    });
+
+    test('from_xml with nested children and text', () => {
+        const xml = '<root>Hello <child>inner</child> world</root>';
+        const result = from_xml(xml);
+        assert.ok(result.root.value.child);
+        assert.ok(result.root.value['#text']);
+    });
+
+    test('from_xml with XML entities', () => {
+        const xml = '<text>&lt;tag&gt; &amp; &quot;quoted&quot;</text>';
+        const result = from_xml(xml);
+        assert.strictEqual(result.text.value, '<tag> & "quoted"');
+    });
+
+    test('from_xml throws on no root tag', () => {
+        assert.throws(() => {
+            from_xml('not xml at all');
+        }, /no root tag/);
+    });
+
+    test('as_xml with array of items in children', () => {
+        // Array as value in children produces repeated child tags
+        const data = {
+            container: {
+                attrs: {},
+                value: {
+                    item: [
+                        { attrs: { id: '1' }, value: 'first' },
+                        { attrs: { id: '2' }, value: 'second' }
+                    ]
+                }
+            }
+        };
+        const xml = as_xml(data);
+        // Should have two <item> elements
+        const itemCount = (xml.match(/<item/g) || []).length;
+        assert.strictEqual(itemCount, 2);
+    });
+
+    test('as_xml with Date value', () => {
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const data = {
+            event: {
+                attrs: {},
+                value: date
+            }
+        };
+        const xml = as_xml(data);
+        assert.ok(xml.includes('2025-01-15'));
+    });
+
+    test('as_typed_xml with Date value has type marker', () => {
+        const date = new Date('2025-01-15T00:00:00.000Z');
+        const data = {
+            event: {
+                attrs: {},
+                value: date
+            }
+        };
+        const xml = as_typed_xml(data);
+        assert.ok(xml.includes('::D') || xml.includes('::DH'));
+    });
+
+    test('_build_element throws without attrs/value', () => {
+        assert.throws(() => {
+            as_xml({ tag: 'invalid content' });
+        }, /must have 'attrs' and 'value' keys/);
+    });
+});
+
+// =============================================================================
+// Registry Extended Coverage Tests
+// =============================================================================
+
+describe('registry extended coverage', () => {
+    test('register_struct with string schema', () => {
+        registry.register_struct('POINT_STR', 'x:R,y:R');
+        try {
+            const struct = registry.get_struct('POINT_STR');
+            assert.ok(struct);
+        } finally {
+            registry.unregister_struct('POINT_STR');
+        }
+    });
+
+    test('as_typed_text with null returns string representation', () => {
+        const result = registry.as_typed_text(null);
+        assert.strictEqual(result, 'null');
+    });
+
+    test('as_typed_text with undefined returns string representation', () => {
+        const result = registry.as_typed_text(undefined);
+        assert.strictEqual(result, 'undefined');
+    });
+
+    test('from_text with invalid type code returns original', () => {
+        const result = registry.from_text('value::UNKNOWN_TYPE');
+        // Unknown type might return the original value or throw
+        assert.ok(result !== undefined);
+    });
+
+    test('as_text with array', () => {
+        const arr = [1, 2, 3];
+        const result = registry.as_text(arr);
+        // Arrays should be JSON serialized
+        assert.ok(typeof result === 'string');
+    });
+
+    test('as_typed_text with array compact_array false', () => {
+        const arr = [1, 2, 3];
+        const result = registry.as_typed_text(arr, false);
+        assert.ok(typeof result === 'string');
+    });
+});
+
+// =============================================================================
+// TytxModel Extended Coverage Tests
+// =============================================================================
+
+describe('TytxModel extended coverage', () => {
+    const { TytxModel } = require('../src/index');
+
+    class ExtendedModel extends TytxModel {}
+
+    test('toTytx with empty object', () => {
+        const model = new ExtendedModel();
+        const json = model.toTytx();
+        assert.strictEqual(json, '{}');
+    });
+
+    test('toTytx with nested Date objects', () => {
+        const model = new ExtendedModel();
+        model.created = new Date('2025-01-15T10:00:00.000Z');
+        model.updated = new Date('2025-01-16T10:00:00.000Z');
+        const json = model.toTytx();
+        const parsed = JSON.parse(json);
+        assert.ok(parsed.created.includes('::'));
+        assert.ok(parsed.updated.includes('::'));
+    });
+
+    test('toTytx with nested objects', () => {
+        const model = new ExtendedModel();
+        model.meta = { author: 'test', version: 1 };
+        const json = model.toTytx();
+        const parsed = JSON.parse(json);
+        assert.strictEqual(parsed.meta.author, 'test');
+        assert.strictEqual(parsed.meta.version, 1);
+    });
+
+    test('toTytx with arrays', () => {
+        const model = new ExtendedModel();
+        model.tags = ['a', 'b', 'c'];
+        const json = model.toTytx();
+        const parsed = JSON.parse(json);
+        assert.deepStrictEqual(parsed.tags, ['a', 'b', 'c']);
+    });
+
+    test('fromTytx with empty JSON string', () => {
+        const model = ExtendedModel.fromTytx('{}');
+        assert.ok(model instanceof ExtendedModel);
+        assert.deepStrictEqual(Object.keys(model), []);
+    });
+
+    test('fromTytx with mixed typed and untyped values', () => {
+        const model = ExtendedModel.fromTytx({
+            id: '123::L',
+            name: 'test',
+            active: true,
+            price: '99.99::N'
+        });
+        assert.strictEqual(model.id, 123);
+        assert.strictEqual(model.name, 'test');
+        assert.strictEqual(model.active, true);
+        assert.strictEqual(Number(model.price), 99.99);
+    });
+});

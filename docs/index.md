@@ -25,6 +25,42 @@
 
 ---
 
+## HTTP helpers (Python / JS / TS)
+
+Use the cross-language helpers to fetch APIs and get hydrated data:
+
+```ts
+import { fetchTyped } from 'genro-tytx-ts';
+
+const data = await fetchTyped('/api/order/123');              // infer Content-Type
+const flag = await fetchTyped('/api/flag', { expect: 'text' }); // typed text
+const xml = await fetchTyped('/api/xml', { expect: 'xml' });    // JS: typed XML, TS: falls back to typed text
+
+// Send typed payload with X-TYTX-Request header
+import { fetchTypedRequest } from 'genro-tytx-ts';
+const resp = await fetchTypedRequest('/api/order', {
+  method: 'POST',
+  body: { price: 10.5 },
+  sendAs: 'json',   // or 'text' or 'msgpack'
+  expect: 'json'
+});
+
+// Python: same behavior
+from genro_tytx.http_utils import fetch_typed_request
+resp = fetch_typed_request(
+    "https://api.example.com/order",
+    body={"price": Decimal("10.5")},
+    send_as="json",
+    expect="json",
+)
+```
+
+Also available in JS (`genro-tytx`) as `fetch_typed` / `fetch_typed_request`.
+See the **HTTP helpers** guide for XTYTX envelopes, MessagePack, and middleware usage.
+For Node.js servers, use `hydrateTypedBody` (TS) to hydrate request bodies.
+Async in Python: use `genro_tytx.http_async_utils` (`fetch_typed_async`, `fetch_typed_request_async`, `fetch_xtytx_async`).
+Python server-side hydration: ASGI `TytxASGIMiddleware` and WSGI `TytxWSGIMiddleware` to auto-hydrate TYTX/XTYTX/JSON/text/msgpack request bodies.
+
 ## The Problem: JSON's Type Blindness
 
 JSON only knows: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
