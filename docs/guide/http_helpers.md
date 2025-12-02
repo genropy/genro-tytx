@@ -90,7 +90,7 @@ TS mirrors the JS API, with typed signatures and inferred return types.
 
 ## Server-side hydration (Python)
 
-If your Python app exposes HTTP endpoints, you can hydrate incoming requests automatically:
+If your Python app exposes HTTP endpoints, you can hydrate incoming requests automatically and, when the client asks for TYTX, auto-serialize responses in the same format:
 
 - ASGI: `genro_tytx.middleware.asgi.TytxASGIMiddleware`
 - WSGI: `genro_tytx.middleware.wsgi.TytxWSGIMiddleware`
@@ -101,8 +101,7 @@ What they do:
   - ASGI: `scope["tytx"] = {"data": hydrated}` and `scope["tytx_body"] = original_bytes`
   - WSGI: `environ["tytx.data"] = hydrated` and `environ["tytx.body"] = original_bytes`
 - Rewind the body so downstream handlers can still read it.
-
-You still control response serialization; the middleware is read-only.
+- If the request carries `X-TYTX-Request`, and the response body is a plain object/array, it is auto-serialized back as typed JSON/text/msgpack or XTYTX (adds `X-TYTX-Response` for XTYTX).
 
 ## Server-side helpers (Node.js / TS)
 

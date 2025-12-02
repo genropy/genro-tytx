@@ -54,6 +54,8 @@ from_json('{"price": "99.99::N", "qty": "5::L"}')
 
 Same API, same types, across all languages.
 
+HTTP helpers (Python/JS/TS) support typed JSON/text/MessagePack and XTYTX envelopes. Python async wrappers are available (`genro_tytx.http_async_utils`). Node.js servers can hydrate requests via `hydrateTypedBody` (TS). Python ASGI/WSGI middleware auto-hydrates incoming TYTX/XTYTX/JSON/text/msgpack bodies and, when `X-TYTX-Request` is set, can auto-serialize responses in the same format.
+
 ---
 
 ## Documentation

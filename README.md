@@ -96,7 +96,7 @@ Also available in JS (`genro-tytx`) as `fetch_typed` / `fetch_typed_request`.
 See the HTTP helpers guide for XTYTX envelopes, MessagePack, and middleware usage.
 For Node.js servers, use `hydrateTypedBody` (TS) to hydrate request bodies in Express/Koa/Fastify.
 Async in Python: mirror helpers via `genro_tytx.http_async_utils` (`fetch_typed_async`, `fetch_typed_request_async`, `fetch_xtytx_async`).
-Server-side hydration in Python: ASGI (`TytxASGIMiddleware`) and WSGI (`TytxWSGIMiddleware`) to auto-hydrate incoming TYTX/XTYTX/json/text/msgpack bodies.
+Server-side hydration in Python: ASGI (`TytxASGIMiddleware`) and WSGI (`TytxWSGIMiddleware`) auto-hydrate incoming TYTX/XTYTX/JSON/text/msgpack bodies and, when `X-TYTX-Request` is present, can auto-serialize responses in the same format.
 
 ### Python
 

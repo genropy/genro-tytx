@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath("../src"))
 project = "genro-tytx"
 copyright = "2025, Softwell S.r.l."
 author = "Genropy Team"
-release = "0.3.0"
+release = "0.5.1"
 
 # -- General configuration ---------------------------------------------------
 extensions = [

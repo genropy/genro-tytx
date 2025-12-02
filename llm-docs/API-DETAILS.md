@@ -6,7 +6,7 @@
 - TS (ESM): `fetchTyped(url, opts)` equivalent; XML in TS is treated as typed text if no XML parser is present.
 - Sending typed payloads: `fetchTypedRequest` (TS/JS). `sendAs: 'json'|'text'|'msgpack'` serializes via `asTypedJson`, `as_typed_text`, or `packb` and sets `Content-Type` + `X-TYTX-Request`.
 - XTYTX envelope: `fetchXtytx` (TS) / `fetch_xtytx` (JS) with optional `autoStructs` to include referenced `lstruct` schemas automatically.
-- Python: `genro_tytx.http_utils` provides `fetch_typed`, `fetch_typed_request`, `fetch_xtytx`, `build_xtytx_envelope` (urllib-based, sync). Async wrappers: `genro_tytx.http_async_utils` (`fetch_typed_async`, `fetch_typed_request_async`, `fetch_xtytx_async`). Server-side hydration: ASGI `TytxASGIMiddleware`, WSGI `TytxWSGIMiddleware`.
+- Python: `genro_tytx.http_utils` provides `fetch_typed`, `fetch_typed_request`, `fetch_xtytx`, `build_xtytx_envelope` (urllib-based, sync). Async wrappers: `genro_tytx.http_async_utils` (`fetch_typed_async`, `fetch_typed_request_async`, `fetch_xtytx_async`). Server-side hydration: ASGI `TytxASGIMiddleware`, WSGI `TytxWSGIMiddleware`, with optional response serialization matching `X-TYTX-Request` (json/text/msgpack/xtytx).
 - Node server-side hydration: `hydrateTypedBody` (TS) to hydrate JSON/text/msgpack/XTYTX bodies in Express/Koa/Fastify by passing raw body + headers.
 
 ## Core Functions
