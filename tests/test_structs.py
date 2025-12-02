@@ -1,7 +1,7 @@
 """Tests for struct schema functionality."""
 
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 from genro_tytx import from_text, registry
 
@@ -42,7 +42,9 @@ class TestStructDictSchema:
         """Dict schema applies types to matching keys."""
         registry.register_struct("CUSTOMER", {"name": "T", "balance": "N", "created": "D"})
         try:
-            result = from_text('{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUSTOMER')
+            result = from_text(
+                '{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUSTOMER'
+            )
             assert result == {
                 "name": "Acme",
                 "balance": Decimal("100.50"),
@@ -244,3 +246,246 @@ class TestStructStringSchema:
             assert result == {"x": 1.0, "y": 2.0}
         finally:
             registry.unregister_struct("POINT")
+
+
+class TestStructV2ObjectSyntax:
+    """Tests for struct v2 object-style field definitions."""
+
+    def test_v2_simple_string_fields(self):
+        """Simple string type codes still work (backward compatible)."""
+        registry.register_struct("SIMPLE", {"name": "T", "age": "L"})
+        try:
+            result = from_text('{"name": "John", "age": "30"}::@SIMPLE')
+            assert result == {"name": "John", "age": 30}
+        finally:
+            registry.unregister_struct("SIMPLE")
+
+    def test_v2_object_field_type_only(self):
+        """Object field with only type key."""
+        registry.register_struct("OBJ_TYPE", {"name": {"type": "T"}, "price": {"type": "N"}})
+        try:
+            result = from_text('{"name": "Widget", "price": "99.99"}::@OBJ_TYPE')
+            assert result == {"name": "Widget", "price": Decimal("99.99")}
+        finally:
+            registry.unregister_struct("OBJ_TYPE")
+
+    def test_v2_object_field_with_validate(self):
+        """Object field with validate section (metadata preserved in schema)."""
+        registry.register_struct(
+            "WITH_VALIDATE",
+            {
+                "name": {"type": "T", "validate": {"min": 1, "max": 100}},
+                "age": {"type": "L", "validate": {"min": 0, "max": 120}},
+            },
+        )
+        try:
+            # Parsing should still work - validate is metadata
+            result = from_text('{"name": "Alice", "age": "25"}::@WITH_VALIDATE')
+            assert result == {"name": "Alice", "age": 25}
+        finally:
+            registry.unregister_struct("WITH_VALIDATE")
+
+    def test_v2_object_field_with_ui(self):
+        """Object field with ui section."""
+        registry.register_struct(
+            "WITH_UI",
+            {
+                "email": {
+                    "type": "T",
+                    "ui": {"label": "Email Address", "placeholder": "user@example.com"},
+                }
+            },
+        )
+        try:
+            result = from_text('{"email": "test@test.com"}::@WITH_UI')
+            assert result == {"email": "test@test.com"}
+        finally:
+            registry.unregister_struct("WITH_UI")
+
+    def test_v2_object_field_full(self):
+        """Object field with type, validate, and ui sections."""
+        registry.register_struct(
+            "FULL_FIELD",
+            {
+                "username": {
+                    "type": "T",
+                    "validate": {"min": 3, "max": 50, "pattern": "^[a-z0-9_]+$"},
+                    "ui": {"label": "Username", "hint": "Only lowercase letters and numbers"},
+                },
+                "balance": {
+                    "type": "N",
+                    "validate": {"min": 0},
+                    "ui": {"label": "Balance", "format": "currency", "readonly": True},
+                },
+            },
+        )
+        try:
+            result = from_text('{"username": "john_doe", "balance": "1000.50"}::@FULL_FIELD')
+            assert result == {"username": "john_doe", "balance": Decimal("1000.50")}
+        finally:
+            registry.unregister_struct("FULL_FIELD")
+
+    def test_v2_mixed_string_and_object_fields(self):
+        """Mix of string and object field definitions."""
+        registry.register_struct(
+            "MIXED",
+            {
+                "id": "L",  # Simple string
+                "name": {"type": "T", "ui": {"label": "Full Name"}},  # Object
+                "active": "B",  # Simple string
+            },
+        )
+        try:
+            result = from_text('{"id": "123", "name": "Test", "active": "true"}::@MIXED')
+            assert result == {"id": 123, "name": "Test", "active": True}
+        finally:
+            registry.unregister_struct("MIXED")
+
+    def test_v2_list_schema_with_objects(self):
+        """List schema with object field definitions."""
+        registry.register_struct(
+            "ROW_V2",
+            [
+                {"type": "T", "ui": {"label": "Name"}},
+                {"type": "L", "validate": {"min": 0}},
+                {"type": "N", "ui": {"format": "currency"}},
+            ],
+        )
+        try:
+            result = from_text('["Product", "10", "99.99"]::@ROW_V2')
+            assert result == ["Product", 10, Decimal("99.99")]
+        finally:
+            registry.unregister_struct("ROW_V2")
+
+    def test_v2_list_schema_mixed(self):
+        """List schema with mixed string and object fields."""
+        registry.register_struct(
+            "ROW_MIXED",
+            [
+                "T",  # Simple string
+                {"type": "L", "validate": {"min": 1}},  # Object
+                "N",  # Simple string
+            ],
+        )
+        try:
+            result = from_text('["Item", "5", "50.00"]::@ROW_MIXED')
+            assert result == ["Item", 5, Decimal("50.00")]
+        finally:
+            registry.unregister_struct("ROW_MIXED")
+
+    def test_v2_homogeneous_list_with_object(self):
+        """Homogeneous list schema with object field."""
+        registry.register_struct("PRICES_V2", [{"type": "N", "validate": {"min": 0}}])
+        try:
+            result = from_text('["10.00", "20.50", "30.99"]::@PRICES_V2')
+            assert result == [Decimal("10.00"), Decimal("20.50"), Decimal("30.99")]
+        finally:
+            registry.unregister_struct("PRICES_V2")
+
+    def test_v2_nested_struct_in_object_field(self):
+        """Object field referencing another struct."""
+        registry.register_struct(
+            "ADDR_V2", {"city": {"type": "T", "ui": {"label": "City"}}, "zip": "L"}
+        )
+        registry.register_struct(
+            "PERSON_V2",
+            {"name": {"type": "T", "validate": {"min": 1}}, "address": {"type": "@ADDR_V2"}},
+        )
+        try:
+            result = from_text(
+                '{"name": "John", "address": {"city": "Rome", "zip": "12345"}}::@PERSON_V2'
+            )
+            assert result == {"name": "John", "address": {"city": "Rome", "zip": 12345}}
+        finally:
+            registry.unregister_struct("PERSON_V2")
+            registry.unregister_struct("ADDR_V2")
+
+    def test_v2_object_field_default_type(self):
+        """Object field without type defaults to T (text)."""
+        registry.register_struct(
+            "DEFAULT_TYPE",
+            {
+                "note": {"ui": {"label": "Notes"}}  # No type specified
+            },
+        )
+        try:
+            result = from_text('{"note": "Hello"}::@DEFAULT_TYPE')
+            assert result == {"note": "Hello"}
+        finally:
+            registry.unregister_struct("DEFAULT_TYPE")
+
+
+class TestFieldHelperFunctions:
+    """Tests for get_field_type, get_field_validate, get_field_ui helpers."""
+
+    def test_get_field_type_from_string(self):
+        """get_field_type returns the string directly for string fields."""
+        from genro_tytx import get_field_type
+
+        assert get_field_type("T") == "T"
+        assert get_field_type("N") == "N"
+        assert get_field_type("@PERSON") == "@PERSON"
+
+    def test_get_field_type_from_object(self):
+        """get_field_type extracts type from object field."""
+        from genro_tytx import get_field_type
+
+        assert get_field_type({"type": "T"}) == "T"
+        assert get_field_type({"type": "N", "validate": {"min": 0}}) == "N"
+        assert get_field_type({"type": "@ADDR", "ui": {"label": "Address"}}) == "@ADDR"
+
+    def test_get_field_type_default(self):
+        """get_field_type returns 'T' when type is not specified."""
+        from genro_tytx import get_field_type
+
+        assert get_field_type({"ui": {"label": "Notes"}}) == "T"
+        assert get_field_type({}) == "T"
+
+    def test_get_field_validate_from_string(self):
+        """get_field_validate returns None for string fields."""
+        from genro_tytx import get_field_validate
+
+        assert get_field_validate("T") is None
+        assert get_field_validate("N[min:0]") is None  # Old syntax, no parsing
+
+    def test_get_field_validate_from_object(self):
+        """get_field_validate extracts validate section from object field."""
+        from genro_tytx import get_field_validate
+
+        validate = get_field_validate(
+            {"type": "T", "validate": {"min": 1, "max": 100, "pattern": "^[a-z]+$"}}
+        )
+        assert validate == {"min": 1, "max": 100, "pattern": "^[a-z]+$"}
+
+    def test_get_field_validate_missing(self):
+        """get_field_validate returns None when validate not present."""
+        from genro_tytx import get_field_validate
+
+        assert get_field_validate({"type": "T"}) is None
+        assert get_field_validate({"type": "T", "ui": {"label": "Name"}}) is None
+
+    def test_get_field_ui_from_string(self):
+        """get_field_ui returns None for string fields."""
+        from genro_tytx import get_field_ui
+
+        assert get_field_ui("T") is None
+        assert get_field_ui("T[lbl:Name]") is None  # Old syntax, no parsing
+
+    def test_get_field_ui_from_object(self):
+        """get_field_ui extracts ui section from object field."""
+        from genro_tytx import get_field_ui
+
+        ui = get_field_ui(
+            {
+                "type": "T",
+                "ui": {"label": "Full Name", "placeholder": "Enter name", "readonly": True},
+            }
+        )
+        assert ui == {"label": "Full Name", "placeholder": "Enter name", "readonly": True}
+
+    def test_get_field_ui_missing(self):
+        """get_field_ui returns None when ui not present."""
+        from genro_tytx import get_field_ui
+
+        assert get_field_ui({"type": "T"}) is None
+        assert get_field_ui({"type": "T", "validate": {"min": 1}}) is None

@@ -3,7 +3,7 @@
  *
  * Protocol Prefixes:
  *     TYTX://   - Standard typed payload
- *     XTYTX://  - Extended envelope with struct and validation definitions
+ *     XTYTX://  - Extended envelope with struct and schema definitions
  *
  * @module json
  */
@@ -120,12 +120,12 @@ export function asJson(obj: unknown, options: JsonOptions = {}): string {
  * Supports three formats:
  * - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
  * - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
- * - XTYTX:// prefix: Extended envelope with structs and validations
- *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}'
- *   - gstruct entries are registered globally
- *   - lstruct entries are used only during this decode
- *   - gvalidation entries are registered globally in validationRegistry
- *   - lvalidation entries are document-specific (returned in result)
+ * - XTYTX:// prefix: Extended envelope with structs and schemas
+ *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gschema": {...}, "lschema": {...}, "data": "..."}'
+ *   - gstruct entries are registered globally (for type hydration)
+ *   - lstruct entries are used only during this decode (for type hydration)
+ *   - gschema entries are registered globally in schemaRegistry (for validation)
+ *   - lschema entries are document-specific (returned in result, for validation)
  *   - data is decoded using combined struct context
  *
  * @returns For regular JSON and TYTX://: hydrated value. For XTYTX://: XtytxResult.
@@ -135,8 +135,8 @@ export function asJson(obj: unknown, options: JsonOptions = {}): string {
  * const data = fromJson('{"price":"99.99::N","date":"2025-01-15::D"}');
  * // { price: 99.99, date: Date }
  *
- * const result = fromJson('XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}');
- * // result is XtytxResult with data, globalValidations, localValidations
+ * const result = fromJson('XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {...}, "lschema": {...}, "data": "..."}');
+ * // result is XtytxResult with data, globalSchemas, localSchemas
  * ```
  */
 export function fromJson<T = TytxValue>(jsonStr: string): T | XtytxResult {

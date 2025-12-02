@@ -1,313 +1,459 @@
-# genro-tytx
+# TYTX - Typed Text Protocol
 
-**TYTX (Typed Text)** - A protocol for exchanging typed data over text-based formats.
+**A multi-language protocol for type-safe data exchange over JSON, XML, and MessagePack.**
 
 [![PyPI version](https://img.shields.io/pypi/v/genro-tytx)](https://pypi.org/project/genro-tytx/)
+[![npm version](https://img.shields.io/npm/v/genro-tytx)](https://www.npmjs.com/package/genro-tytx)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml)
-[![Documentation](https://readthedocs.org/projects/genro-tytx/badge/?version=latest)](https://genro-tytx.readthedocs.io/)
-[![codecov](https://codecov.io/gh/genropy/genro-tytx/graph/badge.svg)](https://codecov.io/gh/genropy/genro-tytx)
-[![LLM Docs](https://img.shields.io/badge/LLM%20Docs-available-brightgreen)](llm-docs/)
 
-Part of [Genro Kyō](https://github.com/genropy) ecosystem.
+---
 
-## Overview
+## Key Features
 
-TYTX solves the "stringly typed" problem of JSON and other text formats by encoding type information directly into value strings using a concise `value::type_code` syntax.
+| Feature | Description |
+|---------|-------------|
+| **Multi-language** | Python, JavaScript, TypeScript - same API, same types |
+| **Multi-format** | JSON, XML, MessagePack support |
+| **Schema integration** | Pydantic, JSON Schema, OpenAPI, XSD |
+| **Progressive complexity** | From simple types to complex nested structures |
+| **Self-describing payloads** | XTYTX envelope ships schema + data together |
+| **Framework independent** | No dependencies on Genropy or any other framework |
 
-### The Problem
+---
 
-JSON only supports: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
+## The Problem
 
-```json
-{
-  "price": 100.50,
-  "date": "2025-01-15"
-}
-```
-
-Is `price` a float or a precise Decimal? Is `date` a string or a Date object?
-
-### The TYTX Solution
+JSON only knows: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
 
 ```json
-{
-  "price": "100.50::N",
-  "date": "2025-01-15::D"
-}
+{"price": 100.50, "date": "2025-01-15"}
 ```
 
-The `::` suffix encodes type information. After parsing:
+Is `price` a float (imprecise) or a Decimal (exact for money)? Is `date` a string or a Date?
 
-- `price` → `Decimal("100.50")` (N = Numeric)
-- `date` → `date(2025, 1, 15)` (D = Date)
+## The Solution
 
-## Quick Start
+TYTX encodes type information directly in values:
+
+```json
+{"price": "100.50::N", "date": "2025-01-15::D"}
+```
+
+After parsing: `price` → `Decimal("100.50")`, `date` → `date(2025, 1, 15)`.
+
+---
+
+## Multi-Language Support
+
+TYTX is available in **three implementations**:
+
+| Package | Language | Install | Notes |
+|---------|----------|---------|-------|
+| `genro-tytx` | **Python** | `pip install genro-tytx` | Full feature set |
+| `genro-tytx` | **JavaScript** | `npm install genro-tytx` | Pure JS (CommonJS + ESM) |
+| `genro-tytx-ts` | **TypeScript** | `npm install genro-tytx-ts` | Native TS with full type definitions |
 
 ### Python
 
-```python
-from genro_tytx import from_text, as_typed_text
-from decimal import Decimal
-from datetime import date
-
-# Parse typed strings
-from_text("100.50::N")        # → Decimal("100.50")  (N = Numeric)
-from_text("2025-01-15::D")    # → date(2025, 1, 15)  (D = Date)
-from_text("123::L")           # → 123                (L = Long/int)
-
-# Serialize with types
-as_typed_text(Decimal("99.99"))  # → "99.99::N"
-as_typed_text(date(2025, 1, 15)) # → "2025-01-15::D"
-as_typed_text(123)               # → "123::L"
-```
-
-### JSON
-
-```python
-from genro_tytx import as_typed_json, from_json
-
-# Serialize to typed JSON
-data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
-as_typed_json(data)
-# '{"price": "99.99::N", "date": "2025-01-15::D"}'
-
-# Parse typed JSON
-from_json('{"price": "99.99::N", "count": "42::L"}')
-# {"price": Decimal("99.99"), "count": 42}
-```
-
-### XML
-
-```python
-from genro_tytx import as_typed_xml, from_xml
-
-# Create typed XML
-data = {"order": {"attrs": {"id": 123}, "value": {"price": {"attrs": {}, "value": Decimal("99.99")}}}}
-as_typed_xml(data)
-# '<order id="123::L"><price>99.99::N</price></order>'
-
-# Parse typed XML
-from_xml('<root>100.50::N</root>')
-# {"root": {"attrs": {}, "value": Decimal("100.50")}}
-```
-
-### Pydantic Integration
-
-```python
-from genro_tytx.pydantic import TytxModel
-from decimal import Decimal
-from datetime import date
-
-class Order(TytxModel):
-    price: Decimal
-    order_date: date
-    quantity: int
-
-order = Order(price=Decimal("99.99"), order_date=date(2025, 1, 15), quantity=5)
-
-# Serialize to TYTX JSON (preserves Decimal precision)
-json_str = order.model_dump_json()
-# '{"price": "99.99::N", "order_date": "2025-01-15::D", "quantity": "5::L"}'
-
-# Deserialize from TYTX JSON
-restored = Order.model_validate_tytx(json_str)
-assert restored.price == Decimal("99.99")  # Exact precision!
-
-# MessagePack support (requires msgpack)
-packed = order.model_dump_msgpack()
-restored = Order.model_validate_tytx_msgpack(packed)
-```
-
-### MessagePack
-
-```python
-from genro_tytx.msgpack_utils import packb, unpackb
-from decimal import Decimal
-from datetime import date
-
-data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
-
-# Pack to MessagePack bytes with TYTX types
-packed = packb(data)
-
-# Unpack with types restored
-restored = unpackb(packed)
-assert restored["price"] == Decimal("99.99")
-assert restored["date"] == date(2025, 1, 15)
-```
-
-## Type Codes
-
-| Code | Name | Python Type | Example |
-|------|------|-------------|---------|
-| `L` | Long integer | `int` | `"123::L"` |
-| `R` | Real number | `float` | `"1.5::R"` |
-| `N` | Numeric | `Decimal` | `"100.50::N"` |
-| `B` | Boolean | `bool` | `"true::B"` |
-| `T` | Text | `str` | `"hello::T"` |
-| `D` | Date | `date` | `"2025-01-15::D"` |
-| `DHZ` | DateTime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
-| `DH` | Naive DateTime (deprecated) | `datetime` | `"2025-01-15T10:00::DH"` |
-| `H` | Hour | `time` | `"10:30:00::H"` |
-| `JS` | JavaScript object | `dict`/`list` | `'{"a":1}::JS'` |
-
-### Type Prefixes
-
-| Prefix | Category | Registration | Example |
-|--------|----------|--------------|---------|
-| (none) | Built-in | TYTX core | `::L`, `::D`, `::N` |
-| `~` | Custom class | `register_class` | `::~UUID`, `::~INV` |
-| `@` | Struct schema | `register_struct` | `::@CUSTOMER`, `::@ROW` |
-| `#` | Typed array | (inline) | `::#L`, `::#N`, `::#@ROW` |
-
-### Typed Arrays
-
-Compact format for homogeneous arrays using `#` prefix:
-
-```python
-# Parse typed arrays
-from_text("[1,2,3]::#L")           # → [1, 2, 3]
-from_text("[[1,2],[3,4]]::#L")     # → [[1, 2], [3, 4]]  (nested)
-
-# Serialize with compact_array
-as_typed_text([1, 2, 3], compact_array=True)  # → '["1","2","3"]::#L'
-```
-
-### Struct Schemas
-
-Define reusable type schemas for data structures:
-
-```python
-from genro_tytx import registry, from_text
-
-# Dict schema - for objects
-registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
-
-from_text('{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER')
-# → {"name": "Acme", "balance": Decimal("100"), "created": date(2025, 1, 15)}
-
-# String schema - for CSV-like data
-registry.register_struct('POINT', 'x:R,y:R')
-
-from_text('["3.7", "7.3"]::@POINT')
-# → {"x": 3.7, "y": 7.3}
-
-# Array of structs with #@
-from_text('[["1", "2"], ["3", "4"]]::#@POINT')
-# → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
-```
-
-## Features
-
-- **Zero dependencies**: Python stdlib only (optional extras for performance)
-- **Bidirectional**: Parse and serialize typed values
-- **Multiple formats**: JSON, XML, MessagePack support
-- **Pydantic integration**: `TytxModel` base class for type-preserving serialization
-- **Locale formatting**: Format dates/numbers for display
-- **Extensible**: Register custom types via `registry.register()`
-- **JavaScript**: Matching JS implementation included (`js/`)
-- **100% test coverage**: Comprehensive test suite
-
-## Installation
-
 ```bash
 pip install genro-tytx
-
-# Optional: Pydantic integration
-pip install genro-tytx[pydantic]
-
-# Optional: MessagePack support
-pip install genro-tytx[msgpack]
-
-# Optional: All extras
-pip install genro-tytx[pydantic,msgpack]
 ```
 
-### JavaScript
+```python
+from genro_tytx import from_text, as_typed_text, from_json, as_typed_json
+from decimal import Decimal
+
+from_text("100.50::N")           # → Decimal("100.50")
+as_typed_text(Decimal("99.99"))  # → "99.99::N"
+
+from_json('{"price": "99.99::N", "qty": "5::L"}')
+# → {"price": Decimal("99.99"), "qty": 5}
+```
+
+### JavaScript (Pure JS)
 
 ```bash
 npm install genro-tytx
 ```
 
-Or use directly:
+The JavaScript package works in **Node.js** and **browsers** with no build step required:
 
 ```javascript
-import { from_text, as_typed_text, from_json, as_typed_json } from 'genro-tytx';
+// CommonJS
+const { fromText, asTypedText, fromJson } = require('genro-tytx');
 
-from_text("123::L");           // → 123
-as_typed_text(123);            // → "123::L"
-from_json('{"x": "10::N"}');   // → {x: 10} (Decimal as number in JS)
+// ESM
+import { fromText, asTypedText, fromJson } from 'genro-tytx';
+
+fromText("100.50::N");           // → 100.50
+asTypedText(99.99);              // → "99.99::R"
+
+fromJson('{"price": "99.99::N", "qty": "5::L"}');
+// → {price: 99.99, qty: 5}
 ```
 
-## Custom Types
+### TypeScript (Native)
+
+```bash
+npm install genro-tytx-ts
+```
+
+The TypeScript package provides **full type definitions** and type inference:
+
+```typescript
+import { fromText, asTypedText, registry, StructSchema } from 'genro-tytx-ts';
+
+const price: number = fromText("100.50::N");
+const schema: StructSchema = { id: 'L', total: 'N' };
+
+registry.registerStruct('ORDER', schema);
+```
+
+---
+
+## Progressive Complexity Levels
+
+TYTX supports 8 levels of complexity. Use only what you need.
+
+### Level 0: Simple Types
+
+Basic type encoding with `value::code` syntax.
 
 ```python
-from genro_tytx import registry
-from genro_tytx.base import DataType
+from_text("123::L")           # → 123 (integer)
+from_text("99.99::N")         # → Decimal("99.99")
+from_text("2025-01-15::D")    # → date(2025, 1, 15)
+from_text("true::B")          # → True
+```
+
+| Code | Type | Python | JS/TS |
+|------|------|--------|-------|
+| `L` | Integer | `int` | `number` |
+| `R` | Real | `float` | `number` |
+| `N` | Numeric | `Decimal` | `number` |
+| `B` | Boolean | `bool` | `boolean` |
+| `T` | Text | `str` | `string` |
+| `D` | Date | `date` | `Date` |
+| `DH` | DateTime | `datetime` | `Date` |
+| `DHZ` | DateTime+TZ | `datetime` | `Date` |
+| `H` | Time | `time` | `string` |
+
+### Level 1: JSON/XML Integration
+
+Full document parsing with automatic type hydration.
+
+```python
+from genro_tytx import from_json, as_typed_json
+
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+json_str = as_typed_json(data)
+# '{"price": "99.99::N", "date": "2025-01-15::D"}'
+
+restored = from_json(json_str)
+# {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+```
+
+### Level 2: Typed Arrays
+
+Homogeneous arrays with `#` prefix - type applied to all elements.
+
+```python
+from_text("[1,2,3]::#L")              # → [1, 2, 3]
+from_text("[[1,2],[3,4]]::#L")        # → [[1, 2], [3, 4]] (nested)
+from_text('["10.5","20.3"]::#N')      # → [Decimal("10.5"), Decimal("20.3")]
+```
+
+### Level 3: Custom Types
+
+Register your own types with `~` prefix.
+
+```python
 import uuid
+from genro_tytx import registry
 
-class UUIDType(DataType):
-    name = "uuid"
-    code = "U"
-    python_type = uuid.UUID
+registry.register_class("UUID", uuid.UUID, str, uuid.UUID)
 
-    def parse(self, value: str) -> uuid.UUID:
-        return uuid.UUID(value)
-
-    def serialize(self, value: uuid.UUID) -> str:
-        return str(value)
-
-registry.register(UUIDType)
-
-# Now works
-from_text("550e8400-e29b-41d4-a716-446655440000::U")
+from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")
 # → UUID("550e8400-e29b-41d4-a716-446655440000")
 ```
 
+### Level 4: Struct Schemas
+
+Define reusable schemas for data structures with `@` prefix.
+
+```python
+# Dict schema - for objects
+registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
+# → {"name": "Acme", "balance": Decimal("100")}
+
+# String schema - for CSV-like data
+registry.register_struct('POINT', 'x:R,y:R')
+from_text('["3.7", "7.3"]::@POINT')
+# → {"x": 3.7, "y": 7.3}
+```
+
+### Level 5: Nested Structures & Arrays of Structs
+
+Hierarchical schemas with `@STRUCT` references and arrays with `#@STRUCT`.
+
+```python
+# Nested structs
+registry.register_struct('ADDRESS', {'city': 'T', 'zip': 'L'})
+registry.register_struct('CUSTOMER', {
+    'name': 'T',
+    'address': '@ADDRESS'  # nested struct reference
+})
+
+from_text('{"name": "John", "address": {"city": "Rome", "zip": "00100"}}::@CUSTOMER')
+# → {"name": "John", "address": {"city": "Rome", "zip": 100}}
+
+# Array of structs
+registry.register_struct('ROW', 'name:T,qty:L,price:N')
+from_text('[["A",1,"10"],["B",2,"20"]]::#@ROW')
+# → [{"name": "A", "qty": 1, "price": Decimal("10")},
+#    {"name": "B", "qty": 2, "price": Decimal("20")}]
+```
+
+### Level 6: Field Metadata (Validation & UI)
+
+Extended field definitions with validation constraints and UI hints.
+
+```python
+registry.register_struct('PRODUCT', {
+    'name': {
+        'type': 'T',
+        'validate': {'min': 1, 'max': 100},
+        'ui': {'label': 'Product Name', 'placeholder': 'Enter name'}
+    },
+    'price': {
+        'type': 'N',
+        'validate': {'min': 0},
+        'ui': {'label': 'Price', 'format': 'currency'}
+    }
+})
+```
+
+### Level 7: XTYTX Self-Describing Payloads
+
+Send schema and data together - the receiver doesn't need pre-registered structs.
+
+```python
+from genro_tytx import from_json
+
+# Self-contained payload with embedded schema
+payload = '''XTYTX://{
+    "gstruct": {},
+    "lstruct": {
+        "ORDER": {"id": "L", "total": "N", "date": "D"}
+    },
+    "data": "TYTX://{\\"id\\": \\"123\\", \\"total\\": \\"99.99\\", \\"date\\": \\"2025-01-15\\"}::@ORDER"
+}'''
+
+result = from_json(payload)
+# result.data → {"id": 123, "total": Decimal("99.99"), "date": date(2025, 1, 15)}
+```
+
+**XTYTX fields:**
+
+- `gstruct`: Global structs - registered permanently (for type hydration)
+- `lstruct`: Local structs - valid only for this payload (for type hydration)
+- `gschema`: Global JSON Schemas - registered permanently (for validation)
+- `lschema`: Local JSON Schemas - valid only for this payload (for validation)
+- `data`: TYTX-encoded data
+
+**Note**: TYTX is a transport format, not a validator. Validation is delegated to JSON Schema via `gschema`/`lschema`.
+
+---
+
+## Format Support
+
+### JSON
+
+```python
+from genro_tytx import from_json, as_typed_json
+
+as_typed_json({"price": Decimal("99.99")})
+# '{"price": "99.99::N"}'
+```
+
+### XML
+
+```python
+from genro_tytx import from_xml, as_typed_xml
+
+from_xml('<order><price>99.99::N</price></order>')
+# {"order": {"attrs": {}, "value": {"price": {..., "value": Decimal("99.99")}}}}
+```
+
+### MessagePack
+
+Binary serialization with full type preservation across all languages. Uses ExtType 42 for TYTX payloads.
+
+**Python** (requires `pip install genro-tytx[msgpack]`):
+
+```python
+from genro_tytx.msgpack_utils import packb, unpackb
+
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+packed = packb(data)      # → bytes (compact binary)
+restored = unpackb(packed)  # → original types preserved
+```
+
+**JavaScript** (requires `npm install @msgpack/msgpack`):
+
+```javascript
+import { packb, unpackb } from 'genro-tytx';
+
+const data = { price: 99.99, date: new Date() };
+const packed = packb(data);      // → Uint8Array
+const restored = unpackb(packed);  // → types preserved
+```
+
+**TypeScript** (requires `npm install @msgpack/msgpack`):
+
+```typescript
+import { packb, unpackb } from 'genro-tytx-ts';
+
+const data = { price: 99.99, date: new Date() };
+const packed: Uint8Array = packb(data);
+const restored = unpackb(packed);
+```
+
+MessagePack is ideal for:
+
+- High-performance APIs
+- WebSocket communication
+- Large data transfers (30-50% smaller than JSON)
+
+---
+
+## Schema Integration
+
+### Pydantic → TYTX
+
+```python
+from pydantic import BaseModel
+from genro_tytx import registry
+
+class Order(BaseModel):
+    id: int
+    total: Decimal
+    date: date
+
+registry.register_struct_from_model('ORDER', Order)
+# Registers: {'id': 'L', 'total': 'N', 'date': 'D'}
+```
+
+### TYTX → Pydantic
+
+```python
+from genro_tytx.utils import schema_to_model
+
+OrderModel = schema_to_model('ORDER', {'id': 'L', 'total': 'N', 'date': 'D'})
+order = OrderModel(id=123, total=Decimal("99.99"), date=date.today())
+```
+
+### JSON Schema / OpenAPI
+
+```python
+from genro_tytx import struct_from_jsonschema, struct_to_jsonschema
+
+# JSON Schema → TYTX
+json_schema = {"type": "object", "properties": {"id": {"type": "integer"}}}
+struct = struct_from_jsonschema(json_schema)  # → {"id": "L"}
+
+# TYTX → JSON Schema
+struct_to_jsonschema({"id": "L", "name": "T"})
+# → {"type": "object", "properties": {...}}
+```
+
+### XSD
+
+```bash
+python scripts/xsd_to_tytx.py schema.xsd --json > struct.json
+```
+
+---
+
+## Visual Tools (Coming Soon)
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| **Structure Editor** | ✅ Done | Interactive HTML editor for struct definitions |
+| **Data Editor** | 🔜 Planned | Edit data instances using struct schemas |
+
+Try the structure editor: `examples/visualizer/index.html`
+
+---
+
+## Installation
+
+### Python
+
+```bash
+pip install genro-tytx                    # Core
+pip install genro-tytx[pydantic]          # + Pydantic support
+pip install genro-tytx[msgpack]           # + MessagePack support
+pip install genro-tytx[pydantic,msgpack]  # All extras
+```
+
+### JavaScript / TypeScript
+
+```bash
+npm install genro-tytx
+```
+
+---
+
+## Framework Independence
+
+TYTX is a **standalone protocol** with zero framework dependencies.
+
+While developed by the same team behind [Genropy](https://github.com/genropy), TYTX is completely independent and can be used with any:
+
+- Web framework (Flask, FastAPI, Django, Express, Fastify...)
+- Frontend framework (React, Vue, Angular, Svelte...)
+- Data pipeline (Pandas, Polars, Apache Spark...)
+- API (REST, GraphQL, gRPC...)
+
+---
+
+## Feature Status
+
+| Feature | Python | JS | TS |
+|---------|:------:|:--:|:--:|
+| Base types (10 codes) | ✅ | ✅ | ✅ |
+| Typed arrays (`#`) | ✅ | ✅ | ✅ |
+| Custom types (`~`) | ✅ | ✅ | ✅ |
+| Struct schemas (`@`) | ✅ | ✅ | ✅ |
+| Nested structs | ✅ | ✅ | ✅ |
+| XTYTX envelope | ✅ | ✅ | ✅ |
+| Field metadata (v2) | ✅ | ✅ | ✅ |
+| JSON serialization | ✅ | ✅ | ✅ |
+| XML serialization | ✅ | ✅ | ✅ |
+| MessagePack | ✅ | ✅ | ✅ |
+| Pydantic integration | ✅ | N/A | N/A |
+| JSON Schema | ✅ | ✅ | ✅ |
+| XSD converter | ✅ | N/A | N/A |
+| Visual struct editor | N/A | ✅ | N/A |
+| Visual data editor | 🔜 | 🔜 | N/A |
+
+See [spec/roadmap.md](spec/roadmap.md) for detailed documentation.
+
+---
+
 ## Documentation
 
-📚 **[Full Documentation](https://genro-tytx.readthedocs.io/)** (coming soon)
-
+- **[Full Documentation](https://genro-tytx.readthedocs.io/)** (ReadTheDocs)
 - [Quick Start](docs/quickstart.md)
 - [Type Guide](docs/guide/types.md)
-- [JSON Utilities](docs/guide/json.md)
-- [XML Utilities](docs/guide/xml.md)
-- [MessagePack](docs/guide/msgpack.md)
-- **[Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)**: Deep dive into design choices.
-- **[OpenAPI Integration](docs/openapi_integration.md)**: How to use TYTX to optimize API specifications.
-- **[UI Generation](docs/ui_generation.md)**: Automatic form rendering from Structs.
-- **[FAQ](docs/faq.md)**: Common questions and answers.md)
-- [API Reference](docs/api/reference.md)
+- [Pydantic Integration](docs/guide/pydantic.md)
+- [Architecture Decisions](docs/ARCHITECTURE_DECISIONS.md)
 
-## Development Status
-
-**Beta** - Core implementation complete. API is stabilizing.
-
-### Feature Status
-
-| Feature | Status |
-|---------|--------|
-| Base serialization (10 types) | :white_check_mark: Done |
-| Array handling (`#` prefix) | :white_check_mark: Done |
-| Custom types (`~` prefix) | :white_check_mark: Done |
-| Struct schemas (`@` prefix) | :white_check_mark: Done |
-| XTYTX envelope | :white_check_mark: Done |
-| Metadata/validation facets | :white_check_mark: Done |
-| XSD to TYTX converter | :white_check_mark: Done |
-| Visual struct editor | :white_check_mark: Done |
-| Pydantic → TYTX struct | :white_check_mark: Done |
-| TYTX struct → Pydantic | :red_circle: Planned |
-| Visual data editor | :red_circle: Planned |
-
-See [spec/roadmap.md](spec/roadmap.md) for detailed feature documentation.
-
-### Tools & Examples
-
-- **XSD Converter**: `scripts/xsd_to_tytx.py` - Convert XSD schemas to TYTX
-- **Visual Editor**: `examples/visualizer/index.html` - Interactive struct editor
-- **Sample Schemas**: `examples/schemas/` - FatturaPA, GeoJSON, etc.
+---
 
 ## License
 

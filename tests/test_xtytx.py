@@ -1,11 +1,11 @@
 """Tests for XTYTX extended envelope format."""
 
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
-from genro_tytx import from_json, registry, XtytxResult, validation_registry
+from genro_tytx import XtytxResult, from_json, registry, schema_registry
 
 
 class TestXtytxBasicParsing:
@@ -79,7 +79,9 @@ class TestXtytxGstruct:
 
     def test_gstruct_multiple_structs(self):
         """Multiple structs can be registered at once."""
-        payload = '''XTYTX://{"gstruct": {"XA": {"a": "L"}, "XB": ["N"]}, "lstruct": {}, "data": ""}'''
+        payload = (
+            """XTYTX://{"gstruct": {"XA": {"a": "L"}, "XB": ["N"]}, "lstruct": {}, "data": ""}"""
+        )
         try:
             from_json(payload)
             assert registry.get_struct("XA") == {"a": "L"}
@@ -122,7 +124,7 @@ class TestXtytxPrecedence:
     def test_lstruct_overrides_gstruct_during_decode(self):
         """lstruct takes precedence over gstruct during decoding."""
         # Both define XPOINT, lstruct version should win during decode
-        payload = '''XTYTX://{"gstruct": {"XPOINT": "x:L,y:L"}, "lstruct": {"XPOINT": "x:R,y:R,z:R"}, "data": "TYTX://{\\"p\\": \\"[1.5, 2.5, 3.5]::@XPOINT\\"}"}'''
+        payload = """XTYTX://{"gstruct": {"XPOINT": "x:L,y:L"}, "lstruct": {"XPOINT": "x:R,y:R,z:R"}, "data": "TYTX://{\\"p\\": \\"[1.5, 2.5, 3.5]::@XPOINT\\"}"}"""
         try:
             result = from_json(payload)
             # lstruct version (R,R,R with z) should be used
@@ -152,7 +154,9 @@ class TestXtytxDataDecoding:
 
     def test_data_with_tytx_prefix(self):
         """data field with TYTX:// prefix is decoded."""
-        payload = 'XTYTX://{"gstruct": {}, "lstruct": {}, "data": "TYTX://{\\"price\\": \\"99.99::N\\"}"}'
+        payload = (
+            'XTYTX://{"gstruct": {}, "lstruct": {}, "data": "TYTX://{\\"price\\": \\"99.99::N\\"}"}'
+        )
         result = from_json(payload)
         assert result.data == {"price": Decimal("99.99")}
 
@@ -175,7 +179,7 @@ class TestXtytxDataDecoding:
         """Complex nested data with multiple struct types."""
         # XADDR uses string schema (array input -> dict output)
         # XPERSON uses string schema too (array input -> dict output)
-        payload = '''XTYTX://{"gstruct": {"XADDR": "city:T,zip:L"}, "lstruct": {"XPERSON": "name:T,age:L"}, "data": "TYTX://{\\"person\\": \\"[\\\\\\"John\\\\\\", \\\\\\"30\\\\\\"]::@XPERSON\\", \\"address\\": \\"[\\\\\\"Rome\\\\\\", \\\\\\"12345\\\\\\"]::@XADDR\\"}"}'''
+        payload = """XTYTX://{"gstruct": {"XADDR": "city:T,zip:L"}, "lstruct": {"XPERSON": "name:T,age:L"}, "data": "TYTX://{\\"person\\": \\"[\\\\\\"John\\\\\\", \\\\\\"30\\\\\\"]::@XPERSON\\", \\"address\\": \\"[\\\\\\"Rome\\\\\\", \\\\\\"12345\\\\\\"]::@XADDR\\"}"}"""
         try:
             result = from_json(payload)
             assert result.data == {
@@ -194,7 +198,7 @@ class TestXtytxUseCases:
 
     def test_struct_only_registration(self):
         """Use XTYTX to register structs without data."""
-        payload = '''XTYTX://{"gstruct": {"XPRODUCT": {"sku": "T", "price": "N", "stock": "L"}}, "lstruct": {}, "data": ""}'''
+        payload = """XTYTX://{"gstruct": {"XPRODUCT": {"sku": "T", "price": "N", "stock": "L"}}, "lstruct": {}, "data": ""}"""
         try:
             result = from_json(payload)
             assert isinstance(result, XtytxResult)
@@ -202,14 +206,17 @@ class TestXtytxUseCases:
             # Struct should be available for future use
             # Use from_text for typed text, not from_json
             from genro_tytx import from_text
-            product_data = from_text('{"sku": "ABC123", "price": "29.99", "stock": "100"}::@XPRODUCT')
+
+            product_data = from_text(
+                '{"sku": "ABC123", "price": "29.99", "stock": "100"}::@XPRODUCT'
+            )
             assert product_data == {"sku": "ABC123", "price": Decimal("29.99"), "stock": 100}
         finally:
             registry.unregister_struct("XPRODUCT")
 
     def test_self_contained_payload(self):
         """Self-contained payload with local structs only."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {"XORDER": {"id": "L", "total": "N", "date": "D"}}, "data": "TYTX://{\\"order\\": \\"{\\\\\\"id\\\\\\": \\\\\\"123\\\\\\", \\\\\\"total\\\\\\": \\\\\\"199.99\\\\\\", \\\\\\"date\\\\\\": \\\\\\"2025-01-15\\\\\\"}::@XORDER\\"}"}'''
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {"XORDER": {"id": "L", "total": "N", "date": "D"}}, "data": "TYTX://{\\"order\\": \\"{\\\\\\"id\\\\\\": \\\\\\"123\\\\\\", \\\\\\"total\\\\\\": \\\\\\"199.99\\\\\\", \\\\\\"date\\\\\\": \\\\\\"2025-01-15\\\\\\"}::@XORDER\\"}"}"""
         result = from_json(payload)
         assert result.data == {
             "order": {
@@ -223,7 +230,7 @@ class TestXtytxUseCases:
 
     def test_mixed_global_local(self):
         """Mix of global and local structs."""
-        payload = '''XTYTX://{"gstruct": {"XBASE": {"id": "L"}}, "lstruct": {"XTEMP": ["N"]}, "data": "TYTX://{\\"base\\": \\"{\\\\\\"id\\\\\\": \\\\\\"1\\\\\\"}::@XBASE\\", \\"temps\\": \\"[100, 200]::@XTEMP\\"}"}'''
+        payload = """XTYTX://{"gstruct": {"XBASE": {"id": "L"}}, "lstruct": {"XTEMP": ["N"]}, "data": "TYTX://{\\"base\\": \\"{\\\\\\"id\\\\\\": \\\\\\"1\\\\\\"}::@XBASE\\", \\"temps\\": \\"[100, 200]::@XTEMP\\"}"}"""
         try:
             result = from_json(payload)
             assert result.data == {
@@ -243,7 +250,7 @@ class TestXtytxErrorHandling:
     def test_invalid_json_envelope(self):
         """Invalid JSON in envelope raises error."""
         with pytest.raises(Exception):  # json.JSONDecodeError
-            from_json('XTYTX://{invalid json}')
+            from_json("XTYTX://{invalid json}")
 
     def test_missing_gstruct_field(self):
         """Missing gstruct field raises error."""
@@ -301,170 +308,97 @@ class TestXtytxSchemaFormats:
             registry.unregister_struct("XNUMS")
 
 
-class TestXtytxGvalidation:
-    """Tests for gvalidation (global validation registration)."""
+class TestXtytxGschema:
+    """Tests for gschema (global JSON Schema registration)."""
 
-    def test_gvalidation_registers_globally(self):
-        """gvalidation entries are registered in global validation_registry."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xtest_email": {"pattern": "^[^@]+@[^@]+$", "message": "Invalid email"}}, "lvalidation": {}, "data": ""}'''
+    def test_gschema_registers_globally(self):
+        """gschema entries are registered in global schema_registry."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {"XCUSTOMER": {"type": "object", "properties": {"name": {"type": "string"}}}}, "lschema": {}, "data": ""}"""
         try:
             result = from_json(payload)
-            # Validation should be registered
-            assert validation_registry.get("xtest_email") is not None
-            assert validation_registry.get("xtest_email")["pattern"] == "^[^@]+@[^@]+$"
-            # Validate works
-            assert validation_registry.validate("test@example.com", "xtest_email")
-            assert not validation_registry.validate("invalid", "xtest_email")
+            # Schema should be registered
+            assert schema_registry.get("XCUSTOMER") is not None
+            assert schema_registry.get("XCUSTOMER")["type"] == "object"
         finally:
-            validation_registry.unregister("xtest_email")
+            schema_registry.unregister("XCUSTOMER")
 
-    def test_gvalidation_returned_in_result(self):
-        """gvalidation is available in XtytxResult."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xmy_val": {"pattern": "^ABC$"}}, "lvalidation": {}, "data": ""}'''
+    def test_gschema_returned_in_result(self):
+        """gschema is available in XtytxResult."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {"XSCHEMA": {"type": "string"}}, "lschema": {}, "data": ""}"""
         try:
             result = from_json(payload)
-            assert result.global_validations is not None
-            assert "xmy_val" in result.global_validations
-            assert result.global_validations["xmy_val"]["pattern"] == "^ABC$"
+            assert result.global_schemas is not None
+            assert "XSCHEMA" in result.global_schemas
+            assert result.global_schemas["XSCHEMA"]["type"] == "string"
         finally:
-            validation_registry.unregister("xmy_val")
+            schema_registry.unregister("XSCHEMA")
 
-    def test_gvalidation_persists_after_decoding(self):
-        """gvalidation remains registered after decoding completes."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xpersist_val": {"pattern": "^[A-Z]+$"}}, "lvalidation": {}, "data": ""}'''
+    def test_gschema_persists_after_decoding(self):
+        """gschema remains registered after decoding completes."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {"XPERSIST": {"type": "integer"}}, "lschema": {}, "data": ""}"""
         try:
             from_json(payload)
             # Should still exist
-            assert validation_registry.get("xpersist_val") is not None
-            # Can use in subsequent validations
-            assert validation_registry.validate("ABC", "xpersist_val")
+            assert schema_registry.get("XPERSIST") is not None
         finally:
-            validation_registry.unregister("xpersist_val")
+            schema_registry.unregister("XPERSIST")
 
-    def test_gvalidation_multiple_validations(self):
-        """Multiple validations can be registered at once."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xval_a": {"pattern": "^A"}, "xval_b": {"pattern": "^B"}}, "lvalidation": {}, "data": ""}'''
+    def test_gschema_multiple_schemas(self):
+        """Multiple schemas can be registered at once."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {"XA": {"type": "string"}, "XB": {"type": "number"}}, "lschema": {}, "data": ""}"""
         try:
             from_json(payload)
-            assert validation_registry.get("xval_a") is not None
-            assert validation_registry.get("xval_b") is not None
+            assert schema_registry.get("XA") is not None
+            assert schema_registry.get("XB") is not None
         finally:
-            validation_registry.unregister("xval_a")
-            validation_registry.unregister("xval_b")
+            schema_registry.unregister("XA")
+            schema_registry.unregister("XB")
 
 
-class TestXtytxLvalidation:
-    """Tests for lvalidation (local validation definitions)."""
+class TestXtytxLschema:
+    """Tests for lschema (local JSON Schema definitions)."""
 
-    def test_lvalidation_not_registered_globally(self):
-        """lvalidation entries are NOT registered in global registry after decoding."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {}, "lvalidation": {"xlocal_val": {"pattern": "^LOCAL$"}}, "data": ""}'''
+    def test_lschema_not_registered_globally(self):
+        """lschema entries are NOT registered in global registry after decoding."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {}, "lschema": {"XLOCAL": {"type": "string"}}, "data": ""}"""
         result = from_json(payload)
         # Should NOT be in global registry
-        assert validation_registry.get("xlocal_val") is None
+        assert schema_registry.get("XLOCAL") is None
         # But should be in result
-        assert result.local_validations is not None
-        assert "xlocal_val" in result.local_validations
+        assert result.local_schemas is not None
+        assert "XLOCAL" in result.local_schemas
 
-    def test_lvalidation_returned_in_result(self):
-        """lvalidation is available in XtytxResult for later use."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {}, "lvalidation": {"xtemp_val": {"pattern": "^[0-9]+$", "message": "Numbers only"}}, "data": ""}'''
+    def test_lschema_returned_in_result(self):
+        """lschema is available in XtytxResult for later use."""
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {}, "lschema": {"XTEMP": {"type": "object", "required": ["id"]}}, "data": ""}"""
         result = from_json(payload)
-        assert result.local_validations is not None
-        assert "xtemp_val" in result.local_validations
-        assert result.local_validations["xtemp_val"]["message"] == "Numbers only"
-
-    def test_lvalidation_can_be_used_with_validate(self):
-        """lvalidation can be used with validate() method."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {}, "lvalidation": {"xnum_only": {"pattern": "^[0-9]+$"}}, "data": ""}'''
-        result = from_json(payload)
-        # Use local_validations in validate
-        assert validation_registry.validate(
-            "12345",
-            "xnum_only",
-            local_validations=result.local_validations,
-        )
-        assert not validation_registry.validate(
-            "abc",
-            "xnum_only",
-            local_validations=result.local_validations,
-        )
+        assert result.local_schemas is not None
+        assert "XTEMP" in result.local_schemas
+        assert result.local_schemas["XTEMP"]["required"] == ["id"]
 
 
-class TestXtytxValidationPrecedence:
-    """Tests for validation resolution order: lvalidation > gvalidation > registry."""
+class TestXtytxSchemaWithData:
+    """Tests for using JSON schemas with actual data."""
 
-    def test_lvalidation_overrides_gvalidation(self):
-        """lvalidation takes precedence over gvalidation."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xprec": {"pattern": "^GLOBAL$"}}, "lvalidation": {"xprec": {"pattern": "^LOCAL$"}}, "data": ""}'''
+    def test_envelope_with_schemas_and_data(self):
+        """Complete envelope with structs, schemas, and data."""
+        payload = """XTYTX://{"gstruct": {"XCODE": {"code": "T"}}, "lstruct": {}, "gschema": {"XCODE": {"type": "object", "properties": {"code": {"type": "string", "pattern": "^[A-Z]{3}$"}}}}, "lschema": {}, "data": "{\\"item\\": \\"{\\\\\\"code\\\\\\": \\\\\\"ABC\\\\\\"}::@XCODE\\"}"}"""
         try:
             result = from_json(payload)
-            # Using local_validations should use LOCAL pattern
-            assert validation_registry.validate(
-                "LOCAL",
-                "xprec",
-                local_validations=result.local_validations,
-                global_validations=result.global_validations,
-            )
-            assert not validation_registry.validate(
-                "GLOBAL",
-                "xprec",
-                local_validations=result.local_validations,
-                global_validations=result.global_validations,
-            )
-            # But global registry has GLOBAL pattern
-            assert validation_registry.validate("GLOBAL", "xprec")
+            assert result.data == {"item": {"code": "ABC"}}
+            # Schema is available for validation
+            schema = schema_registry.get("XCODE")
+            assert schema is not None
+            assert schema["properties"]["code"]["pattern"] == "^[A-Z]{3}$"
         finally:
-            validation_registry.unregister("xprec")
+            schema_registry.unregister("XCODE")
+            registry.unregister_struct("XCODE")
 
-    def test_gvalidation_overrides_registry(self):
-        """gvalidation takes precedence over pre-registered validations."""
-        # Pre-register a validation
-        validation_registry.register("xexisting_val", {"pattern": "^REGISTRY$"})
-        try:
-            payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xexisting_val": {"pattern": "^GVALIDATION$"}}, "lvalidation": {}, "data": ""}'''
-            from_json(payload)
-            # gvalidation should have overwritten
-            assert validation_registry.validate("GVALIDATION", "xexisting_val")
-            assert not validation_registry.validate("REGISTRY", "xexisting_val")
-        finally:
-            validation_registry.unregister("xexisting_val")
-
-
-class TestXtytxValidationWithData:
-    """Tests for using validations with actual data."""
-
-    def test_envelope_with_validations_and_data(self):
-        """Complete envelope with structs, validations, and data."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xcode": {"pattern": "^[A-Z]{3}$", "len": 3}}, "lvalidation": {}, "data": "{\\"code\\": \\"ABC\\"}"}'''
-        try:
-            result = from_json(payload)
-            assert result.data == {"code": "ABC"}
-            # Validation is available
-            assert validation_registry.validate("ABC", "xcode")
-            assert not validation_registry.validate("ABCD", "xcode")  # too long
-            assert not validation_registry.validate("abc", "xcode")  # lowercase
-        finally:
-            validation_registry.unregister("xcode")
-
-    def test_validation_expression_with_gvalidation(self):
-        """Boolean expressions work with gvalidation."""
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "gvalidation": {"xupper": {"pattern": "^[A-Z]+$"}, "xshort": {"max": 5}}, "lvalidation": {}, "data": ""}'''
-        try:
-            result = from_json(payload)
-            # AND expression
-            assert validation_registry.validate_expression("ABC", "xupper&xshort")
-            assert not validation_registry.validate_expression("ABCDEF", "xupper&xshort")  # too long
-            assert not validation_registry.validate_expression("abc", "xupper&xshort")  # lowercase
-        finally:
-            validation_registry.unregister("xupper")
-            validation_registry.unregister("xshort")
-
-    def test_optional_validation_fields(self):
-        """gvalidation and lvalidation fields are optional."""
-        # Without gvalidation/lvalidation fields
-        payload = '''XTYTX://{"gstruct": {}, "lstruct": {}, "data": "{\\"x\\": 1}"}'''
+    def test_optional_schema_fields(self):
+        """gschema and lschema fields are optional."""
+        # Without gschema/lschema fields
+        payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "data": "{\\"x\\": 1}"}"""
         result = from_json(payload)
         assert result.data == {"x": 1}
-        assert result.global_validations is None
-        assert result.local_validations is None
+        assert result.global_schemas is None
+        assert result.local_schemas is None

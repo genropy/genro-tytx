@@ -367,3 +367,87 @@ async def receive_message(ws) -> Message:
 4. **Mixed usage**: You can use `TytxModel` alongside regular Pydantic models. Use `TytxModel` only where type preservation matters.
 
 5. **Validation**: Continue to use Pydantic's validation features - they work identically with `TytxModel`.
+
+## Pydantic ↔ TYTX Struct Conversion
+
+### Generate TYTX Structs from Pydantic Models
+
+Use `register_struct_from_model()` to automatically create TYTX struct schemas from Pydantic models:
+
+```python
+from pydantic import BaseModel
+from decimal import Decimal
+from datetime import date
+from genro_tytx import registry
+
+class Address(BaseModel):
+    street: str
+    city: str
+    zip_code: int
+
+class Customer(BaseModel):
+    name: str
+    balance: Decimal
+    created: date
+    address: Address  # nested model
+
+# Register struct from model (includes nested models automatically)
+registry.register_struct_from_model('CUSTOMER', Customer)
+
+# Now you can use the struct
+from genro_tytx import from_text
+data = from_text('{"name": "Acme", "balance": "100", ...}::@CUSTOMER')
+```
+
+**Type Mapping (Python → TYTX)**:
+
+| Python Type | TYTX Code |
+|-------------|-----------|
+| `str` | `T` |
+| `int` | `L` |
+| `float` | `R` |
+| `Decimal` | `N` |
+| `bool` | `B` |
+| `date` | `D` |
+| `datetime` | `DHZ` |
+| `time` | `H` |
+| `list[X]` | `#X` |
+| `dict` | `JS` |
+| `BaseModel` | `@MODEL_NAME` |
+
+### Generate Pydantic Models from TYTX Structs
+
+Use `schema_to_model()` to dynamically create Pydantic models from TYTX struct schemas:
+
+```python
+from genro_tytx.utils import schema_to_model
+
+# Simple struct
+OrderModel = schema_to_model('ORDER', {'id': 'L', 'total': 'N', 'date': 'D'})
+
+# Create instances
+order = OrderModel(id=123, total=Decimal("99.99"), date=date.today())
+
+# With nested structs
+structs = {
+    'ADDRESS': {'street': 'T', 'city': 'T'},
+    'CUSTOMER': {'name': 'T', 'address': '@ADDRESS'}
+}
+CustomerModel = schema_to_model('CUSTOMER', structs['CUSTOMER'], struct_registry=structs)
+```
+
+**Type Mapping (TYTX → Python)**:
+
+| TYTX Code | Python Type |
+|-----------|-------------|
+| `T` | `str` |
+| `L` | `int` |
+| `R` | `float` |
+| `N` | `Decimal` |
+| `B` | `bool` |
+| `D` | `date` |
+| `DH`, `DHZ` | `datetime` |
+| `H` | `time` |
+| `JS` | `dict` |
+| `#X` | `list[X]` |
+| `@STRUCT` | nested model |

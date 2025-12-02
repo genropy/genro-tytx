@@ -103,12 +103,91 @@ export interface FetchOptions extends RequestInit {
 }
 
 /**
+ * Validation constraints for field definitions (struct v2).
+ */
+export interface FieldValidate {
+  min?: number;
+  max?: number;
+  length?: number;
+  pattern?: string;
+  enum?: string[];
+  validation?: string;
+  required?: boolean;
+  default?: unknown;
+}
+
+/**
+ * UI hints for field definitions (struct v2).
+ */
+export interface FieldUI {
+  label?: string;
+  placeholder?: string;
+  hint?: string;
+  readonly?: boolean | string;
+  hidden?: boolean | string;
+  format?: string;
+  width?: number | string;
+  rows?: number;
+}
+
+/**
+ * Extended field definition (struct v2).
+ * Allows specifying type, validation, and UI metadata separately.
+ */
+export interface FieldDef {
+  type?: string;
+  validate?: FieldValidate;
+  ui?: FieldUI;
+}
+
+/**
+ * Field value can be a simple type code string or extended object definition.
+ */
+export type FieldValue = string | FieldDef;
+
+/**
  * Schema type for struct registration.
  * - string[]: positional types ['T', 'L', 'N'] or homogeneous ['N']
  * - Record<string, string>: keyed types {name: 'T', balance: 'N'}
  * - string: ordered types "x:R,y:R" (named → object) or "R,R" (anonymous → array)
+ * - FieldValue[]: positional types with extended definitions
+ * - Record<string, FieldValue>: keyed types with extended definitions
  */
-export type StructSchema = string[] | Record<string, string> | string;
+export type StructSchema = FieldValue[] | Record<string, FieldValue> | string;
+
+/**
+ * Get the type code from a field value.
+ * For string fields, returns the string directly.
+ * For object fields, returns the 'type' property or 'T' as default.
+ */
+export function getFieldType(field: FieldValue): string {
+  if (typeof field === 'string') {
+    return field;
+  }
+  return field.type ?? 'T';
+}
+
+/**
+ * Get validation constraints from a field value.
+ * Returns undefined for string fields.
+ */
+export function getFieldValidate(field: FieldValue): FieldValidate | undefined {
+  if (typeof field === 'string') {
+    return undefined;
+  }
+  return field.validate;
+}
+
+/**
+ * Get UI hints from a field value.
+ * Returns undefined for string fields.
+ */
+export function getFieldUI(field: FieldValue): FieldUI | undefined {
+  if (typeof field === 'string') {
+    return undefined;
+  }
+  return field.ui;
+}
 
 /**
  * Type guard for typed strings.

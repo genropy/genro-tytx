@@ -2,197 +2,171 @@
  * Tests for XTYTX envelope processing (JavaScript).
  *
  * Tests cover:
- * - gvalidation registration and use
- * - lvalidation document-specific use
- * - Resolution order (local > global > registry)
- * - Data hydration with validations
+ * - gschema registration and use
+ * - lschema document-specific use
+ * - Data hydration with schemas
+ *
+ * TYTX is a transport format, not a validator.
+ * Validation is delegated to JSON Schema.
  */
 
 const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
-const { from_json, validationRegistry, processEnvelope } = require('../src');
+const { from_json, schemaRegistry, processEnvelope } = require('../src');
 
-describe('XTYTX gvalidation support', () => {
-    // Clean up any test validations after each test
+describe('XTYTX gschema support', () => {
+    // Clean up any test schemas after each test
     afterEach(() => {
-        try { validationRegistry.unregister('test_global'); } catch (e) {}
-        try { validationRegistry.unregister('test_upper'); } catch (e) {}
-        try { validationRegistry.unregister('test_lower'); } catch (e) {}
+        try { schemaRegistry.unregister('test_global'); } catch (e) {}
+        try { schemaRegistry.unregister('CUSTOMER'); } catch (e) {}
+        try { schemaRegistry.unregister('ORDER'); } catch (e) {}
     });
 
-    it('gvalidation entries are registered globally', () => {
+    it('gschema entries are registered globally', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                test_global: { pattern: '^[A-Z]+$', message: 'Must be uppercase' }
+            gschema: {
+                CUSTOMER: {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string' },
+                        email: { type: 'string', format: 'email' }
+                    },
+                    required: ['name', 'email']
+                }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         from_json(envelope);
 
-        // gvalidation should be registered in global registry
-        const validation = validationRegistry.get('test_global');
-        assert.ok(validation);
-        assert.strictEqual(validation.pattern, '^[A-Z]+$');
-        assert.strictEqual(validation.message, 'Must be uppercase');
+        // gschema should be registered in global registry
+        const schema = schemaRegistry.get('CUSTOMER');
+        assert.ok(schema);
+        assert.strictEqual(schema.type, 'object');
+        assert.ok(schema.properties.name);
+        assert.ok(schema.properties.email);
     });
 
-    it('gvalidation can be used for validation after registration', () => {
+    it('gschema can be retrieved for validation after registration', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                test_upper: { pattern: '^[A-Z]+$' }
+            gschema: {
+                ORDER: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'integer' },
+                        total: { type: 'number', minimum: 0 }
+                    }
+                }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         from_json(envelope);
 
-        // Now we can validate using the registered validation
-        assert.strictEqual(validationRegistry.validate('ABC', 'test_upper'), true);
-        assert.strictEqual(validationRegistry.validate('abc', 'test_upper'), false);
+        // Now we can retrieve the schema for external validation
+        const schema = schemaRegistry.get('ORDER');
+        assert.ok(schema);
+        assert.strictEqual(schema.properties.total.minimum, 0);
     });
 
-    it('multiple gvalidations are registered', () => {
+    it('multiple gschemas are registered', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                test_upper: { pattern: '^[A-Z]+$' },
-                test_lower: { pattern: '^[a-z]+$' }
+            gschema: {
+                CUSTOMER: { type: 'object', properties: { name: { type: 'string' } } },
+                ORDER: { type: 'object', properties: { id: { type: 'integer' } } }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         from_json(envelope);
 
-        assert.ok(validationRegistry.get('test_upper'));
-        assert.ok(validationRegistry.get('test_lower'));
+        assert.ok(schemaRegistry.get('CUSTOMER'));
+        assert.ok(schemaRegistry.get('ORDER'));
     });
 });
 
-describe('XTYTX lvalidation support', () => {
-    it('lvalidation entries are returned in result', () => {
+describe('XTYTX lschema support', () => {
+    it('lschema entries are returned in result', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            lvalidation: {
-                doc_validation: { pattern: '^DOC', message: 'Must start with DOC' }
+            lschema: {
+                DOC_SCHEMA: {
+                    type: 'object',
+                    properties: { docId: { type: 'string', pattern: '^DOC-' } }
+                }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         const result = from_json(envelope);
 
-        assert.ok(result.localValidations);
-        assert.ok(result.localValidations.doc_validation);
-        assert.strictEqual(result.localValidations.doc_validation.pattern, '^DOC');
+        assert.ok(result.localSchemas);
+        assert.ok(result.localSchemas.DOC_SCHEMA);
+        assert.strictEqual(result.localSchemas.DOC_SCHEMA.properties.docId.pattern, '^DOC-');
     });
 
-    it('lvalidation is NOT registered globally', () => {
+    it('lschema is NOT registered globally', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            lvalidation: {
-                local_only: { pattern: '^LOCAL$' }
+            lschema: {
+                LOCAL_ONLY: { type: 'object' }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         from_json(envelope);
 
-        // lvalidation should NOT be in global registry
-        assert.strictEqual(validationRegistry.get('local_only'), undefined);
+        // lschema should NOT be in global registry
+        assert.strictEqual(schemaRegistry.get('LOCAL_ONLY'), undefined);
     });
 
-    it('both gvalidation and lvalidation are returned', () => {
+    it('both gschema and lschema are returned', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                global_v: { pattern: '^GLOBAL$' }
+            gschema: {
+                GLOBAL_SCHEMA: { type: 'object', properties: { g: { type: 'string' } } }
             },
-            lvalidation: {
-                local_v: { pattern: '^LOCAL$' }
+            lschema: {
+                LOCAL_SCHEMA: { type: 'object', properties: { l: { type: 'string' } } }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         const result = from_json(envelope);
 
-        assert.ok(result.globalValidations);
-        assert.ok(result.globalValidations.global_v);
-        assert.ok(result.localValidations);
-        assert.ok(result.localValidations.local_v);
+        assert.ok(result.globalSchemas);
+        assert.ok(result.globalSchemas.GLOBAL_SCHEMA);
+        assert.ok(result.localSchemas);
+        assert.ok(result.localSchemas.LOCAL_SCHEMA);
     });
 });
 
-describe('XTYTX validation resolution order', () => {
+describe('XTYTX data handling with schemas', () => {
     afterEach(() => {
-        try { validationRegistry.unregister('priority_test'); } catch (e) {}
+        try { schemaRegistry.unregister('ORDER'); } catch (e) {}
     });
 
-    it('lvalidation overrides gvalidation in manual validation', () => {
+    it('data is hydrated correctly with gschema present', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                priority_test: { pattern: '^GLOBAL$' }
-            },
-            lvalidation: {
-                priority_test: { pattern: '^LOCAL$' }
-            },
-            data: 'TYTX://{"value": "100::L"}'
-        })}`;
-
-        const result = from_json(envelope);
-
-        // When validating manually with local context, local wins
-        assert.strictEqual(
-            validationRegistry.validate('LOCAL', 'priority_test', result.localValidations),
-            true
-        );
-        assert.strictEqual(
-            validationRegistry.validate('GLOBAL', 'priority_test', result.localValidations),
-            false
-        );
-    });
-
-    it('gvalidation overrides registry after registration', () => {
-        // First register in registry
-        validationRegistry.register('priority_test', { pattern: '^REGISTRY$' });
-
-        const envelope = `XTYTX://${JSON.stringify({
-            gstruct: {},
-            lstruct: {},
-            gvalidation: {
-                priority_test: { pattern: '^GLOBAL$' }
-            },
-            data: 'TYTX://{"value": "100::L"}'
-        })}`;
-
-        from_json(envelope);
-
-        // gvalidation should overwrite registry
-        assert.strictEqual(validationRegistry.validate('GLOBAL', 'priority_test'), true);
-        assert.strictEqual(validationRegistry.validate('REGISTRY', 'priority_test'), false);
-    });
-});
-
-describe('XTYTX data handling with validations', () => {
-    afterEach(() => {
-        try { validationRegistry.unregister('code_format'); } catch (e) {}
-    });
-
-    it('data is hydrated correctly with gvalidation present', () => {
-        const envelope = `XTYTX://${JSON.stringify({
-            gstruct: {},
-            lstruct: {},
-            gvalidation: {
-                code_format: { pattern: '^[A-Z]{3}$' }
+            gschema: {
+                ORDER: {
+                    type: 'object',
+                    properties: {
+                        code: { type: 'string', pattern: '^[A-Z]{3}$' },
+                        amount: { type: 'integer' }
+                    }
+                }
             },
             data: 'TYTX://{"code": "ABC", "amount": "100::L"}'
         })}`;
@@ -203,12 +177,12 @@ describe('XTYTX data handling with validations', () => {
         assert.strictEqual(result.data.amount, 100);
     });
 
-    it('empty data returns null with validations', () => {
+    it('empty data returns null with schemas', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                code_format: { pattern: '^[A-Z]{3}$' }
+            gschema: {
+                ORDER: { type: 'object' }
             },
             data: ''
         })}`;
@@ -216,43 +190,48 @@ describe('XTYTX data handling with validations', () => {
         const result = from_json(envelope);
 
         assert.strictEqual(result.data, null);
-        assert.ok(result.globalValidations);
-        assert.ok(result.globalValidations.code_format);
+        assert.ok(result.globalSchemas);
+        assert.ok(result.globalSchemas.ORDER);
     });
 
-    it('validations are available for post-processing', () => {
+    it('schemas are available for post-processing validation', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                code_format: { pattern: '^[A-Z]{3}$' }
+            gschema: {
+                ORDER: {
+                    type: 'object',
+                    properties: {
+                        code: { type: 'string', pattern: '^[A-Z]{3}$' },
+                        amount: { type: 'integer', minimum: 1 }
+                    }
+                }
             },
-            lvalidation: {
-                amount_positive: { pattern: '^[1-9]' }
+            lschema: {
+                ITEM: {
+                    type: 'object',
+                    properties: {
+                        sku: { type: 'string' }
+                    }
+                }
             },
             data: 'TYTX://{"code": "ABC", "amount": "100::L"}'
         })}`;
 
         const result = from_json(envelope);
 
-        // User can validate data using returned validations
-        assert.strictEqual(
-            validationRegistry.validate(result.data.code, 'code_format'),
-            true
-        );
-        assert.strictEqual(
-            validationRegistry.validate(
-                String(result.data.amount),
-                'amount_positive',
-                result.localValidations
-            ),
-            true
-        );
+        // User can retrieve schemas for external validation (e.g., with Ajv)
+        const orderSchema = schemaRegistry.get('ORDER');
+        assert.ok(orderSchema);
+        assert.strictEqual(orderSchema.properties.amount.minimum, 1);
+
+        // Local schema available in result
+        assert.ok(result.localSchemas.ITEM);
     });
 });
 
 describe('XTYTX optional fields', () => {
-    it('works without gvalidation', () => {
+    it('works without gschema', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
@@ -262,34 +241,38 @@ describe('XTYTX optional fields', () => {
         const result = from_json(envelope);
 
         assert.strictEqual(result.data.value, 100);
-        assert.strictEqual(result.globalValidations, null);
-        assert.strictEqual(result.localValidations, null);
+        assert.strictEqual(result.globalSchemas, null);
+        assert.strictEqual(result.localSchemas, null);
     });
 
-    it('works without lvalidation', () => {
+    it('works without lschema', () => {
         const envelope = `XTYTX://${JSON.stringify({
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                test: { pattern: '^test$' }
+            gschema: {
+                TEST: { type: 'object' }
             },
             data: 'TYTX://{"value": "100::L"}'
         })}`;
 
         const result = from_json(envelope);
 
-        assert.ok(result.globalValidations);
-        assert.strictEqual(result.localValidations, null);
+        assert.ok(result.globalSchemas);
+        assert.strictEqual(result.localSchemas, null);
     });
 });
 
 describe('processEnvelope direct usage', () => {
+    afterEach(() => {
+        try { schemaRegistry.unregister('CUSTOM'); } catch (e) {}
+    });
+
     it('can be used directly with custom hydrate function', () => {
         const envelope = {
             gstruct: {},
             lstruct: {},
-            gvalidation: {
-                custom: { pattern: '^CUSTOM$' }
+            gschema: {
+                CUSTOM: { type: 'object', properties: { value: { type: 'string' } } }
             },
             data: 'TYTX://test-data'
         };
@@ -300,8 +283,8 @@ describe('processEnvelope direct usage', () => {
         const result = processEnvelope(envelope, customHydrate, 'TYTX://');
 
         assert.deepStrictEqual(result.data, { raw: 'test-data' });
-        assert.ok(result.globalValidations);
-        assert.ok(result.globalValidations.custom);
+        assert.ok(result.globalSchemas);
+        assert.ok(result.globalSchemas.CUSTOM);
     });
 
     it('throws on missing required fields', () => {
@@ -319,5 +302,34 @@ describe('processEnvelope direct usage', () => {
             () => processEnvelope({ gstruct: {}, lstruct: {} }, () => null),
             /missing required field: data/
         );
+    });
+});
+
+describe('SchemaRegistry', () => {
+    afterEach(() => {
+        try { schemaRegistry.unregister('test_schema'); } catch (e) {}
+    });
+
+    it('register and get schema', () => {
+        const schema = { type: 'object', properties: { name: { type: 'string' } } };
+        schemaRegistry.register('test_schema', schema);
+
+        const retrieved = schemaRegistry.get('test_schema');
+        assert.deepStrictEqual(retrieved, schema);
+    });
+
+    it('unregister schema', () => {
+        schemaRegistry.register('test_schema', { type: 'object' });
+        assert.ok(schemaRegistry.get('test_schema'));
+
+        schemaRegistry.unregister('test_schema');
+        assert.strictEqual(schemaRegistry.get('test_schema'), undefined);
+    });
+
+    it('listSchemas returns all registered names', () => {
+        schemaRegistry.register('test_schema', { type: 'object' });
+
+        const names = schemaRegistry.listSchemas();
+        assert.ok(names.includes('test_schema'));
     });
 });

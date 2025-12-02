@@ -7,8 +7,8 @@
  * @module registry
  */
 
-import type { DataType, TytxValue, TypeCode, StructSchema } from './types.js';
-import { isTypedString, extractTypeCode, extractValue } from './types.js';
+import type { DataType, TytxValue, TypeCode, StructSchema, FieldValue } from './types.js';
+import { isTypedString, extractTypeCode, extractValue, getFieldType } from './types.js';
 
 /**
  * Prefix for custom extension types.
@@ -647,13 +647,14 @@ export class TypeRegistry {
   /**
    * Apply dict schema to data.
    */
-  private applyDictSchema(data: unknown, schema: Record<string, string>): unknown {
+  private applyDictSchema(data: unknown, schema: Record<string, FieldValue>): unknown {
     if (typeof data !== 'object' || data === null || Array.isArray(data)) {
       return data;
     }
     const result: Record<string, unknown> = { ...(data as Record<string, unknown>) };
-    for (const [key, typeCode] of Object.entries(schema)) {
+    for (const [key, fieldDef] of Object.entries(schema)) {
       if (key in result) {
+        const typeCode = getFieldType(fieldDef);
         result[key] = this.hydrateValue(result[key], typeCode);
       }
     }
@@ -663,14 +664,14 @@ export class TypeRegistry {
   /**
    * Apply list schema to data.
    */
-  private applyListSchema(data: unknown, schema: string[]): unknown {
+  private applyListSchema(data: unknown, schema: FieldValue[]): unknown {
     if (!Array.isArray(data)) {
       return data;
     }
 
     if (schema.length === 1) {
       // Homogeneous: apply single type to all elements
-      const typeCode = schema[0];
+      const typeCode = getFieldType(schema[0]);
       return data.map((item) => this.applyHomogeneous(item, typeCode));
     } else {
       // Positional: apply type at index i to data[i]
@@ -695,11 +696,12 @@ export class TypeRegistry {
   /**
    * Apply positional schema to a single array.
    */
-  private applyPositional(data: unknown[], schema: string[]): unknown[] {
+  private applyPositional(data: unknown[], schema: FieldValue[]): unknown[] {
     const result: unknown[] = [];
     for (let i = 0; i < data.length; i++) {
       if (i < schema.length) {
-        result.push(this.hydrateValue(data[i], schema[i]));
+        const typeCode = getFieldType(schema[i]);
+        result.push(this.hydrateValue(data[i], typeCode));
       } else {
         result.push(data[i]);
       }

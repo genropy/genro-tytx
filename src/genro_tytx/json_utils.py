@@ -9,7 +9,7 @@ datetime, time) receive type markers.
 
 Protocol Prefixes:
     TYTX://   - Standard typed payload
-    XTYTX://  - Extended envelope with struct and validation definitions
+    XTYTX://  - Extended envelope with struct and JSON Schema definitions
 
 Usage:
     # Typed JSON (TYTX format - reversible)
@@ -21,9 +21,9 @@ Usage:
     # Standard JSON (for external systems - may lose precision)
     as_json(data)  # → '{"price": 99.5}'
 
-    # XTYTX envelope with inline struct and validation definitions
-    result = from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "TYTX://..."}')
-    # result is XtytxResult with data, global_validations, local_validations
+    # XTYTX envelope with inline struct and JSON Schema definitions
+    result = from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "gschema": {...}, "lschema": {...}, "data": "TYTX://..."}')
+    # result is XtytxResult with data, global_schemas, local_schemas
 """
 
 import json
@@ -181,12 +181,12 @@ def from_json(s: str, **kwargs: Any) -> Any | XtytxResult:
     Supports three formats:
     - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
     - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
-    - XTYTX:// prefix: Extended envelope with structs and validations
-      'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}'
-      - gstruct entries are registered globally
-      - lstruct entries are used only during this decode
-      - gvalidation entries are registered globally in validation_registry
-      - lvalidation entries are document-specific (returned in result)
+    - XTYTX:// prefix: Extended envelope with structs and JSON Schemas
+      'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gschema": {...}, "lschema": {...}, "data": "..."}'
+      - gstruct entries are registered globally (for type hydration)
+      - lstruct entries are used only during this decode (for type hydration)
+      - gschema entries are registered globally in schema_registry (for validation)
+      - lschema entries are document-specific (returned in result for validation)
       - data is decoded using combined struct context
 
     Args:
@@ -195,7 +195,7 @@ def from_json(s: str, **kwargs: Any) -> Any | XtytxResult:
 
     Returns:
         For regular JSON and TYTX://: Python object with typed values hydrated.
-        For XTYTX://: XtytxResult with data, global_validations, local_validations.
+        For XTYTX://: XtytxResult with data, global_schemas, local_schemas.
 
     Raises:
         KeyError: If XTYTX envelope is missing required struct fields.

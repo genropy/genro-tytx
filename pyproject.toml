@@ -61,6 +61,9 @@ msgpack = [
 pydantic = [
     "pydantic>=2.0.0",
 ]
+xsd = [
+    "xmlschema>=2.0.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -77,7 +80,7 @@ docs = [
     "myst-parser>=4.0.0",
 ]
 all = [
-    "genro-tytx[json,msgpack,pydantic,dev,docs]",
+    "genro-tytx[json,msgpack,pydantic,xsd,dev,docs]",
 ]
 
 [project.urls]

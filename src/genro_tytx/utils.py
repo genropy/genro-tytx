@@ -289,6 +289,7 @@ def _extract_field_constraints(field_info: Any, type_code: str) -> str | dict[st
         # Check if default is not PydanticUndefined
         try:
             from pydantic_core import PydanticUndefined
+
             if field_info.default is not PydanticUndefined:
                 validate["default"] = field_info.default
         except ImportError:
@@ -367,9 +368,7 @@ def schema_to_model(
             validate = {}
             ui = {}
 
-        python_type = tytx_code_to_python_type(
-            type_code, struct_registry=struct_registry
-        )
+        python_type = tytx_code_to_python_type(type_code, struct_registry=struct_registry)
 
         # Build Field() kwargs from validate/ui
         field_kwargs: dict[str, Any] = {}
@@ -443,9 +442,7 @@ def tytx_code_to_python_type(
     # Handle array prefix
     if type_code.startswith(ARRAY_PREFIX):
         inner_code = type_code[len(ARRAY_PREFIX) :]
-        inner_type = tytx_code_to_python_type(
-            inner_code, struct_registry=struct_registry
-        )
+        inner_type = tytx_code_to_python_type(inner_code, struct_registry=struct_registry)
         return list[inner_type]  # type: ignore[valid-type]
 
     # Handle struct prefix

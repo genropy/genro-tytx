@@ -1,5 +1,46 @@
 # Common Patterns
 
+## Pattern: XTYTX Self-Describing Payload
+
+**Problem**: Send data with schema, so receiver doesn't need pre-registered structs
+**Solution**: Use XTYTX envelope with `gstruct`/`lstruct` for hydration and `gschema`/`lschema` for validation
+**Use Case**: API responses, cross-system data exchange
+
+```python
+from genro_tytx import from_json, schema_registry
+
+# Self-contained payload with embedded schema
+payload = '''XTYTX://{
+    "gstruct": {"ORDER": {"id": "L", "total": "N"}},
+    "lstruct": {},
+    "gschema": {
+        "ORDER": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+                "total": {"type": "number", "minimum": 0}
+            },
+            "required": ["id", "total"]
+        }
+    },
+    "lschema": {},
+    "data": "TYTX://{\\"order\\": \\"{\\\\\\"id\\\\\\": \\\\\\"123\\\\\\", \\\\\\"total\\\\\\": \\\\\\"99.99\\\\\\"}::@ORDER\\"}"
+}'''
+
+result = from_json(payload)
+# result.data → {"order": {"id": 123, "total": Decimal("99.99")}}
+
+# Schema is now globally registered for validation
+schema = schema_registry.get("ORDER")
+# Use with jsonschema, Ajv, Zod, etc.
+```
+
+**Note**: TYTX is transport-only, not a validator. Use `gschema`/`lschema` with external JSON Schema validators.
+
+**Test:** `tests/test_xtytx.py::TestXtytxGschema`, `tests/test_xtytx.py::TestXtytxSchemaWithData`
+
+---
+
 ## Pattern: JSON API with Typed Values
 
 **Problem**: Send Decimal/Date over JSON without losing precision/type

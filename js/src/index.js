@@ -24,12 +24,12 @@
  */
 
 // Import registry and ensure types are registered
-const { TypeRegistry, registry } = require('./registry');
+const { TypeRegistry, registry, getFieldType, getFieldValidate, getFieldUI } = require('./registry');
 require('./types'); // Side effect: registers built-in types
 
 // Import utilities
 const { as_json, as_typed_json, from_json } = require('./json_utils');
-const { processEnvelope } = require('./xtytx');
+const { SchemaRegistry, schemaRegistry, processEnvelope } = require('./xtytx');
 const { as_xml, as_typed_xml, from_xml } = require('./xml_utils');
 
 // Import type definitions
@@ -48,15 +48,6 @@ const {
 // Import TytxModel
 const { TytxModel } = require('./tytx_model');
 
-// Import Validation
-const {
-    ValidationRegistry,
-    ValidationError,
-    STANDARD_VALIDATIONS,
-    validationRegistry,
-    createValidationRegistry
-} = require('./validation');
-
 // Import Metadata
 const {
     parseMetadata,
@@ -66,8 +57,13 @@ const {
     KNOWN_KEYS
 } = require('./metadata');
 
-// Import Validation Locales
-const validationLocale = require('./validation-locale');
+// Import Schema Utils
+const {
+    structFromJsonSchema,
+    structToJsonSchema,
+    JSONSCHEMA_TO_TYTX,
+    TYTX_TO_JSONSCHEMA
+} = require('./schema_utils');
 
 // Public API functions (bound to registry)
 const from_text = registry.from_text.bind(registry);
@@ -97,6 +93,8 @@ module.exports = {
 
     // XTYTX envelope processing
     processEnvelope,
+    SchemaRegistry,
+    schemaRegistry,
 
     // Registry
     registry,
@@ -116,13 +114,6 @@ module.exports = {
     // Model base class
     TytxModel,
 
-    // Validation
-    ValidationRegistry,
-    ValidationError,
-    STANDARD_VALIDATIONS,
-    validationRegistry,
-    createValidationRegistry,
-
     // Metadata
     parseMetadata,
     formatMetadata,
@@ -130,6 +121,14 @@ module.exports = {
     MetadataParseError,
     KNOWN_KEYS,
 
-    // Validation Locales
-    validationLocale
+    // Schema Utils
+    structFromJsonSchema,
+    structToJsonSchema,
+    JSONSCHEMA_TO_TYTX,
+    TYTX_TO_JSONSCHEMA,
+
+    // Field helpers (struct v2)
+    getFieldType,
+    getFieldValidate,
+    getFieldUI
 };

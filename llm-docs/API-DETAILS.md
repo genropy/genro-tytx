@@ -491,6 +491,95 @@ JsonType.js_type = "object"
 
 ---
 
+## XTYTX Envelope
+
+### from_json with XTYTX
+
+```python
+from_json(xtytx_str: str) -> XtytxResult
+```
+
+Parse XTYTX envelope with embedded structs and schemas.
+
+**Examples:**
+
+```python
+from genro_tytx import from_json, schema_registry
+
+payload = '''XTYTX://{
+    "gstruct": {"CUSTOMER": {"name": "T", "balance": "N"}},
+    "lstruct": {},
+    "gschema": {"CUSTOMER": {"type": "object", "properties": {"name": {"type": "string"}}}},
+    "lschema": {},
+    "data": "TYTX://{\\"customer\\": \\"{\\\\\\"name\\\\\\": \\\\\\"Acme\\\\\\", \\\\\\"balance\\\\\\": \\\\\\"100\\\\\\"}::@CUSTOMER\\"}"
+}'''
+
+result = from_json(payload)
+# result.data → {"customer": {"name": "Acme", "balance": Decimal("100")}}
+# result.global_schemas → {"CUSTOMER": {"type": "object", ...}}
+# result.local_schemas → None
+
+# Schema is now registered globally
+schema = schema_registry.get("CUSTOMER")
+# → {"type": "object", "properties": {"name": {"type": "string"}}}
+```
+
+**XTYTX fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `gstruct` | Yes | Global structs - registered permanently (for type hydration) |
+| `lstruct` | Yes | Local structs - valid only for this payload |
+| `gschema` | No | Global JSON Schemas - registered permanently (for validation) |
+| `lschema` | No | Local JSON Schemas - valid only for this payload |
+| `data` | Yes | TYTX-encoded data (can be empty) |
+
+**Note**: TYTX is a transport format, not a validator. Validation is delegated to JSON Schema via `gschema`/`lschema`.
+
+**Test:** `tests/test_xtytx.py::TestXtytxGschema`, `tests/test_xtytx.py::TestXtytxLschema`
+
+---
+
+### schema_registry
+
+```python
+schema_registry.register(name: str, schema: dict) -> None
+schema_registry.get(name: str) -> dict | None
+schema_registry.unregister(name: str) -> None
+schema_registry.list_schemas() -> list[str]
+```
+
+Global registry for JSON Schemas (for validation).
+
+**Examples:**
+
+```python
+from genro_tytx import schema_registry
+
+# Register a schema manually
+schema_registry.register("ORDER", {
+    "type": "object",
+    "properties": {
+        "id": {"type": "integer"},
+        "total": {"type": "number", "minimum": 0}
+    },
+    "required": ["id", "total"]
+})
+
+# Get schema for external validation (e.g., with jsonschema, Ajv, Zod)
+schema = schema_registry.get("ORDER")
+
+# List all registered schemas
+names = schema_registry.list_schemas()  # → ["ORDER", ...]
+
+# Unregister
+schema_registry.unregister("ORDER")
+```
+
+**Test:** `tests/test_xtytx.py::TestXtytxGschema`
+
+---
+
 ## JavaScript API
 
 The JavaScript implementation mirrors Python API:

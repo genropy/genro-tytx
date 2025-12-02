@@ -365,26 +365,33 @@ const result = processEnvelope(envelope);
 // result.data → { name: 'Acme Corp', balance: 1000.50, active: true }
 ```
 
-#### With Validations
+#### With JSON Schemas
 
-XTYTX supports global and local validations:
+XTYTX supports global and local JSON Schemas for client-side validation:
 
 ```javascript
 const envelope = {
-    struct: { code: 'T', email: 'T' },
-    gvalidation: {
-        code: { pattern: '^[A-Z]{3}$' }
+    gstruct: { CUSTOMER: { code: 'T', email: 'T' } },
+    lstruct: {},
+    gschema: {
+        CUSTOMER: {
+            type: 'object',
+            properties: {
+                code: { type: 'string', pattern: '^[A-Z]{3}$' },
+                email: { type: 'string', format: 'email' }
+            },
+            required: ['code', 'email']
+        }
     },
-    lvalidation: {
-        email: { pattern: '^[^@]+@[^@]+$' }
-    },
+    lschema: {},
     data: { code: 'ABC', email: 'test@example.com' }
 };
 
 const result = processEnvelope(envelope);
 // result.data is hydrated
-// result.gvalidation contains global validations (registered in ValidationRegistry)
-// result.lvalidation contains local validations (not registered)
+// result.globalSchemas contains global JSON schemas (registered in SchemaRegistry)
+// result.localSchemas contains local JSON schemas (not registered)
+// Use Ajv, Zod, or other JSON Schema validators for validation
 ```
 
 ## JSON Schema Conversion

@@ -51,9 +51,14 @@ export type {
   XmlElement,
   JsonOptions,
   FetchOptions,
+  FieldValidate,
+  FieldUI,
+  FieldDef,
+  FieldValue,
+  StructSchema,
 } from './types.js';
 
-export { isTypedString, extractTypeCode, extractValue } from './types.js';
+export { isTypedString, extractTypeCode, extractValue, getFieldType, getFieldValidate, getFieldUI } from './types.js';
 
 // Registry
 export {
@@ -77,20 +82,19 @@ export { asTypedJson, asJson, fromJson, hydrateObject, hydrateArray } from './js
 
 // XTYTX envelope
 export type { XtytxEnvelope, XtytxResult, HydrateFunc } from './xtytx.js';
-export { processEnvelope } from './xtytx.js';
+export { SchemaRegistry, schemaRegistry, processEnvelope } from './xtytx.js';
+
+// JSON Schema utilities
+export type {
+  JsonSchema,
+  JsonSchemaProperty,
+  FromJsonSchemaOptions,
+  ToJsonSchemaOptions,
+} from './schema-utils.js';
+export { structFromJsonSchema, structToJsonSchema } from './schema-utils.js';
 
 // MessagePack utilities
 export { TYTX_EXT_TYPE, packb, unpackb, __setMsgpackLoader } from './msgpack.js';
-
-// Validation
-export {
-  ValidationRegistry,
-  ValidationError,
-  STANDARD_VALIDATIONS,
-  validationRegistry,
-  createValidationRegistry,
-} from './validation.js';
-export type { ValidationDef } from './validation.js';
 
 // Metadata
 export {
@@ -101,9 +105,6 @@ export {
   KNOWN_KEYS,
 } from './metadata.js';
 export type { MetadataDict } from './metadata.js';
-
-// Validation Locales
-export * as validationLocale from './validation-locale/index.js';
 
 // Model
 export { TytxModel } from './model.js';

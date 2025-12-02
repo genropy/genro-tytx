@@ -119,6 +119,73 @@ from_text('[["1", "2"], ["3", "4"]]::#@POINT')
 # → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
 ```
 
+### Can structs be nested?
+
+Yes! Use `@STRUCT` in a schema to reference another struct:
+
+```python
+registry.register_struct('ADDRESS', {'city': 'T', 'zip': 'L'})
+registry.register_struct('CUSTOMER', {
+    'name': 'T',
+    'address': '@ADDRESS'  # nested struct
+})
+
+from_text('{"name": "John", "address": {"city": "Rome", "zip": "00100"}}::@CUSTOMER')
+# → {"name": "John", "address": {"city": "Rome", "zip": 100}}
+```
+
+### What is XTYTX?
+
+XTYTX is an extended envelope format that sends schema and data together:
+
+```python
+from genro_tytx import from_json
+
+payload = '''XTYTX://{
+    "gstruct": {},
+    "lstruct": {"ORDER": {"id": "L", "total": "N"}},
+    "data": "TYTX://{\\"id\\": \\"123\\", \\"total\\": \\"99.99\\"}::@ORDER"
+}'''
+
+result = from_json(payload)
+# result.data → {"id": 123, "total": Decimal("99.99")}
+```
+
+- `gstruct`: Global structs - registered permanently (for type hydration)
+- `lstruct`: Local structs - valid only for this payload (for type hydration)
+- `gschema`: Global JSON Schemas - registered permanently (for validation)
+- `lschema`: Local JSON Schemas - valid only for this payload (for validation)
+- `data`: TYTX-encoded data
+
+**Note**: TYTX is a transport format, not a validator. Validation is delegated to JSON Schema via `gschema`/`lschema`.
+
+### Can I generate TYTX structs from Pydantic models?
+
+Yes! Use `register_struct_from_model`:
+
+```python
+from pydantic import BaseModel
+from genro_tytx import registry
+
+class Order(BaseModel):
+    id: int
+    total: Decimal
+
+registry.register_struct_from_model('ORDER', Order)
+# Registers: {'id': 'L', 'total': 'N'}
+```
+
+### Can I generate Pydantic models from TYTX structs?
+
+Yes! Use `schema_to_model`:
+
+```python
+from genro_tytx.utils import schema_to_model
+
+OrderModel = schema_to_model('ORDER', {'id': 'L', 'total': 'N'})
+order = OrderModel(id=123, total=Decimal("99.99"))
+```
+
 ### What are the different schema types?
 
 | Schema Type | Definition | Best For |
@@ -195,6 +262,7 @@ Python 3.10 and higher.
 Currently:
 - **Python**: Full implementation
 - **JavaScript**: Full implementation (included in package)
+- **TypeScript**: Full implementation with type definitions
 
 ### What type codes does TYTX use?
 

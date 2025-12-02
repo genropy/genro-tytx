@@ -912,4 +912,231 @@ describe('struct schemas', () => {
             }
         });
     });
+
+    describe('struct v2 object-style fields', () => {
+        test('simple string fields still work (backward compatible)', () => {
+            registry.register_struct('SIMPLE', { name: 'T', age: 'L' });
+            try {
+                const result = from_text('{"name": "John", "age": "30"}::@SIMPLE');
+                assert.strictEqual(result.name, 'John');
+                assert.strictEqual(result.age, 30);
+            } finally {
+                registry.unregister_struct('SIMPLE');
+            }
+        });
+
+        test('object field with type only', () => {
+            registry.register_struct('OBJ_TYPE', {
+                name: { type: 'T' },
+                price: { type: 'N' }
+            });
+            try {
+                const result = from_text('{"name": "Widget", "price": "99.99"}::@OBJ_TYPE');
+                assert.strictEqual(result.name, 'Widget');
+                assert.strictEqual(result.price.toString(), '99.99');
+            } finally {
+                registry.unregister_struct('OBJ_TYPE');
+            }
+        });
+
+        test('object field with validate section', () => {
+            registry.register_struct('WITH_VALIDATE', {
+                name: { type: 'T', validate: { min: 1, max: 100 } },
+                age: { type: 'L', validate: { min: 0, max: 120 } }
+            });
+            try {
+                const result = from_text('{"name": "Alice", "age": "25"}::@WITH_VALIDATE');
+                assert.strictEqual(result.name, 'Alice');
+                assert.strictEqual(result.age, 25);
+            } finally {
+                registry.unregister_struct('WITH_VALIDATE');
+            }
+        });
+
+        test('object field with ui section', () => {
+            registry.register_struct('WITH_UI', {
+                email: {
+                    type: 'T',
+                    ui: { label: 'Email Address', placeholder: 'user@example.com' }
+                }
+            });
+            try {
+                const result = from_text('{"email": "test@test.com"}::@WITH_UI');
+                assert.strictEqual(result.email, 'test@test.com');
+            } finally {
+                registry.unregister_struct('WITH_UI');
+            }
+        });
+
+        test('object field with type, validate, and ui', () => {
+            registry.register_struct('FULL_FIELD', {
+                username: {
+                    type: 'T',
+                    validate: { min: 3, max: 50, pattern: '^[a-z0-9_]+$' },
+                    ui: { label: 'Username', hint: 'Only lowercase letters and numbers' }
+                },
+                balance: {
+                    type: 'N',
+                    validate: { min: 0 },
+                    ui: { label: 'Balance', format: 'currency', readonly: true }
+                }
+            });
+            try {
+                const result = from_text('{"username": "john_doe", "balance": "1000.50"}::@FULL_FIELD');
+                assert.strictEqual(result.username, 'john_doe');
+                assert.strictEqual(result.balance.toString(), '1000.5');
+            } finally {
+                registry.unregister_struct('FULL_FIELD');
+            }
+        });
+
+        test('mixed string and object fields', () => {
+            registry.register_struct('MIXED', {
+                id: 'L',
+                name: { type: 'T', ui: { label: 'Full Name' } },
+                active: 'B'
+            });
+            try {
+                const result = from_text('{"id": "123", "name": "Test", "active": "true"}::@MIXED');
+                assert.strictEqual(result.id, 123);
+                assert.strictEqual(result.name, 'Test');
+                assert.strictEqual(result.active, true);
+            } finally {
+                registry.unregister_struct('MIXED');
+            }
+        });
+
+        test('list schema with object fields', () => {
+            registry.register_struct('ROW_V2', [
+                { type: 'T', ui: { label: 'Name' } },
+                { type: 'L', validate: { min: 0 } },
+                { type: 'N', ui: { format: 'currency' } }
+            ]);
+            try {
+                const result = from_text('["Product", "10", "99.99"]::@ROW_V2');
+                assert.strictEqual(result[0], 'Product');
+                assert.strictEqual(result[1], 10);
+                assert.strictEqual(result[2].toString(), '99.99');
+            } finally {
+                registry.unregister_struct('ROW_V2');
+            }
+        });
+
+        test('list schema with mixed fields', () => {
+            registry.register_struct('ROW_MIXED', [
+                'T',
+                { type: 'L', validate: { min: 1 } },
+                'N'
+            ]);
+            try {
+                const result = from_text('["Item", "5", "50.00"]::@ROW_MIXED');
+                assert.strictEqual(result[0], 'Item');
+                assert.strictEqual(result[1], 5);
+                assert.strictEqual(result[2].toString(), '50');
+            } finally {
+                registry.unregister_struct('ROW_MIXED');
+            }
+        });
+
+        test('homogeneous list with object field', () => {
+            registry.register_struct('PRICES_V2', [{ type: 'N', validate: { min: 0 } }]);
+            try {
+                const result = from_text('["10.00", "20.50", "30.99"]::@PRICES_V2');
+                assert.strictEqual(result[0].toString(), '10');
+                assert.strictEqual(result[1].toString(), '20.5');
+                assert.strictEqual(result[2].toString(), '30.99');
+            } finally {
+                registry.unregister_struct('PRICES_V2');
+            }
+        });
+
+        test('object field without type defaults to T', () => {
+            registry.register_struct('DEFAULT_TYPE', {
+                note: { ui: { label: 'Notes' } }
+            });
+            try {
+                const result = from_text('{"note": "Hello"}::@DEFAULT_TYPE');
+                assert.strictEqual(result.note, 'Hello');
+            } finally {
+                registry.unregister_struct('DEFAULT_TYPE');
+            }
+        });
+
+        test('nested struct reference in object field', () => {
+            registry.register_struct('ADDR_V2', {
+                city: { type: 'T', ui: { label: 'City' } },
+                zip: 'L'
+            });
+            registry.register_struct('PERSON_V2', {
+                name: { type: 'T', validate: { min: 1 } },
+                address: { type: '@ADDR_V2' }
+            });
+            try {
+                const result = from_text('{"name": "John", "address": {"city": "Rome", "zip": "12345"}}::@PERSON_V2');
+                assert.strictEqual(result.name, 'John');
+                assert.strictEqual(result.address.city, 'Rome');
+                assert.strictEqual(result.address.zip, 12345);
+            } finally {
+                registry.unregister_struct('PERSON_V2');
+                registry.unregister_struct('ADDR_V2');
+            }
+        });
+    });
+
+    describe('field helper functions', () => {
+        const { getFieldType, getFieldValidate, getFieldUI } = require('../src/index');
+
+        test('getFieldType returns string directly for string fields', () => {
+            assert.strictEqual(getFieldType('T'), 'T');
+            assert.strictEqual(getFieldType('N'), 'N');
+            assert.strictEqual(getFieldType('@PERSON'), '@PERSON');
+        });
+
+        test('getFieldType extracts type from object field', () => {
+            assert.strictEqual(getFieldType({ type: 'T' }), 'T');
+            assert.strictEqual(getFieldType({ type: 'N', validate: { min: 0 } }), 'N');
+            assert.strictEqual(getFieldType({ type: '@ADDR', ui: { label: 'Address' } }), '@ADDR');
+        });
+
+        test('getFieldType returns T when type not specified', () => {
+            assert.strictEqual(getFieldType({ ui: { label: 'Notes' } }), 'T');
+            assert.strictEqual(getFieldType({}), 'T');
+        });
+
+        test('getFieldValidate returns undefined for string fields', () => {
+            assert.strictEqual(getFieldValidate('T'), undefined);
+            assert.strictEqual(getFieldValidate('N[min:0]'), undefined);
+        });
+
+        test('getFieldValidate extracts validate from object field', () => {
+            const validate = getFieldValidate({
+                type: 'T',
+                validate: { min: 1, max: 100, pattern: '^[a-z]+$' }
+            });
+            assert.deepStrictEqual(validate, { min: 1, max: 100, pattern: '^[a-z]+$' });
+        });
+
+        test('getFieldValidate returns undefined when validate not present', () => {
+            assert.strictEqual(getFieldValidate({ type: 'T' }), undefined);
+            assert.strictEqual(getFieldValidate({ type: 'T', ui: { label: 'Name' } }), undefined);
+        });
+
+        test('getFieldUI returns undefined for string fields', () => {
+            assert.strictEqual(getFieldUI('T'), undefined);
+            assert.strictEqual(getFieldUI('T[lbl:Name]'), undefined);
+        });
+
+        test('getFieldUI extracts ui from object field', () => {
+            const ui = getFieldUI({
+                type: 'T',
+                ui: { label: 'Full Name', placeholder: 'Enter name', readonly: true }
+            });
+            assert.deepStrictEqual(ui, { label: 'Full Name', placeholder: 'Enter name', readonly: true });
+        });
+
+        test('getFieldUI returns undefined when ui not present', () => {
+            assert.strictEqual(getFieldUI({ type: 'T' }), undefined);
+            assert.strictEqual(getFieldUI({ type: 'T', validate: { min: 1 } }), undefined);
+        });
+    });
 });

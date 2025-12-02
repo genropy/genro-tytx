@@ -26,9 +26,9 @@ This document provides a comprehensive overview of all TYTX features, their impl
 | 3 | Custom type registration | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | 4 | Struct registration (hierarchical + arrays) | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | 5 | XTYTX extended envelope | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| 6 | Metadata for structures | :white_check_mark: DONE | :white_check_mark: | :large_orange_diamond: | :large_orange_diamond: |
+| 6 | Metadata for structures | :white_check_mark: DONE | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | 7 | Generate structures from Pydantic | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
-| 8 | Generate Pydantic models from structures | :red_circle: TODO | :red_circle: | N/A | N/A |
+| 8 | Generate Pydantic models from structures | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 9 | Generate structures from XSD | :white_check_mark: DONE | :white_check_mark: | N/A | N/A |
 | 10 | Visual structure editor | :white_check_mark: DONE | N/A | :white_check_mark: | N/A |
 | 11 | Visual data editor using structures | :red_circle: TODO | N/A | :red_circle: | N/A |
@@ -283,21 +283,46 @@ registry.register_struct_from_model('CUSTOMER', Customer)
 
 ---
 
-### 8. Generate Pydantic Models from Structures :red_circle: TODO
+### 8. Generate Pydantic Models from Structures :white_check_mark: DONE
 
-Dynamic Pydantic model generation from TYTX struct.
+Dynamic Pydantic model generation from TYTX struct schema.
 
-**Planned API**:
+**API** (utility function):
 ```python
-OrderModel = registry.create_pydantic_model('ORDER')
-# Creates:
-# class ORDER(BaseModel):
-#     id: int
-#     total: Decimal
-#     date: date
+from genro_tytx.utils import schema_to_model
+
+# Generate a Pydantic model from a TYTX struct schema
+OrderModel = schema_to_model('ORDER', {'id': 'L', 'total': 'N', 'date': 'D'})
+
+# With struct registry for nested structs
+structs = {
+    'ADDRESS': {'street': 'T', 'city': 'T'},
+    'CUSTOMER': {'name': 'T', 'address': '@ADDRESS'}
+}
+CustomerModel = schema_to_model('CUSTOMER', structs['CUSTOMER'], struct_registry=structs)
+
+# Use with registry
+from genro_tytx import registry
+CustomerModel = schema_to_model('CUSTOMER', registry.get_struct('CUSTOMER'))
 ```
 
-**Status**: Not specified, not implemented.
+**Type Mapping (TYTX → Python)**:
+
+| TYTX | Python |
+|------|--------|
+| `T` | `str` |
+| `L` | `int` |
+| `R` | `float` |
+| `N` | `Decimal` |
+| `B` | `bool` |
+| `D` | `date` |
+| `DH`, `DHZ` | `datetime` |
+| `H` | `time` |
+| `JS` | `dict` |
+| `#X` | `list[X]` |
+| `@STRUCT` | nested model |
+
+**Files**: `utils.py` (`schema_to_model()`, `tytx_code_to_python_type()`)
 
 ---
 
@@ -513,11 +538,8 @@ genro-tytx/
 
 ## Next Steps (Priority Order)
 
-1. **Version bump to 0.4.0** - Update pyproject.toml, CHANGELOG
-2. **NPM publish** - Release JavaScript package
-3. **Pydantic integration** (Feature 7) - `register_struct_from_model()`
-4. **Reverse Pydantic** (Feature 8) - `create_pydantic_model()`
-5. **Data editor** (Feature 11) - Form with data binding
+1. **Data editor** (Feature 11) - Form with data binding
+2. **JSON Schema for JS/TS** (Feature 12) - Port `schema-utils.py` to JS/TS
 
 ---
 

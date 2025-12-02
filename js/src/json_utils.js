@@ -19,9 +19,9 @@
  *     // Standard JSON (for external systems)
  *     as_json(data)  // → '{"count": 5, "date": "2025-01-15T00:00:00.000Z"}'
  *
- *     // XTYTX envelope with inline struct and validation definitions
- *     const result = from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "TYTX://..."}')
- *     // result is {data, globalValidations, localValidations}
+ *     // XTYTX envelope with inline struct and schema definitions
+ *     const result = from_json('XTYTX://{"gstruct": {...}, "lstruct": {...}, "gschema": {...}, "lschema": {...}, "data": "TYTX://..."}')
+ *     // result is {data, globalSchemas, localSchemas}
  *
  * @module json_utils
  */
@@ -152,17 +152,17 @@ function as_json(obj, indent = null) {
  * Supports three formats:
  * - Regular JSON: '{"price": "100::N"}' - typed strings are hydrated
  * - TYTX:// prefix: 'TYTX://{"price": "100::N"}' - same as regular
- * - XTYTX:// prefix: Extended envelope with structs and validations
- *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gvalidation": {...}, "lvalidation": {...}, "data": "..."}'
- *   - gstruct entries are registered globally
- *   - lstruct entries are used only during this decode
- *   - gvalidation entries are registered globally in validationRegistry
- *   - lvalidation entries are document-specific (returned in result)
+ * - XTYTX:// prefix: Extended envelope with structs and schemas
+ *   'XTYTX://{"gstruct": {...}, "lstruct": {...}, "gschema": {...}, "lschema": {...}, "data": "..."}'
+ *   - gstruct entries are registered globally (for type hydration)
+ *   - lstruct entries are used only during this decode (for type hydration)
+ *   - gschema entries are registered globally in schemaRegistry (for validation)
+ *   - lschema entries are document-specific (returned in result, for validation)
  *   - data is decoded using combined struct context
  *
  * @param {string} s - JSON string to parse (may have TYTX:// or XTYTX:// prefix).
  * @returns {*} For regular JSON and TYTX://: JavaScript object with typed values hydrated.
- *              For XTYTX://: {data, globalValidations, localValidations}
+ *              For XTYTX://: {data, globalSchemas, localSchemas}
  * @throws {Error} If XTYTX envelope is missing required struct fields.
  * @throws {SyntaxError} If JSON is invalid.
  */

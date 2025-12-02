@@ -13,10 +13,10 @@ pip install genro-tytx
 
 ## Optional Dependencies
 
-For faster JSON encoding with orjson:
+For Pydantic integration:
 
 ```bash
-pip install genro-tytx[json]
+pip install genro-tytx[pydantic]
 ```
 
 For MessagePack support:
@@ -25,10 +25,16 @@ For MessagePack support:
 pip install genro-tytx[msgpack]
 ```
 
+For XSD schema conversion:
+
+```bash
+pip install genro-tytx[xsd]
+```
+
 For all extras:
 
 ```bash
-pip install genro-tytx[all]
+pip install genro-tytx[pydantic,msgpack,xsd]
 ```
 
 ## Development Installation
@@ -51,13 +57,15 @@ Decimal('100.50')
 '42::L'
 ```
 
-## JavaScript Installation
+## JavaScript / TypeScript Installation
 
-For JavaScript/TypeScript projects:
+For JavaScript and TypeScript projects:
 
 ```bash
 npm install genro-tytx
 ```
+
+TypeScript type definitions are included.
 
 ### Decimal Precision in JavaScript
 
@@ -73,19 +81,19 @@ npm install decimal.js
 
 TYTX auto-detects these libraries and uses them for `::N` (Decimal) values:
 
-| Library installed | `from_text("99.99::N")` returns |
+| Library installed | `fromText("99.99::N")` returns |
 |-------------------|--------------------------------|
 | `big.js` | `Big("99.99")` |
 | `decimal.js` | `Decimal("99.99")` |
 | None | `99.99` (native Number) |
 
 ```javascript
-const { from_text, decimalLibName } = require('genro-tytx');
+import { fromText, decimalLibName } from 'genro-tytx';
 
 console.log(decimalLibName);  // "big.js", "decimal.js", or "number"
 
 // With big.js installed:
-const price = from_text("99.99::N");  // Big instance
+const price = fromText("99.99::N");  // Big instance
 console.log(price.plus("0.01").toString());  // "100.00" (exact)
 ```
 

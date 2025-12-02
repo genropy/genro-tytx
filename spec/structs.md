@@ -1,14 +1,14 @@
 # TYTX Struct Types
 
-**Version**: 0.2.0
-**Updated**: 2025-11-30
+**Version**: 2.0.0
+**Updated**: 2025-12-01
 **Status**: Draft
 
-This document defines the struct type system for TYTX, enabling schema-based hydration of JSON data.
+This document defines the struct type system for TYTX, enabling schema-based hydration of JSON data with full metadata support.
 
 ## Overview
 
-Structs provide a way to define type schemas for JSON data structures. Unlike inline typing (`value::TYPE`), structs apply types based on a pre-registered schema.
+Structs provide a way to define type schemas for JSON data structures. A struct defines the type and metadata for each field in a data structure.
 
 ## Type Code Prefix
 
@@ -23,6 +23,324 @@ Struct types use the `@` prefix (at-sign) to distinguish them from:
 | `~` | Custom class | `register_class` |
 | `@` | Struct schema | `register_struct` |
 | `#` | Typed array | inline |
+| `_` | System reserved | TYTX core (meta-structs) |
+
+## Field Definition
+
+A field in a struct can be defined in two ways:
+
+### Simple Form (string)
+
+When a field only needs a type, use a string:
+
+```json
+{
+    "name": "T",
+    "age": "L",
+    "price": "N"
+}
+```
+
+### Extended Form (object)
+
+When a field needs metadata (validation, UI hints, etc.), use an object:
+
+```json
+{
+    "name": {
+        "type": "T",
+        "validate": {
+            "min": 1,
+            "max": 100
+        },
+        "ui": {
+            "label": "Full Name",
+            "placeholder": "Enter your name"
+        }
+    }
+}
+```
+
+### Field Object Structure
+
+```json
+{
+    "type": "T",           // Required: TYTX type code
+    "validate": { ... },   // Optional: validation constraints
+    "ui": { ... }          // Optional: UI presentation hints
+}
+```
+
+## Validation Section
+
+The `validate` object contains constraints for data validation.
+
+### Constraint Keys
+
+| Key | Type | Description | Applies to |
+|-----|------|-------------|------------|
+| `min` | number | Minimum value or length | All |
+| `max` | number | Maximum value or length | All |
+| `length` | number | Exact length | T |
+| `pattern` | string | Regex pattern | T |
+| `enum` | array | Allowed values | T, L |
+| `required` | boolean | Field is required | All |
+| `default` | any | Default value if missing | All |
+
+**Note**: The `validate` section in structs provides hints for simple inline validation. For full validation, use JSON Schema via `gschema`/`lschema` in XTYTX envelopes.
+
+### Examples
+
+```json
+{
+    "email": {
+        "type": "T",
+        "validate": {
+            "pattern": "^[^@]+@[^@]+\\.[^@]+$",
+            "required": true
+        }
+    },
+    "age": {
+        "type": "L",
+        "validate": {
+            "min": 0,
+            "max": 120
+        }
+    },
+    "status": {
+        "type": "T",
+        "validate": {
+            "enum": ["active", "inactive", "pending"],
+            "default": "pending"
+        }
+    },
+    "code": {
+        "type": "T",
+        "validate": {
+            "pattern": "^[A-Z]{3}[0-9]{4}$",
+            "length": 7
+        }
+    }
+}
+```
+
+## UI Section
+
+The `ui` object contains presentation hints for UI generation.
+
+### UI Keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `label` | string | Display label |
+| `placeholder` | string | Input placeholder text |
+| `hint` | string | Help text / tooltip |
+| `readonly` | boolean | Field is read-only |
+| `hidden` | boolean | Field is hidden |
+| `format` | string | Display format |
+| `width` | number/string | Field width |
+| `rows` | number | Textarea rows |
+
+### Examples
+
+```json
+{
+    "description": {
+        "type": "T",
+        "ui": {
+            "label": "Description",
+            "placeholder": "Enter a description...",
+            "hint": "Maximum 500 characters",
+            "rows": 5
+        }
+    },
+    "created_at": {
+        "type": "D",
+        "ui": {
+            "label": "Created",
+            "readonly": true,
+            "format": "DD/MM/YYYY"
+        }
+    }
+}
+```
+
+### Conditional UI
+
+UI properties can depend on other field values:
+
+```json
+{
+    "vat_number": {
+        "type": "T",
+        "ui": {
+            "label": "VAT Number",
+            "hidden": "is_private=true"
+        },
+        "validate": {
+            "required": "is_company=true"
+        }
+    }
+}
+```
+
+Syntax: `"field_name=value"` or `"field_name!=value"`
+
+## Complete Example
+
+```json
+{
+    "id": "L",
+    "name": {
+        "type": "T",
+        "validate": {
+            "min": 1,
+            "max": 100,
+            "required": true
+        },
+        "ui": {
+            "label": "Full Name",
+            "placeholder": "John Doe"
+        }
+    },
+    "email": {
+        "type": "T",
+        "validate": {
+            "pattern": "^[^@]+@[^@]+\\.[^@]+$",
+            "required": true
+        },
+        "ui": {
+            "label": "Email Address"
+        }
+    },
+    "age": {
+        "type": "L",
+        "validate": {
+            "min": 0,
+            "max": 120
+        },
+        "ui": {
+            "label": "Age"
+        }
+    },
+    "status": {
+        "type": "T",
+        "validate": {
+            "enum": ["active", "inactive"],
+            "default": "active"
+        },
+        "ui": {
+            "label": "Status"
+        }
+    },
+    "created": "D",
+    "notes": {
+        "type": "T",
+        "ui": {
+            "label": "Notes",
+            "rows": 3
+        }
+    }
+}
+```
+
+## System Meta-Structs
+
+Meta-structs define the structure of struct components. Names starting with `_` are reserved for system use.
+
+### @_VALIDATE
+
+Defines the structure of the `validate` section:
+
+```json
+{
+    "min": "L",
+    "max": "L",
+    "length": {"type": "L", "validate": {"min": 0}},
+    "pattern": "T",
+    "enum": "#T",
+    "required": "B",
+    "default": "T"
+}
+```
+
+### @_UI
+
+Defines the structure of the `ui` section:
+
+```json
+{
+    "label": {"type": "T", "validate": {"max": 100}},
+    "placeholder": {"type": "T", "validate": {"max": 200}},
+    "hint": {"type": "T", "validate": {"max": 500}},
+    "readonly": "B",
+    "hidden": "T",
+    "format": "T",
+    "width": "T",
+    "rows": {"type": "L", "validate": {"min": 1}}
+}
+```
+
+### @_FIELD
+
+Defines the structure of a complete field definition:
+
+```json
+{
+    "type": {
+        "type": "T",
+        "validate": {
+            "enum": ["T", "L", "R", "N", "B", "D", "DH", "DHZ", "H", "JS"],
+            "required": true
+        }
+    },
+    "validate": "@_VALIDATE",
+    "ui": "@_UI"
+}
+```
+
+## Struct Types
+
+### Dict Schema
+
+Schema maps field names to definitions:
+
+```python
+register_struct('CUSTOMER', {
+    'name': 'T',
+    'balance': {'type': 'N', 'validate': {'min': 0}},
+    'created': 'D'
+})
+```
+
+### List Schema (Positional)
+
+Schema with multiple types applies by position:
+
+```python
+register_struct('ROW', ['T', 'L', 'N'])
+```
+
+### List Schema (Homogeneous)
+
+Schema with single type applies to all elements:
+
+```python
+register_struct('PRICES', ['N'])
+```
+
+### Nested Structs
+
+Reference other structs using `@NAME`:
+
+```json
+{
+    "customer": "@CUSTOMER",
+    "items": "#@ITEM",
+    "shipping": "@ADDRESS",
+    "billing": "@ADDRESS"
+}
+```
 
 ## Wire Format
 
@@ -32,159 +350,111 @@ Struct types use the `@` prefix (at-sign) to distinguish them from:
 
 The JSON data is standard JSON (no inline types). The `::@CODE` suffix indicates which schema to use for hydration.
 
-## Schema Types
+### Examples
 
-### List Schema (Positional)
-
-#### Heterogeneous (Fixed Length)
-
-Schema with multiple types applies types by position:
-
-```python
-register_struct('ROW', ['T', 'L', 'N'])
+```
+{"name": "Acme", "balance": "100.50"}::@CUSTOMER
+[["Product", 2, "100"]]::@ROW
+[100, 200, 50]::@PRICES
 ```
 
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `["Product", 2, "100.50"]::@ROW` | `["Product", 2, Decimal("100.50")]` |
+## XTYTX Integration
 
-Rules:
-- Schema length must match data length
-- Type at index N applies to value at index N
+Structs and JSON Schemas are defined in XTYTX envelopes:
 
-#### Homogeneous (Variable Length)
-
-Schema with single type applies to all elements:
-
-```python
-register_struct('PRICES', ['N'])
+```json
+{
+    "gstruct": {
+        "ADDRESS": {
+            "street": "T",
+            "city": "T",
+            "zip": "T"
+        }
+    },
+    "lstruct": {
+        "ORDER": {
+            "id": "L",
+            "customer": "@CUSTOMER",
+            "items": "#@ITEM",
+            "total": "N"
+        }
+    },
+    "gschema": {
+        "ADDRESS": {
+            "type": "object",
+            "properties": {
+                "street": {"type": "string"},
+                "city": {"type": "string"},
+                "zip": {"type": "string", "pattern": "^[0-9]{5}$"}
+            },
+            "required": ["street", "city", "zip"]
+        }
+    },
+    "lschema": {
+        "ORDER": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+                "total": {"type": "number", "minimum": 0}
+            },
+            "required": ["id", "total"]
+        }
+    },
+    "data": "..."
+}
 ```
 
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `[100, 200, 50]::@PRICES` | `[Decimal("100"), Decimal("200"), Decimal("50")]` |
-| `[10]::@PRICES` | `[Decimal("10")]` |
-| `[]::@PRICES` | `[]` |
+Fields:
 
-Rules:
-- Schema has exactly one element
-- Type applies to all data elements
-- Data length is variable
+- `gstruct`: Global TYTX structs (registered permanently) - for type hydration
+- `lstruct`: Local TYTX structs (document-specific) - for type hydration
+- `gschema`: Global JSON Schemas (registered permanently) - for validation
+- `lschema`: Local JSON Schemas (document-specific) - for validation
 
-#### Multidimensional Homogeneous
+### Design Philosophy
 
-Nested single-element schemas apply to all leaf values:
+TYTX is a **transport format**, not a validator. The separation is clear:
 
-```python
-register_struct('MATRIX', [['N']])
-```
+- **Structs** define type mapping for hydration/serialization (TYTX core responsibility)
+- **Schemas** define validation rules in standard JSON Schema format (client responsibility)
 
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `[[1, 2], [3, 4]]::@MATRIX` | `[[Decimal("1"), Decimal("2")], [Decimal("3"), Decimal("4")]]` |
+This allows:
 
-```python
-register_struct('CUBE', [[['L']]])
-```
+- TYTX to handle type hydration using simple structs
+- Clients to implement full validation using JSON Schema (e.g., Zod in JavaScript, jsonschema in Python)
 
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `[[[1, 2], [3, 4]], [[5, 6], [7, 8]]]::@CUBE` | `[[[1, 2], [3, 4]], [[5, 6], [7, 8]]]` (all int) |
-
-Rules:
-- Nesting depth in schema determines expected data structure
-- Single type at deepest level applies to all leaf values
-
-### Dict Schema (Keyed)
-
-Schema maps keys to types:
-
-```python
-register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
-```
-
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUSTOMER` | `{"name": "Acme", "balance": Decimal("100.50"), "created": date(2025, 1, 15)}` |
-
-Rules:
-- Only keys present in schema are typed
-- Extra keys in data are passed through unchanged
-- Missing keys in data are not added
-
-### String Schema (Ordered Fields)
-
-String schema provides **explicit field ordering** with guaranteed order. This is ideal for CSV-like data where field position matters.
-
-#### Named Fields (Output: dict)
-
-Schema with `name:type` pairs produces dict output:
-
-```python
-register_struct('POINT', 'x:R,y:R')
-```
-
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `["3.7", "7.3"]::@POINT` | `{"x": 3.7, "y": 7.3}` |
-
-The string format guarantees field order (unlike dict which has no order guarantee in JavaScript).
-
-#### Anonymous Fields (Output: list)
-
-Schema with types only (no names) produces list output:
-
-```python
-register_struct('COORDS', 'R,R')
-```
-
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `["3.7", "7.3"]::@COORDS` | `[3.7, 7.3]` |
-
-#### CSV-like Batch Processing
-
-String schema excels at converting arrays of arrays (CSV data) to arrays of dicts:
-
-```python
-register_struct('ROW', 'name:T,qty:L,price:N')
-```
-
-| Wire Format | Parsed Result |
-|-------------|---------------|
-| `[["A", "1", "10"], ["B", "2", "20"]]::@ROW` | `[{"name": "A", "qty": 1, "price": Decimal("10")}, {"name": "B", "qty": 2, "price": Decimal("20")}]` |
-
-Rules:
-
-- String is parsed as comma-separated fields
-- `name:type` format → named field, output dict
-- `type` format (no colon) → anonymous field, output list
-- Spaces around `:` and `,` are trimmed
-- Field position in string determines mapping to array position
-
-## Schema Definition
+## API
 
 ### Python
 
 ```python
-from genro_tytx import registry
+from genro_tytx import registry, schema_registry
 
-# List schemas
-registry.register_struct('ROW', ['T', 'L', 'N'])      # heterogeneous
-registry.register_struct('PRICES', ['N'])             # homogeneous
-registry.register_struct('MATRIX', [['N']])           # 2D homogeneous
-
-# Dict schema
+# Register struct (for type hydration)
 registry.register_struct('CUSTOMER', {
-    'name': 'T',
-    'balance': 'N',
-    'created': 'D'
+    'name': {'type': 'T', 'validate': {'required': True}},
+    'email': 'T',
+    'balance': 'N'
 })
 
-# String schema (ordered fields)
-registry.register_struct('POINT', 'x:R,y:R')          # named → dict output
-registry.register_struct('COORDS', 'R,R')             # anonymous → list output
-registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N')  # CSV-like
+# Register JSON Schema (for validation)
+schema_registry.register('CUSTOMER', {
+    'type': 'object',
+    'properties': {
+        'name': {'type': 'string', 'minLength': 1},
+        'email': {'type': 'string', 'format': 'email'},
+        'balance': {'type': 'number', 'minimum': 0}
+    },
+    'required': ['name', 'email', 'balance']
+})
+
+# Parse with struct (hydration)
+result = registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
+# -> {"name": "Acme", "balance": Decimal("100")}
+
+# Validate with JSON Schema (client-side)
+schema = schema_registry.get('CUSTOMER')
+# Use jsonschema library: jsonschema.validate(data, schema)
 ```
 
 ### JavaScript
@@ -192,163 +462,224 @@ registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N')  # CSV-like
 ```javascript
 const { registry } = require('genro-tytx');
 
-// List schemas
-registry.register_struct('ROW', ['T', 'L', 'N']);
-registry.register_struct('PRICES', ['N']);
-registry.register_struct('MATRIX', [['N']]);
-
-// Dict schema
-registry.register_struct('CUSTOMER', {
-    name: 'T',
-    balance: 'N',
-    created: 'D'
+// Register struct (for type hydration)
+registry.registerStruct('CUSTOMER', {
+    name: {type: 'T', validate: {required: true}},
+    email: 'T',
+    balance: 'N'
 });
 
-// String schema (ordered fields)
-registry.register_struct('POINT', 'x:R,y:R');         // named → dict output
-registry.register_struct('COORDS', 'R,R');            // anonymous → list output
-registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N');  // CSV-like
+// Register JSON Schema (for validation)
+registry.registerSchema('CUSTOMER', {
+    type: 'object',
+    properties: {
+        name: {type: 'string', minLength: 1},
+        email: {type: 'string', format: 'email'},
+        balance: {type: 'number', minimum: 0}
+    },
+    required: ['name', 'email', 'balance']
+});
+
+// Parse with struct
+const result = registry.fromText('{"name": "Acme", "balance": "100"}::@CUSTOMER');
+// -> {name: "Acme", balance: 100}
+
+// Validate with JSON Schema (use Ajv, Zod, etc.)
+const schema = registry.getSchema('CUSTOMER');
 ```
 
-## Parsing
+### TypeScript
 
-```python
-from genro_tytx import registry
+```typescript
+import { registry, StructSchema } from 'genro-tytx';
 
-# Parse with struct type
-result = registry.from_text('["Product", 2, "100.50"]::@ROW')
-# → ["Product", 2, Decimal("100.50")]
+const customerSchema: StructSchema = {
+    name: {type: 'T', validate: {required: true}},
+    email: 'T',
+    balance: 'N'
+};
 
-result = registry.from_text('[100, 200]::@PRICES')
-# → [Decimal("100"), Decimal("200")]
-
-result = registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
-# → {"name": "Acme", "balance": Decimal("100")}
-
-# String schema: list → dict
-result = registry.from_text('["3.7", "7.3"]::@POINT')
-# → {"x": 3.7, "y": 7.3}
-
-# String schema: batch CSV
-result = registry.from_text('[["A", "1", "10"], ["B", "2", "20"]]::@CSV_ROW')
-# → [{"name": "A", "qty": 1, "price": Decimal("10")}, {"name": "B", "qty": 2, "price": Decimal("20")}]
+registry.registerStruct('CUSTOMER', customerSchema);
+registry.registerSchema('CUSTOMER', {
+    type: 'object',
+    properties: {
+        name: {type: 'string', minLength: 1},
+        email: {type: 'string', format: 'email'},
+        balance: {type: 'number', minimum: 0}
+    },
+    required: ['name', 'email', 'balance']
+});
 ```
 
-## Serialization
+## JSON Schema Conversion
+
+Convert between JSON Schema and TYTX structs.
+
+### struct_from_jsonschema()
+
+Convert JSON Schema to TYTX struct, returning a `StructEntry`:
 
 ```python
-from genro_tytx import registry
+from genro_tytx import struct_from_jsonschema
 
-# Serialize with struct type
-result = registry.as_typed_text(["Product", 2, Decimal("100.50")], struct='ROW')
-# → '["Product", 2, "100.50"]::@ROW'
+json_schema = {
+    "title": "Customer",
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "age": {"type": "integer", "minimum": 0}
+    },
+    "required": ["name"]
+}
 
-result = registry.as_typed_text([Decimal("100"), Decimal("200")], struct='PRICES')
-# → '[100, 200]::@PRICES'
+# Get StructEntry with TYTX schema only
+entry = struct_from_jsonschema(json_schema)
+# entry.code = "Customer"  # from title, or "Root" if missing
+# entry.schema = {'name': {'type': 'T', 'validate': {'min': 1}}, 'age': {'type': 'L', 'validate': {'min': 0}}}
+# entry.jsonschema = None
+
+# Preserve original JSON Schema
+entry = struct_from_jsonschema(json_schema, include_jsonschema=True)
+# entry.jsonschema = json_schema (original preserved)
 ```
 
-## Schema Detection Rules
+### struct_to_jsonschema()
 
-When parsing `data::@CODE`:
-
-1. Look up schema for `CODE`
-2. If schema is a `str` (string schema):
-   - Parse comma-separated fields
-   - If fields have names (`name:type`): output dict
-   - If fields are anonymous (`type`): output list
-3. If schema is a `list`:
-   - If `len(schema) == 1`: homogeneous mode, apply schema[0] to all leaves
-   - If `len(schema) > 1`: positional mode, apply schema[i] to data[i]
-4. If schema is a `dict`:
-   - Apply schema[key] to data[key] for each key in schema
-
-## Unregistering Structs
+Convert TYTX struct to JSON Schema:
 
 ```python
-registry.unregister_struct('ROW')  # removes @ROW
+from genro_tytx import struct_to_jsonschema
+
+struct = {'name': 'T', 'age': 'L', 'balance': 'N'}
+schema = struct_to_jsonschema(struct, name="Customer")
+# {
+#     "title": "Customer",
+#     "type": "object",
+#     "properties": {
+#         "name": {"type": "string"},
+#         "age": {"type": "integer"},
+#         "balance": {"type": "number"}
+#     }
+# }
 ```
 
-## Fallback Behavior
+## Pydantic Integration (Python)
 
-If `@CODE` is not registered:
-- The value is returned as a plain string (unchanged)
-- No error is raised
-- This allows graceful degradation
+TYTX provides two approaches for Pydantic integration:
 
-## Pydantic Integration (Python Only)
+### Simple Registration
 
-Schemas can be auto-generated from Pydantic models:
+For basic type mapping only:
 
 ```python
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from decimal import Decimal
-from datetime import date
 from genro_tytx import registry
 
 class Customer(BaseModel):
-    name: str
-    balance: Decimal
-    created: date
+    name: str = Field(min_length=1, max_length=100)
+    email: str
+    balance: Decimal = Field(ge=0)
 
-# Auto-generate schema from model
+# Auto-generate struct from model
 registry.register_struct_from_model('CUSTOMER', Customer)
-
-# Equivalent to:
-# registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
 ```
 
-### Type Mapping
+### Full Schema with StructEntry
 
-| Python Type | TYTX Code |
-|-------------|-----------|
-| `str` | `T` |
-| `int` | `L` |
-| `float` | `R` |
-| `bool` | `B` |
-| `Decimal` | `N` |
-| `date` | `D` |
-| `datetime` | `DHZ` |
-| `time` | `H` |
-
-### Parsing to Model Instance
-
-With `as_model=True`, parse directly to a Pydantic model instance:
+For complete validation support, use `struct_from_pydantic_model()` which returns a `StructEntry` containing both TYTX schema and optional JSON Schema:
 
 ```python
-# Parse to dict (default)
-data = registry.from_text('{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER')
-# → {"name": "Acme", "balance": Decimal("100"), "created": date(2025, 1, 15)}
+from dataclasses import dataclass
+from typing import Any
 
-# Parse to model instance
-customer = registry.from_text(
-    '{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER',
-    as_model=True
+@dataclass
+class StructEntry:
+    """Complete struct definition with optional JSON Schema."""
+    code: str                           # Struct code, e.g., "CUSTOMER"
+    description: str | None             # Human-readable description
+    schema: dict[str, Any]              # TYTX schema: {"name": "T", "balance": "N"}
+    jsonschema: dict | None             # Full JSON Schema for validation
+```
+
+Usage:
+
+```python
+from genro_tytx import struct_from_pydantic_model
+
+# Get StructEntry with TYTX schema only
+entry = struct_from_pydantic_model(Customer)
+# entry.code = "CUSTOMER"
+# entry.schema = {"name": "T", "email": "T", "balance": "N"}
+# entry.jsonschema = None
+
+# Get StructEntry with full JSON Schema
+entry = struct_from_pydantic_model(
+    Customer,
+    include_jsonschema=True,
+    description="Customer entity"
 )
-# → Customer(name="Acme", balance=Decimal("100"), created=date(2025, 1, 15))
+# entry.jsonschema = {
+#     "type": "object",
+#     "properties": {
+#         "name": {"type": "string", "minLength": 1, "maxLength": 100},
+#         "email": {"type": "string"},
+#         "balance": {"type": "number", "minimum": 0}
+#     },
+#     "required": ["name", "email", "balance"]
+# }
 ```
 
-### Serialization from Model
+## XSD Integration (Python)
+
+Convert XSD schemas to TYTX structs with optional JSON Schema generation.
+
+**Installation**: `pip install genro-tytx[xsd]`
 
 ```python
-customer = Customer(name="Acme", balance=Decimal("100"), created=date(2025, 1, 15))
+from genro_tytx import struct_from_xsd
 
-# Serialize with struct type
-result = registry.as_typed_text(customer, struct='CUSTOMER')
-# → '{"name": "Acme", "balance": "100", "created": "2025-01-15"}::@CUSTOMER'
+# Get StructEntry with TYTX schema only
+entry = struct_from_xsd("customer.xsd")
+# entry.code = "Customer"  # from XSD root element
+# entry.schema = {"name": "T", "email": "T", "balance": "N"}
+# entry.jsonschema = None
+
+# Get StructEntry with full JSON Schema
+entry = struct_from_xsd(
+    "customer.xsd",
+    include_jsonschema=True,
+    description="Customer from XSD"
+)
+# entry.jsonschema = {
+#     "type": "object",
+#     "properties": {...},
+#     "required": [...]
+# }
 ```
 
-### Nested Models (Future)
+The `struct_from_xsd()` function uses the same `StructEntry` return type and `include_jsonschema` parameter as `struct_from_pydantic_model()` for API consistency.
 
-Nested Pydantic models will be supported in a future version, generating nested struct schemas automatically.
+### XSD Type Mapping
 
-## Future Extensions
+| XSD Type | TYTX Code |
+|----------|-----------|
+| `xs:string` | `T` |
+| `xs:integer`, `xs:int`, `xs:long` | `L` |
+| `xs:decimal` | `N` |
+| `xs:float`, `xs:double` | `R` |
+| `xs:boolean` | `B` |
+| `xs:date` | `D` |
+| `xs:dateTime` | `DH` |
+| `xs:time` | `H` |
 
-The following features are planned for future versions:
+## Reserved Names
 
-- **Nested structs**: Reference other structs in schema (`@CUSTOMER` inside `@ORDER`)
-- **Array of structs**: `[]::@ROW` notation in schema definition
-- **Optional fields**: Schema notation for nullable/optional fields
-- **Default values**: Schema-defined defaults for missing fields
-- **Nested Pydantic models**: Auto-generate nested struct schemas
+Names starting with `_` are reserved for system meta-structs:
 
-These features will be specified in a separate document once the base struct functionality is stable.
+- `@_VALIDATE` - Validation section schema
+- `@_UI` - UI section schema
+- `@_FIELD` - Field definition schema
+- `@_STRUCT` - Struct definition schema
+
+User-defined structs MUST NOT start with `_`.

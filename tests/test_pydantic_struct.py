@@ -295,8 +295,9 @@ class TestStructFromModel:
 
     def test_struct_from_model_then_register(self) -> None:
         """Test typical workflow: generate schema, then register."""
-        from pydantic import BaseModel
         from decimal import Decimal
+
+        from pydantic import BaseModel
 
         class Product(BaseModel):
             name: str

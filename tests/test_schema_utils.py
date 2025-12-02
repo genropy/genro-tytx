@@ -13,8 +13,8 @@ Tests cover:
 
 import pytest
 
-from genro_tytx.schema_utils import struct_from_jsonschema, struct_to_jsonschema
 from genro_tytx import registry
+from genro_tytx.schema_utils import struct_from_jsonschema, struct_to_jsonschema
 
 
 class TestStructFromJsonschema:
@@ -197,7 +197,7 @@ class TestStructFromJsonschema:
         assert struct["shipping"] == "@Address"
 
     def test_constraints_to_metadata(self):
-        """Convert JSON Schema constraints to TYTX metadata."""
+        """Convert JSON Schema constraints to TYTX v2 FieldDef."""
         schema = {
             "type": "object",
             "properties": {
@@ -208,15 +208,20 @@ class TestStructFromJsonschema:
             },
         }
         struct = struct_from_jsonschema(schema)
-        assert "min:1" in struct["name"]
-        assert "max:100" in struct["name"]
-        assert 'reg:"^[A-Z]{3}$"' in struct["code"]
-        assert "enum:active|inactive" in struct["status"]
-        assert "min:0" in struct["age"]
-        assert "max:150" in struct["age"]
+        # v2 format: FieldDef with validate section
+        assert struct["name"]["type"] == "T"
+        assert struct["name"]["validate"]["min"] == 1
+        assert struct["name"]["validate"]["max"] == 100
+        assert struct["code"]["type"] == "T"
+        assert struct["code"]["validate"]["pattern"] == "^[A-Z]{3}$"
+        assert struct["status"]["type"] == "T"
+        assert struct["status"]["validate"]["enum"] == ["active", "inactive"]
+        assert struct["age"]["type"] == "L"
+        assert struct["age"]["validate"]["min"] == 0
+        assert struct["age"]["validate"]["max"] == 150
 
     def test_title_description_to_metadata(self):
-        """Convert title/description to lbl/hint."""
+        """Convert title/description to ui section."""
         schema = {
             "type": "object",
             "properties": {
@@ -228,17 +233,17 @@ class TestStructFromJsonschema:
             },
         }
         struct = struct_from_jsonschema(schema)
-        assert 'lbl:"Customer Name"' in struct["name"]
-        assert 'hint:"Enter full name"' in struct["name"]
+        # v2 format: FieldDef with ui section
+        assert struct["name"]["type"] == "T"
+        assert struct["name"]["ui"]["label"] == "Customer Name"
+        assert struct["name"]["ui"]["hint"] == "Enter full name"
 
     def test_anyof_nullable(self):
         """Handle anyOf with null (Optional types)."""
         schema = {
             "type": "object",
             "properties": {
-                "middle_name": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}]
-                },
+                "middle_name": {"anyOf": [{"type": "string"}, {"type": "null"}]},
             },
         }
         struct = struct_from_jsonschema(schema)
@@ -329,9 +334,7 @@ class TestStructToJsonschema:
         """Convert @STRUCT references to $ref."""
         struct = {"address": "@ADDRESS"}
         schema = struct_to_jsonschema(struct)
-        assert schema["properties"]["address"] == {
-            "$ref": "#/definitions/ADDRESS"
-        }
+        assert schema["properties"]["address"] == {"$ref": "#/definitions/ADDRESS"}
 
     def test_struct_reference_with_registry(self):
         """Resolve @STRUCT from registry and add definitions."""
@@ -341,30 +344,27 @@ class TestStructToJsonschema:
         struct = {"address": "@ADDR_TEST"}
         schema = struct_to_jsonschema(struct, registry=registry)
 
-        assert schema["properties"]["address"] == {
-            "$ref": "#/definitions/ADDR_TEST"
-        }
+        assert schema["properties"]["address"] == {"$ref": "#/definitions/ADDR_TEST"}
         assert "definitions" in schema
         assert "ADDR_TEST" in schema["definitions"]
-        assert schema["definitions"]["ADDR_TEST"]["properties"]["street"] == {
-            "type": "string"
-        }
+        assert schema["definitions"]["ADDR_TEST"]["properties"]["street"] == {"type": "string"}
 
         # Cleanup
         registry.unregister_struct("ADDR_TEST")
 
     def test_metadata_to_constraints(self):
-        """Convert TYTX metadata to JSON Schema constraints."""
+        """Convert TYTX v2 FieldDef to JSON Schema constraints."""
         struct = {
-            "name": "T[min:1,max:100]",
-            "code": 'T[reg:"^[A-Z]+$"]',
-            "status": "T[enum:active|inactive]",
+            "name": {"type": "T", "validate": {"min": 1, "max": 100}},
+            "code": {"type": "T", "validate": {"pattern": "^[A-Z]+$"}},
+            "status": {"type": "T", "validate": {"enum": ["active", "inactive"]}},
         }
         schema = struct_to_jsonschema(struct)
 
-        # min/max for strings map to minLength/maxLength or minimum/maximum
+        # v2 format: validate section converts to JSON Schema constraints
         name_prop = schema["properties"]["name"]
-        assert name_prop.get("minimum") == 1 or name_prop.get("minLength") == 1
+        assert name_prop.get("minLength") == 1
+        assert name_prop.get("maxLength") == 100
 
         code_prop = schema["properties"]["code"]
         assert code_prop.get("pattern") == "^[A-Z]+$"

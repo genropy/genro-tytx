@@ -62,7 +62,16 @@ from .json_utils import (
 )
 from .registry import TypeRegistry, registry
 from .schema_utils import struct_from_jsonschema, struct_to_jsonschema
-from .struct import StructType, ValidationDef, ValidationRegistry, validation_registry
+from .struct import (
+    FieldDef,
+    FieldUI,
+    FieldValidate,
+    FieldValue,
+    StructType,
+    get_field_type,
+    get_field_ui,
+    get_field_validate,
+)
 from .utils import (
     model_to_schema,
     python_type_to_tytx_code,
@@ -74,7 +83,7 @@ from .xml_utils import (
     as_xml,
     from_xml,
 )
-from .xtytx import XtytxResult, process_envelope
+from .xtytx import JsonSchema, SchemaRegistry, XtytxResult, process_envelope, schema_registry
 
 # Public API functions
 from_text = registry.from_text
@@ -103,10 +112,18 @@ __all__ = [
     # Struct & Extension types
     "StructType",
     "ExtensionType",
-    # Validation
-    "ValidationRegistry",
-    "ValidationDef",
-    "validation_registry",
+    # JSON Schema Registry (for validation)
+    "JsonSchema",
+    "SchemaRegistry",
+    "schema_registry",
+    # Struct v2 field types
+    "FieldDef",
+    "FieldUI",
+    "FieldValidate",
+    "FieldValue",
+    "get_field_type",
+    "get_field_ui",
+    "get_field_validate",
     # XTYTX envelope
     "XtytxResult",
     "process_envelope",

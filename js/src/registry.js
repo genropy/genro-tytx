@@ -51,6 +51,81 @@ const ARRAY_PREFIX = '#';
  */
 
 /**
+ * @typedef {Object} FieldValidate
+ * @property {number} [min] - Minimum value
+ * @property {number} [max] - Maximum value
+ * @property {number} [length] - Exact length
+ * @property {string} [pattern] - Regex pattern
+ * @property {string[]} [enum] - Allowed values
+ * @property {string} [validation] - Named validation reference
+ * @property {boolean} [required] - Field is required
+ * @property {*} [default] - Default value
+ */
+
+/**
+ * @typedef {Object} FieldUI
+ * @property {string} [label] - Display label
+ * @property {string} [placeholder] - Placeholder text
+ * @property {string} [hint] - Help text
+ * @property {boolean|string} [readonly] - Read-only field
+ * @property {boolean|string} [hidden] - Hidden field
+ * @property {string} [format] - Display format
+ * @property {number|string} [width] - Field width
+ * @property {number} [rows] - Number of rows for textarea
+ */
+
+/**
+ * @typedef {Object} FieldDef
+ * @property {string} [type] - Type code (defaults to 'T')
+ * @property {FieldValidate} [validate] - Validation constraints
+ * @property {FieldUI} [ui] - UI hints
+ */
+
+/**
+ * @typedef {string|FieldDef} FieldValue
+ */
+
+/**
+ * Get the type code from a field value.
+ * For string fields, returns the string directly.
+ * For object fields, returns the 'type' property or 'T' as default.
+ * @param {FieldValue} field - Field definition
+ * @returns {string} Type code
+ */
+function getFieldType(field) {
+    if (typeof field === 'string') {
+        return field;
+    }
+    return field.type ?? 'T';
+}
+
+/**
+ * Get validation constraints from a field value.
+ * Returns undefined for string fields.
+ * @param {FieldValue} field - Field definition
+ * @returns {FieldValidate|undefined}
+ */
+function getFieldValidate(field) {
+    if (typeof field === 'string') {
+        return undefined;
+    }
+    return field.validate;
+}
+
+/**
+ * Get UI hints from a field value.
+ * Returns undefined for string fields.
+ * @param {FieldValue} field - Field definition
+ * @returns {FieldUI|undefined}
+ */
+function getFieldUI(field) {
+    if (typeof field === 'string') {
+        return undefined;
+    }
+    return field.ui;
+}
+
+/**
  * @typedef {Object} StructType
  * @property {string} code - Full code with @ prefix
  * @property {string} name - Struct name without prefix
@@ -504,7 +579,7 @@ class TypeRegistry {
     /**
      * Apply dict schema to data.
      * @param {Object} data - Object data
-     * @param {Object} schema - Dict schema {key: typeCode}
+     * @param {Object} schema - Dict schema {key: FieldValue}
      * @returns {Object} Hydrated object
      * @private
      */
@@ -514,8 +589,9 @@ class TypeRegistry {
         }
 
         const result = { ...data };
-        for (const [key, typeCode] of Object.entries(schema)) {
+        for (const [key, fieldDef] of Object.entries(schema)) {
             if (key in result) {
+                const typeCode = getFieldType(fieldDef);
                 result[key] = this._hydrateValue(result[key], typeCode);
             }
         }
@@ -525,7 +601,7 @@ class TypeRegistry {
     /**
      * Apply list schema to data.
      * @param {*} data - Array data
-     * @param {Array} schema - List schema
+     * @param {Array<FieldValue>} schema - List schema
      * @returns {Array} Hydrated array
      * @private
      */
@@ -536,7 +612,8 @@ class TypeRegistry {
 
         if (schema.length === 1) {
             // Homogeneous: apply single type to all elements
-            return this._applyHomogeneous(data, schema[0]);
+            const typeCode = getFieldType(schema[0]);
+            return this._applyHomogeneous(data, typeCode);
         } else {
             // Positional: apply type at index i to data[i]
             return this._applyPositional(data, schema);
@@ -560,7 +637,7 @@ class TypeRegistry {
     /**
      * Apply positional schema (type at index i to data[i]).
      * @param {Array} data - Array data
-     * @param {Array} schema - List of type codes
+     * @param {Array<FieldValue>} schema - List of field definitions
      * @returns {Array} Hydrated array
      * @private
      */
@@ -572,7 +649,8 @@ class TypeRegistry {
 
         return data.map((item, i) => {
             if (i < schema.length) {
-                return this._hydrateValue(item, schema[i]);
+                const typeCode = getFieldType(schema[i]);
+                return this._hydrateValue(item, typeCode);
             }
             return item;
         });
@@ -748,4 +826,13 @@ class TypeRegistry {
 // Global registry instance
 const registry = new TypeRegistry();
 
-module.exports = { TypeRegistry, registry, CUSTOM_PREFIX, STRUCT_PREFIX, ARRAY_PREFIX };
+module.exports = {
+    TypeRegistry,
+    registry,
+    CUSTOM_PREFIX,
+    STRUCT_PREFIX,
+    ARRAY_PREFIX,
+    getFieldType,
+    getFieldValidate,
+    getFieldUI
+};

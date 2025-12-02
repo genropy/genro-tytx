@@ -20,6 +20,9 @@ import {
   TypeRegistry,
   hydrateArray,
   __setBigLoader,
+  getFieldType,
+  getFieldValidate,
+  getFieldUI,
 } from '../src/index.js';
 
 describe('registry', () => {
@@ -903,6 +906,232 @@ describe('struct schemas', () => {
       } finally {
         registry.unregister_struct('ITEM');
       }
+    });
+  });
+
+  describe('struct v2 object-style fields', () => {
+    it('simple string fields still work (backward compatible)', () => {
+      registry.register_struct('SIMPLE', { name: 'T', age: 'L' });
+      try {
+        const result = registry.fromText('{"name": "John", "age": "30"}::@SIMPLE') as Record<string, unknown>;
+        expect(result.name).toBe('John');
+        expect(result.age).toBe(30);
+      } finally {
+        registry.unregister_struct('SIMPLE');
+      }
+    });
+
+    it('object field with type only', () => {
+      registry.register_struct('OBJ_TYPE', {
+        name: { type: 'T' },
+        price: { type: 'N' }
+      });
+      try {
+        const result = registry.fromText('{"name": "Widget", "price": "99.99"}::@OBJ_TYPE') as Record<string, unknown>;
+        expect(result.name).toBe('Widget');
+        expect((result.price as { toString(): string }).toString()).toBe('99.99');
+      } finally {
+        registry.unregister_struct('OBJ_TYPE');
+      }
+    });
+
+    it('object field with validate section', () => {
+      registry.register_struct('WITH_VALIDATE', {
+        name: { type: 'T', validate: { min: 1, max: 100 } },
+        age: { type: 'L', validate: { min: 0, max: 120 } }
+      });
+      try {
+        const result = registry.fromText('{"name": "Alice", "age": "25"}::@WITH_VALIDATE') as Record<string, unknown>;
+        expect(result.name).toBe('Alice');
+        expect(result.age).toBe(25);
+      } finally {
+        registry.unregister_struct('WITH_VALIDATE');
+      }
+    });
+
+    it('object field with ui section', () => {
+      registry.register_struct('WITH_UI', {
+        email: {
+          type: 'T',
+          ui: { label: 'Email Address', placeholder: 'user@example.com' }
+        }
+      });
+      try {
+        const result = registry.fromText('{"email": "test@test.com"}::@WITH_UI') as Record<string, unknown>;
+        expect(result.email).toBe('test@test.com');
+      } finally {
+        registry.unregister_struct('WITH_UI');
+      }
+    });
+
+    it('object field with type, validate, and ui', () => {
+      registry.register_struct('FULL_FIELD', {
+        username: {
+          type: 'T',
+          validate: { min: 3, max: 50, pattern: '^[a-z0-9_]+$' },
+          ui: { label: 'Username', hint: 'Only lowercase letters and numbers' }
+        },
+        balance: {
+          type: 'N',
+          validate: { min: 0 },
+          ui: { label: 'Balance', format: 'currency', readonly: true }
+        }
+      });
+      try {
+        const result = registry.fromText('{"username": "john_doe", "balance": "1000.50"}::@FULL_FIELD') as Record<string, unknown>;
+        expect(result.username).toBe('john_doe');
+        expect((result.balance as { toString(): string }).toString()).toBe('1000.5');
+      } finally {
+        registry.unregister_struct('FULL_FIELD');
+      }
+    });
+
+    it('mixed string and object fields', () => {
+      registry.register_struct('MIXED', {
+        id: 'L',
+        name: { type: 'T', ui: { label: 'Full Name' } },
+        active: 'B'
+      });
+      try {
+        const result = registry.fromText('{"id": "123", "name": "Test", "active": "true"}::@MIXED') as Record<string, unknown>;
+        expect(result.id).toBe(123);
+        expect(result.name).toBe('Test');
+        expect(result.active).toBe(true);
+      } finally {
+        registry.unregister_struct('MIXED');
+      }
+    });
+
+    it('list schema with object fields', () => {
+      registry.register_struct('ROW_V2', [
+        { type: 'T', ui: { label: 'Name' } },
+        { type: 'L', validate: { min: 0 } },
+        { type: 'N', ui: { format: 'currency' } }
+      ]);
+      try {
+        const result = registry.fromText('["Product", "10", "99.99"]::@ROW_V2') as unknown[];
+        expect(result[0]).toBe('Product');
+        expect(result[1]).toBe(10);
+        expect((result[2] as { toString(): string }).toString()).toBe('99.99');
+      } finally {
+        registry.unregister_struct('ROW_V2');
+      }
+    });
+
+    it('list schema with mixed fields', () => {
+      registry.register_struct('ROW_MIXED', [
+        'T',
+        { type: 'L', validate: { min: 1 } },
+        'N'
+      ]);
+      try {
+        const result = registry.fromText('["Item", "5", "50.00"]::@ROW_MIXED') as unknown[];
+        expect(result[0]).toBe('Item');
+        expect(result[1]).toBe(5);
+        expect((result[2] as { toString(): string }).toString()).toBe('50');
+      } finally {
+        registry.unregister_struct('ROW_MIXED');
+      }
+    });
+
+    it('homogeneous list with object field', () => {
+      registry.register_struct('PRICES_V2', [{ type: 'N', validate: { min: 0 } }]);
+      try {
+        const result = registry.fromText('["10.00", "20.50", "30.99"]::@PRICES_V2') as unknown[];
+        expect((result[0] as { toString(): string }).toString()).toBe('10');
+        expect((result[1] as { toString(): string }).toString()).toBe('20.5');
+        expect((result[2] as { toString(): string }).toString()).toBe('30.99');
+      } finally {
+        registry.unregister_struct('PRICES_V2');
+      }
+    });
+
+    it('object field without type defaults to T', () => {
+      registry.register_struct('DEFAULT_TYPE', {
+        note: { ui: { label: 'Notes' } }
+      });
+      try {
+        const result = registry.fromText('{"note": "Hello"}::@DEFAULT_TYPE') as Record<string, unknown>;
+        expect(result.note).toBe('Hello');
+      } finally {
+        registry.unregister_struct('DEFAULT_TYPE');
+      }
+    });
+
+    it('nested struct reference in object field', () => {
+      registry.register_struct('ADDR_V2', {
+        city: { type: 'T', ui: { label: 'City' } },
+        zip: 'L'
+      });
+      registry.register_struct('PERSON_V2', {
+        name: { type: 'T', validate: { min: 1 } },
+        address: { type: '@ADDR_V2' }
+      });
+      try {
+        const result = registry.fromText('{"name": "John", "address": {"city": "Rome", "zip": "12345"}}::@PERSON_V2') as Record<string, unknown>;
+        expect(result.name).toBe('John');
+        const addr = result.address as Record<string, unknown>;
+        expect(addr.city).toBe('Rome');
+        expect(addr.zip).toBe(12345);
+      } finally {
+        registry.unregister_struct('PERSON_V2');
+        registry.unregister_struct('ADDR_V2');
+      }
+    });
+  });
+
+  describe('field helper functions', () => {
+    it('getFieldType returns string directly for string fields', () => {
+      expect(getFieldType('T')).toBe('T');
+      expect(getFieldType('N')).toBe('N');
+      expect(getFieldType('@PERSON')).toBe('@PERSON');
+    });
+
+    it('getFieldType extracts type from object field', () => {
+      expect(getFieldType({ type: 'T' })).toBe('T');
+      expect(getFieldType({ type: 'N', validate: { min: 0 } })).toBe('N');
+      expect(getFieldType({ type: '@ADDR', ui: { label: 'Address' } })).toBe('@ADDR');
+    });
+
+    it('getFieldType returns T when type not specified', () => {
+      expect(getFieldType({ ui: { label: 'Notes' } })).toBe('T');
+      expect(getFieldType({})).toBe('T');
+    });
+
+    it('getFieldValidate returns undefined for string fields', () => {
+      expect(getFieldValidate('T')).toBeUndefined();
+      expect(getFieldValidate('N[min:0]')).toBeUndefined();
+    });
+
+    it('getFieldValidate extracts validate from object field', () => {
+      const validate = getFieldValidate({
+        type: 'T',
+        validate: { min: 1, max: 100, pattern: '^[a-z]+$' }
+      });
+      expect(validate).toEqual({ min: 1, max: 100, pattern: '^[a-z]+$' });
+    });
+
+    it('getFieldValidate returns undefined when validate not present', () => {
+      expect(getFieldValidate({ type: 'T' })).toBeUndefined();
+      expect(getFieldValidate({ type: 'T', ui: { label: 'Name' } })).toBeUndefined();
+    });
+
+    it('getFieldUI returns undefined for string fields', () => {
+      expect(getFieldUI('T')).toBeUndefined();
+      expect(getFieldUI('T[lbl:Name]')).toBeUndefined();
+    });
+
+    it('getFieldUI extracts ui from object field', () => {
+      const ui = getFieldUI({
+        type: 'T',
+        ui: { label: 'Full Name', placeholder: 'Enter name', readonly: true }
+      });
+      expect(ui).toEqual({ label: 'Full Name', placeholder: 'Enter name', readonly: true });
+    });
+
+    it('getFieldUI returns undefined when ui not present', () => {
+      expect(getFieldUI({ type: 'T' })).toBeUndefined();
+      expect(getFieldUI({ type: 'T', validate: { min: 1 } })).toBeUndefined();
     });
   });
 });

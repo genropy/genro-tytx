@@ -12,8 +12,8 @@
     "src"
   ],
   "scripts": {
-    "test": "c8 node --test test/test_core.js test/test_validation.js test/test_metadata.js test/test_xtytx.js",
-    "test:nocov": "node --test test/test_core.js test/test_validation.js test/test_metadata.js test/test_xtytx.js",
+    "test": "c8 node --test test/test_core.js test/test_validation.js test/test_metadata.js test/test_xtytx.js test/test_schema_utils.js",
+    "test:nocov": "node --test test/test_core.js test/test_validation.js test/test_metadata.js test/test_xtytx.js test/test_schema_utils.js",
     "coverage": "c8 report --reporter=text --reporter=html",
     "docs": "jsdoc -c jsdoc.json"
   },

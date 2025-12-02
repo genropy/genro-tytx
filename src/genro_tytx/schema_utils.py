@@ -179,9 +179,7 @@ def _jsonschema_type_to_tytx(
         ref_name = prop_schema["$ref"].split("/")[-1]
         # Process the referenced schema as a nested struct
         if resolved.get("type") == "object" and "properties" in resolved:
-            nested_struct = _convert_object_schema(
-                resolved, ref_name, root_schema, nested_structs
-            )
+            nested_struct = _convert_object_schema(resolved, ref_name, root_schema, nested_structs)
             nested_structs[ref_name] = nested_struct
             ref_type = f"@{ref_name}"
             if is_required:
@@ -195,7 +193,12 @@ def _jsonschema_type_to_tytx(
     # Handle oneOf/anyOf (take first option)
     if "oneOf" in prop_schema:
         return _jsonschema_type_to_tytx(
-            prop_schema["oneOf"][0], prop_name, root_schema, nested_structs, parent_name, is_required
+            prop_schema["oneOf"][0],
+            prop_name,
+            root_schema,
+            nested_structs,
+            parent_name,
+            is_required,
         )
     if "anyOf" in prop_schema:
         # Filter out null types for Optional handling
@@ -519,7 +522,7 @@ def _type_code_to_jsonschema(
 
 
 def _struct_to_schema_object(
-    struct: dict[str, str | dict[str, Any]] | list[str] | str,
+    struct: dict[str, Any] | list[Any] | str,
     definitions: dict[str, Any],
     registry: TypeRegistry | None = None,
 ) -> dict[str, Any]:
@@ -555,10 +558,13 @@ def _struct_to_schema_object(
             item_schema = _tytx_field_to_jsonschema(struct[0], definitions, registry)
             return {"type": "array", "items": item_schema}
         # Positional (tuple-like)
-        items_list = [
-            _tytx_field_to_jsonschema(t, definitions, registry) for t in struct
-        ]
-        return {"type": "array", "items": items_list, "minItems": len(struct), "maxItems": len(struct)}
+        items_list = [_tytx_field_to_jsonschema(t, definitions, registry) for t in struct]
+        return {
+            "type": "array",
+            "items": items_list,
+            "minItems": len(struct),
+            "maxItems": len(struct),
+        }
 
     if isinstance(struct, str):
         # String schema (e.g., "name:T,qty:L")
@@ -575,10 +581,14 @@ def _struct_to_schema_object(
             return {"type": "object", "properties": properties}
         # Anonymous fields (e.g., "T,L,N")
         items_list = [
-            _tytx_field_to_jsonschema(t.strip(), definitions, registry)
-            for t in struct.split(",")
+            _tytx_field_to_jsonschema(t.strip(), definitions, registry) for t in struct.split(",")
         ]
-        return {"type": "array", "items": items_list, "minItems": len(items_list), "maxItems": len(items_list)}
+        return {
+            "type": "array",
+            "items": items_list,
+            "minItems": len(items_list),
+            "maxItems": len(items_list),
+        }
 
     return {"type": "object"}
 

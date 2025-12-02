@@ -11,7 +11,14 @@ from .struct import StructType as _StructType
 ARRAY_PREFIX = "#"
 
 # Re-export for backwards compatibility
-__all_prefixes__ = ["CUSTOM_PREFIX", "ARRAY_PREFIX", "STRUCT_PREFIX", "X_PREFIX", "Y_PREFIX", "Z_PREFIX"]
+__all_prefixes__ = [
+    "CUSTOM_PREFIX",
+    "ARRAY_PREFIX",
+    "STRUCT_PREFIX",
+    "X_PREFIX",
+    "Y_PREFIX",
+    "Z_PREFIX",
+]
 
 
 def _get_type_instance(
@@ -119,10 +126,7 @@ class TypeRegistry:
             if ext_type.name in self._types:
                 del self._types[ext_type.name]
             # Remove from _python_types if cls was registered
-            if (
-                ext_type.python_type is not None
-                and ext_type.python_type in self._python_types
-            ):
+            if ext_type.python_type is not None and ext_type.python_type in self._python_types:
                 del self._python_types[ext_type.python_type]
 
     def register_struct(
@@ -293,9 +297,7 @@ class TypeRegistry:
         # model_class is validated as BaseModel in register_struct_from_model
         for field_name, field_info in model_class.model_fields.items():
             annotation = field_info.annotation
-            type_code = self._python_type_to_tytx_code(
-                annotation, include_nested, _registered
-            )
+            type_code = self._python_type_to_tytx_code(annotation, include_nested, _registered)
             # Extract metadata from field_info as v2 FieldDef
             field_def = self._extract_field_metadata_v2(field_info, annotation, type_code)
             schema[field_name] = field_def
@@ -437,22 +439,16 @@ class TypeRegistry:
             # Filter out NoneType
             non_none_args = [a for a in args if a is not type(None)]
             if len(non_none_args) == 1:
-                return self._python_type_to_tytx_code(
-                    non_none_args[0], include_nested, _registered
-                )
+                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
             # Multiple types - use first one
             if non_none_args:
-                return self._python_type_to_tytx_code(
-                    non_none_args[0], include_nested, _registered
-                )
+                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
             return "T"
 
         # Handle list[X] -> #X
         if origin is list:
             if args:
-                inner_code = self._python_type_to_tytx_code(
-                    args[0], include_nested, _registered
-                )
+                inner_code = self._python_type_to_tytx_code(args[0], include_nested, _registered)
                 return f"#{inner_code}"
             return "#T"  # list without type arg
 
@@ -470,9 +466,7 @@ class TypeRegistry:
 
                 if include_nested and python_type not in _registered:
                     _registered.add(python_type)
-                    nested_schema = self._model_to_schema(
-                        python_type, include_nested, _registered
-                    )
+                    nested_schema = self._model_to_schema(python_type, include_nested, _registered)
                     # Only register if not already registered
                     if struct_code not in self._structs:
                         self.register_struct(struct_code, nested_schema)
@@ -801,7 +795,9 @@ class TypeRegistry:
                     annotations.append(Ge(min_val))
                 else:
                     with contextlib.suppress(ValueError):
-                        annotations.append(Ge(int(min_val) if "." not in str(min_val) else float(min_val)))
+                        annotations.append(
+                            Ge(int(min_val) if "." not in str(min_val) else float(min_val))
+                        )
             else:
                 if isinstance(min_val, int):
                     annotations.append(MinLen(min_val))
@@ -817,7 +813,9 @@ class TypeRegistry:
                     annotations.append(Le(max_val))
                 else:
                     with contextlib.suppress(ValueError):
-                        annotations.append(Le(int(max_val) if "." not in str(max_val) else float(max_val)))
+                        annotations.append(
+                            Le(int(max_val) if "." not in str(max_val) else float(max_val))
+                        )
             else:
                 if isinstance(max_val, int):
                     annotations.append(MaxLen(max_val))

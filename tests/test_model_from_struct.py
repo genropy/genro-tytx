@@ -47,7 +47,6 @@ from decimal import Decimal
 from typing import Literal, get_args, get_origin
 
 import pytest
-from pydantic import BaseModel
 
 from genro_tytx import registry
 
@@ -62,11 +61,14 @@ class TestModelFromStructBasic:
 
     def test_simple_types(self) -> None:
         """Test model generation with simple types."""
-        registry.register_struct("SIMPLE", {
-            "name": "T",
-            "age": "L",
-            "balance": "N",
-        })
+        registry.register_struct(
+            "SIMPLE",
+            {
+                "name": "T",
+                "age": "L",
+                "balance": "N",
+            },
+        )
 
         Model = registry.model_from_struct("SIMPLE")
 
@@ -81,16 +83,19 @@ class TestModelFromStructBasic:
 
     def test_all_basic_types(self) -> None:
         """Test model with all supported basic types."""
-        registry.register_struct("ALLTYPES", {
-            "text": "T",
-            "integer": "L",
-            "floating": "R",
-            "boolean": "B",
-            "decimal": "N",
-            "date_field": "D",
-            "datetime_field": "DHZ",
-            "time_field": "H",
-        })
+        registry.register_struct(
+            "ALLTYPES",
+            {
+                "text": "T",
+                "integer": "L",
+                "floating": "R",
+                "boolean": "B",
+                "decimal": "N",
+                "date_field": "D",
+                "datetime_field": "DHZ",
+                "time_field": "H",
+            },
+        )
 
         Model = registry.model_from_struct("ALLTYPES")
 
@@ -111,10 +116,13 @@ class TestModelFromStructBasic:
 
     def test_model_instantiation(self) -> None:
         """Test that generated model can be instantiated."""
-        registry.register_struct("PERSON", {
-            "name": "T",
-            "age": "L",
-        })
+        registry.register_struct(
+            "PERSON",
+            {
+                "name": "T",
+                "age": "L",
+            },
+        )
 
         Person = registry.model_from_struct("PERSON")
 
@@ -125,10 +133,13 @@ class TestModelFromStructBasic:
 
     def test_model_validation(self) -> None:
         """Test that generated model validates input."""
-        registry.register_struct("TYPED", {
-            "count": "L",
-            "active": "B",
-        })
+        registry.register_struct(
+            "TYPED",
+            {
+                "count": "L",
+                "active": "B",
+            },
+        )
 
         Model = registry.model_from_struct("TYPED")
 
@@ -230,14 +241,20 @@ class TestModelFromStructNested:
 
     def test_nested_struct(self) -> None:
         """Test nested struct reference."""
-        registry.register_struct("ADDRESS", {
-            "street": "T",
-            "city": "T",
-        })
-        registry.register_struct("PERSON", {
-            "name": "T",
-            "address": "@ADDRESS",
-        })
+        registry.register_struct(
+            "ADDRESS",
+            {
+                "street": "T",
+                "city": "T",
+            },
+        )
+        registry.register_struct(
+            "PERSON",
+            {
+                "name": "T",
+                "address": "@ADDRESS",
+            },
+        )
 
         Person = registry.model_from_struct("PERSON")
         Address = registry.model_from_struct("ADDRESS")
@@ -250,10 +267,13 @@ class TestModelFromStructNested:
     def test_nested_struct_instantiation(self) -> None:
         """Test nested struct can be instantiated."""
         registry.register_struct("INNER", {"value": "L"})
-        registry.register_struct("OUTER", {
-            "name": "T",
-            "inner": "@INNER",
-        })
+        registry.register_struct(
+            "OUTER",
+            {
+                "name": "T",
+                "inner": "@INNER",
+            },
+        )
 
         Outer = registry.model_from_struct("OUTER")
 
@@ -264,14 +284,20 @@ class TestModelFromStructNested:
 
     def test_list_of_nested_structs(self) -> None:
         """Test list of nested structs."""
-        registry.register_struct("ITEM", {
-            "name": "T",
-            "price": "N",
-        })
-        registry.register_struct("ORDER", {
-            "id": "L",
-            "items": "#@ITEM",
-        })
+        registry.register_struct(
+            "ITEM",
+            {
+                "name": "T",
+                "price": "N",
+            },
+        )
+        registry.register_struct(
+            "ORDER",
+            {
+                "id": "L",
+                "items": "#@ITEM",
+            },
+        )
 
         Order = registry.model_from_struct("ORDER")
 
@@ -284,20 +310,28 @@ class TestModelFromStructNested:
 
     def test_list_of_nested_instantiation(self) -> None:
         """Test list of nested structs instantiation."""
-        registry.register_struct("LINEITEM", {
-            "product": "T",
-            "qty": "L",
-        })
-        registry.register_struct("CART", {
-            "items": "#@LINEITEM",
-        })
+        registry.register_struct(
+            "LINEITEM",
+            {
+                "product": "T",
+                "qty": "L",
+            },
+        )
+        registry.register_struct(
+            "CART",
+            {
+                "items": "#@LINEITEM",
+            },
+        )
 
         Cart = registry.model_from_struct("CART")
 
-        obj = Cart(items=[
-            {"product": "Widget", "qty": 2},
-            {"product": "Gadget", "qty": 1},
-        ])
+        obj = Cart(
+            items=[
+                {"product": "Widget", "qty": 2},
+                {"product": "Gadget", "qty": 1},
+            ]
+        )
         assert len(obj.items) == 2
         assert obj.items[0].product == "Widget"
         assert obj.items[1].qty == 1
@@ -313,9 +347,7 @@ class TestModelFromStructConstraints:
 
     def test_string_min_length(self) -> None:
         """Test min_length constraint on string."""
-        registry.register_struct("MINLEN", {
-            "name": {"type": "T", "validate": {"min": 1}}
-        })
+        registry.register_struct("MINLEN", {"name": {"type": "T", "validate": {"min": 1}}})
 
         Model = registry.model_from_struct("MINLEN")
 
@@ -328,9 +360,7 @@ class TestModelFromStructConstraints:
 
     def test_string_max_length(self) -> None:
         """Test max_length constraint on string."""
-        registry.register_struct("MAXLEN", {
-            "code": {"type": "T", "validate": {"max": 10}}
-        })
+        registry.register_struct("MAXLEN", {"code": {"type": "T", "validate": {"max": 10}}})
 
         Model = registry.model_from_struct("MAXLEN")
 
@@ -341,9 +371,9 @@ class TestModelFromStructConstraints:
 
     def test_string_pattern(self) -> None:
         """Test pattern constraint on string."""
-        registry.register_struct("PATTERN", {
-            "email": {"type": "T", "validate": {"pattern": r"^[^@]+@[^@]+$"}}
-        })
+        registry.register_struct(
+            "PATTERN", {"email": {"type": "T", "validate": {"pattern": r"^[^@]+@[^@]+$"}}}
+        )
 
         Model = registry.model_from_struct("PATTERN")
 
@@ -357,9 +387,7 @@ class TestModelFromStructConstraints:
 
     def test_numeric_ge(self) -> None:
         """Test ge constraint on numeric field."""
-        registry.register_struct("GE", {
-            "age": {"type": "L", "validate": {"min": 0}}
-        })
+        registry.register_struct("GE", {"age": {"type": "L", "validate": {"min": 0}}})
 
         Model = registry.model_from_struct("GE")
 
@@ -373,9 +401,7 @@ class TestModelFromStructConstraints:
 
     def test_numeric_le(self) -> None:
         """Test le constraint on numeric field."""
-        registry.register_struct("LE", {
-            "score": {"type": "L", "validate": {"max": 100}}
-        })
+        registry.register_struct("LE", {"score": {"type": "L", "validate": {"max": 100}}})
 
         Model = registry.model_from_struct("LE")
 
@@ -389,9 +415,10 @@ class TestModelFromStructConstraints:
 
     def test_title_and_description(self) -> None:
         """Test title (label) and description (hint) metadata."""
-        registry.register_struct("META", {
-            "name": {"type": "T", "ui": {"label": "Full Name", "hint": "Enter your full name"}}
-        })
+        registry.register_struct(
+            "META",
+            {"name": {"type": "T", "ui": {"label": "Full Name", "hint": "Enter your full name"}}},
+        )
 
         Model = registry.model_from_struct("META")
 
@@ -401,9 +428,9 @@ class TestModelFromStructConstraints:
 
     def test_default_value_string(self) -> None:
         """Test default value for string field."""
-        registry.register_struct("DEFSTR", {
-            "status": {"type": "T", "validate": {"default": "active"}}
-        })
+        registry.register_struct(
+            "DEFSTR", {"status": {"type": "T", "validate": {"default": "active"}}}
+        )
 
         Model = registry.model_from_struct("DEFSTR")
 
@@ -413,9 +440,7 @@ class TestModelFromStructConstraints:
 
     def test_default_value_int(self) -> None:
         """Test default value for integer field."""
-        registry.register_struct("DEFINT", {
-            "count": {"type": "L", "validate": {"default": 0}}
-        })
+        registry.register_struct("DEFINT", {"count": {"type": "L", "validate": {"default": 0}}})
 
         Model = registry.model_from_struct("DEFINT")
 
@@ -424,9 +449,10 @@ class TestModelFromStructConstraints:
 
     def test_enum_as_literal(self) -> None:
         """Test enum metadata becomes Literal type."""
-        registry.register_struct("ENUM", {
-            "status": {"type": "T", "validate": {"enum": ["active", "inactive", "pending"]}}
-        })
+        registry.register_struct(
+            "ENUM",
+            {"status": {"type": "T", "validate": {"enum": ["active", "inactive", "pending"]}}},
+        )
 
         Model = registry.model_from_struct("ENUM")
 
@@ -439,9 +465,15 @@ class TestModelFromStructConstraints:
 
     def test_enum_with_default(self) -> None:
         """Test enum with default value."""
-        registry.register_struct("ENUMDEF", {
-            "status": {"type": "T", "validate": {"enum": ["active", "inactive"], "default": "active"}}
-        })
+        registry.register_struct(
+            "ENUMDEF",
+            {
+                "status": {
+                    "type": "T",
+                    "validate": {"enum": ["active", "inactive"], "default": "active"},
+                }
+            },
+        )
 
         Model = registry.model_from_struct("ENUMDEF")
 
@@ -458,9 +490,16 @@ class TestModelFromStructConstraints:
 
     def test_combined_constraints(self) -> None:
         """Test multiple constraints on same field."""
-        registry.register_struct("COMBO", {
-            "name": {"type": "T", "validate": {"min": 1, "max": 100}, "ui": {"label": "Customer Name"}}
-        })
+        registry.register_struct(
+            "COMBO",
+            {
+                "name": {
+                    "type": "T",
+                    "validate": {"min": 1, "max": 100},
+                    "ui": {"label": "Customer Name"},
+                }
+            },
+        )
 
         Model = registry.model_from_struct("COMBO")
 
@@ -509,7 +548,8 @@ class TestModelFromStructRoundTrip:
 
     def test_roundtrip_with_constraints(self) -> None:
         """Test model with constraints round-trip."""
-        from pydantic import BaseModel as PydanticBaseModel, Field
+        from pydantic import BaseModel as PydanticBaseModel
+        from pydantic import Field
 
         class Original(PydanticBaseModel):
             name: str = Field(min_length=1, max_length=50, title="Name")
@@ -546,13 +586,19 @@ class TestModelFromStructRealWorld:
 
     def test_customer_model(self) -> None:
         """Test customer-like model."""
-        registry.register_struct("CUSTOMER", {
-            "id": "L",
-            "name": {"type": "T", "validate": {"min": 1, "max": 100}},
-            "email": "T",
-            "status": {"type": "T", "validate": {"enum": ["active", "inactive", "suspended"], "default": "active"}},
-            "balance": {"type": "N", "validate": {"min": 0}},
-        })
+        registry.register_struct(
+            "CUSTOMER",
+            {
+                "id": "L",
+                "name": {"type": "T", "validate": {"min": 1, "max": 100}},
+                "email": "T",
+                "status": {
+                    "type": "T",
+                    "validate": {"enum": ["active", "inactive", "suspended"], "default": "active"},
+                },
+                "balance": {"type": "N", "validate": {"min": 0}},
+            },
+        )
 
         Customer = registry.model_from_struct("CUSTOMER")
 
@@ -571,17 +617,23 @@ class TestModelFromStructRealWorld:
 
     def test_invoice_model(self) -> None:
         """Test invoice with nested line items."""
-        registry.register_struct("LINEITEM", {
-            "description": "T",
-            "quantity": {"type": "L", "validate": {"min": 1}},
-            "unit_price": {"type": "N", "validate": {"min": 0}},
-        })
-        registry.register_struct("INVOICE", {
-            "number": "T",
-            "date": "D",
-            "items": "#@LINEITEM",
-            "total": "N",
-        })
+        registry.register_struct(
+            "LINEITEM",
+            {
+                "description": "T",
+                "quantity": {"type": "L", "validate": {"min": 1}},
+                "unit_price": {"type": "N", "validate": {"min": 0}},
+            },
+        )
+        registry.register_struct(
+            "INVOICE",
+            {
+                "number": "T",
+                "date": "D",
+                "items": "#@LINEITEM",
+                "total": "N",
+            },
+        )
 
         Invoice = registry.model_from_struct("INVOICE")
 
@@ -602,10 +654,13 @@ class TestModelFromStructRealWorld:
 
     def test_json_serialization(self) -> None:
         """Test that generated model can serialize to JSON."""
-        registry.register_struct("JSONTEST", {
-            "name": "T",
-            "count": "L",
-        })
+        registry.register_struct(
+            "JSONTEST",
+            {
+                "name": "T",
+                "count": "L",
+            },
+        )
 
         Model = registry.model_from_struct("JSONTEST")
 
