@@ -210,10 +210,13 @@ class TestRegisterStructFromModel:
         registry.register_struct_from_model("NODE", Node)
 
         schema = registry.get_struct("NODE")
-        # Note: default=[] produces def:"[]" metadata (brackets need quotes)
+        # Note: default=[] produces a FieldDef with validate.default
         assert schema is not None
         assert schema["value"] == "T"
-        assert schema["children"].startswith("#@NODE")
+        # children has default value, so it's a FieldDef
+        children = schema["children"]
+        assert children["type"] == "#@NODE"
+        assert children["validate"]["default"] == []
 
     def test_invalid_model_class(self) -> None:
         """Test that non-Pydantic class raises TypeError."""
@@ -311,7 +314,7 @@ class TestStructFromModel:
 
 
 class TestFieldConstraints:
-    """Tests for Pydantic Field constraint extraction."""
+    """Tests for Pydantic Field constraint extraction (v2 format)."""
 
     def teardown_method(self) -> None:
         """Clean up registered structs after each test."""
@@ -326,7 +329,9 @@ class TestFieldConstraints:
             name: str = Field(min_length=1)
 
         schema = registry.struct_from_model(WithMinLen)
-        assert schema["name"] == "T[min:1]"
+        assert schema["name"]["type"] == "T"
+        assert schema["name"]["validate"]["min"] == 1
+        assert schema["name"]["validate"]["required"] is True
 
     def test_string_max_length(self) -> None:
         """Test max_length constraint on string field."""
@@ -336,7 +341,8 @@ class TestFieldConstraints:
             code: str = Field(max_length=10)
 
         schema = registry.struct_from_model(WithMaxLen)
-        assert schema["code"] == "T[max:10]"
+        assert schema["code"]["type"] == "T"
+        assert schema["code"]["validate"]["max"] == 10
 
     def test_string_min_max_length(self) -> None:
         """Test combined min/max length constraints."""
@@ -346,9 +352,9 @@ class TestFieldConstraints:
             name: str = Field(min_length=2, max_length=50)
 
         schema = registry.struct_from_model(WithBothLen)
-        # Order may vary, check both are present
-        assert "min:2" in schema["name"]
-        assert "max:50" in schema["name"]
+        assert schema["name"]["type"] == "T"
+        assert schema["name"]["validate"]["min"] == 2
+        assert schema["name"]["validate"]["max"] == 50
 
     def test_string_pattern(self) -> None:
         """Test pattern constraint on string field."""
@@ -358,7 +364,8 @@ class TestFieldConstraints:
             email: str = Field(pattern=r"^[^@]+@[^@]+$")
 
         schema = registry.struct_from_model(WithPattern)
-        assert 'reg:"^[^@]+@[^@]+$"' in schema["email"]
+        assert schema["email"]["type"] == "T"
+        assert schema["email"]["validate"]["pattern"] == r"^[^@]+@[^@]+$"
 
     def test_numeric_ge(self) -> None:
         """Test ge (>=) constraint on numeric field."""
@@ -368,7 +375,8 @@ class TestFieldConstraints:
             age: int = Field(ge=0)
 
         schema = registry.struct_from_model(WithGe)
-        assert schema["age"] == "L[min:0]"
+        assert schema["age"]["type"] == "L"
+        assert schema["age"]["validate"]["min"] == 0
 
     def test_numeric_le(self) -> None:
         """Test le (<=) constraint on numeric field."""
@@ -378,7 +386,8 @@ class TestFieldConstraints:
             score: int = Field(le=100)
 
         schema = registry.struct_from_model(WithLe)
-        assert schema["score"] == "L[max:100]"
+        assert schema["score"]["type"] == "L"
+        assert schema["score"]["validate"]["max"] == 100
 
     def test_numeric_gt(self) -> None:
         """Test gt (>) constraint - should be min+1."""
@@ -388,7 +397,8 @@ class TestFieldConstraints:
             quantity: int = Field(gt=0)  # > 0 means >= 1
 
         schema = registry.struct_from_model(WithGt)
-        assert schema["quantity"] == "L[min:1]"
+        assert schema["quantity"]["type"] == "L"
+        assert schema["quantity"]["validate"]["min"] == 1
 
     def test_numeric_lt(self) -> None:
         """Test lt (<) constraint - should be max-1."""
@@ -398,41 +408,44 @@ class TestFieldConstraints:
             count: int = Field(lt=100)  # < 100 means <= 99
 
         schema = registry.struct_from_model(WithLt)
-        assert schema["count"] == "L[max:99]"
+        assert schema["count"]["type"] == "L"
+        assert schema["count"]["validate"]["max"] == 99
 
     def test_decimal_constraints(self) -> None:
         """Test constraints on Decimal field."""
-        from pydantic import BaseModel, Field
         from decimal import Decimal
+
+        from pydantic import BaseModel, Field
 
         class WithDecimal(BaseModel):
             price: Decimal = Field(ge=0, le=9999.99)
 
         schema = registry.struct_from_model(WithDecimal)
-        assert "min:0" in schema["price"]
-        assert "max:9999.99" in schema["price"]
+        assert schema["price"]["type"] == "N"
+        assert schema["price"]["validate"]["min"] == 0
+        assert schema["price"]["validate"]["max"] == 9999.99
 
     def test_title_as_label(self) -> None:
-        """Test title becomes lbl metadata."""
+        """Test title becomes ui.label metadata."""
         from pydantic import BaseModel, Field
 
         class WithTitle(BaseModel):
             name: str = Field(title="Customer Name")
 
         schema = registry.struct_from_model(WithTitle)
-        # Note: format_metadata doesn't quote simple strings without special chars
-        assert "lbl:Customer Name" in schema["name"]
+        assert schema["name"]["type"] == "T"
+        assert schema["name"]["ui"]["label"] == "Customer Name"
 
     def test_description_as_hint(self) -> None:
-        """Test description becomes hint metadata."""
+        """Test description becomes ui.hint metadata."""
         from pydantic import BaseModel, Field
 
         class WithDesc(BaseModel):
             email: str = Field(description="Enter your email address")
 
         schema = registry.struct_from_model(WithDesc)
-        # Note: format_metadata doesn't quote simple strings without special chars
-        assert "hint:Enter your email address" in schema["email"]
+        assert schema["email"]["type"] == "T"
+        assert schema["email"]["ui"]["hint"] == "Enter your email address"
 
     def test_default_value(self) -> None:
         """Test default value is captured."""
@@ -442,7 +455,8 @@ class TestFieldConstraints:
             status: str = Field(default="active")
 
         schema = registry.struct_from_model(WithDefault)
-        assert "def:active" in schema["status"]
+        assert schema["status"]["type"] == "T"
+        assert schema["status"]["validate"]["default"] == "active"
 
     def test_combined_constraints(self) -> None:
         """Test multiple constraints on same field."""
@@ -458,16 +472,15 @@ class TestFieldConstraints:
 
         schema = registry.struct_from_model(Customer)
         name_def = schema["name"]
-        assert name_def.startswith("T[")
-        assert "min:1" in name_def
-        assert "max:100" in name_def
-        # Note: format_metadata doesn't quote simple strings without special chars
-        assert "lbl:Full Name" in name_def
-        assert "hint:Customer" in name_def
+        assert name_def["type"] == "T"
+        assert name_def["validate"]["min"] == 1
+        assert name_def["validate"]["max"] == 100
+        assert name_def["ui"]["label"] == "Full Name"
+        assert name_def["ui"]["hint"] == "Customer's full name"
 
 
 class TestLiteralEnum:
-    """Tests for Literal type -> enum metadata."""
+    """Tests for Literal type -> enum metadata (v2 format)."""
 
     def teardown_method(self) -> None:
         """Clean up registered structs after each test."""
@@ -477,48 +490,51 @@ class TestLiteralEnum:
     def test_literal_string(self) -> None:
         """Test Literal with string values."""
         from typing import Literal
+
         from pydantic import BaseModel
 
         class WithStatus(BaseModel):
             status: Literal["active", "inactive", "pending"]
 
         schema = registry.struct_from_model(WithStatus)
-        assert "enum:active|inactive|pending" in schema["status"]
+        assert schema["status"]["validate"]["enum"] == ["active", "inactive", "pending"]
 
     def test_literal_int(self) -> None:
         """Test Literal with integer values."""
         from typing import Literal
+
         from pydantic import BaseModel
 
         class WithPriority(BaseModel):
             priority: Literal[1, 2, 3]
 
         schema = registry.struct_from_model(WithPriority)
-        assert "enum:1|2|3" in schema["priority"]
+        assert schema["priority"]["validate"]["enum"] == [1, 2, 3]
 
     def test_literal_mixed(self) -> None:
         """Test Literal with mixed types."""
         from typing import Literal
+
         from pydantic import BaseModel
 
         class WithMixed(BaseModel):
             value: Literal["auto", 0, 100]
 
         schema = registry.struct_from_model(WithMixed)
-        assert "enum:auto|0|100" in schema["value"]
+        assert schema["value"]["validate"]["enum"] == ["auto", 0, 100]
 
     def test_literal_with_other_constraints(self) -> None:
         """Test Literal combined with other Field constraints."""
         from typing import Literal
+
         from pydantic import BaseModel, Field
 
         class WithLiteralAndTitle(BaseModel):
             status: Literal["A", "B", "C"] = Field(title="Status Code")
 
         schema = registry.struct_from_model(WithLiteralAndTitle)
-        assert "enum:A|B|C" in schema["status"]
-        # Note: format_metadata doesn't quote simple strings without special chars
-        assert "lbl:Status Code" in schema["status"]
+        assert schema["status"]["validate"]["enum"] == ["A", "B", "C"]
+        assert schema["status"]["ui"]["label"] == "Status Code"
 
 
 class TestRealWorldExamples:

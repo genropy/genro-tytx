@@ -4,7 +4,7 @@ from typing import Any
 from .base import DataType
 from .extension import CUSTOM_PREFIX
 from .extension import ExtensionType as _ExtensionType
-from .struct import STRUCT_PREFIX, FieldValue
+from .struct import STRUCT_PREFIX, FieldDef, FieldValue
 from .struct import StructType as _StructType
 
 # Symbol prefix for typed arrays (hash = each element #i)
@@ -178,14 +178,15 @@ class TypeRegistry:
         model_class: type,
         *,
         include_nested: bool = False,
-    ) -> dict[str, str]:
+    ) -> dict[str, FieldValue]:
         """
-        Generate a TYTX struct schema from a Pydantic model.
+        Generate a TYTX v2 struct schema from a Pydantic model.
 
         Extracts:
         - Type mappings (str -> T, int -> L, Decimal -> N, etc.)
-        - Field constraints as metadata (min_length -> min, pattern -> reg, etc.)
-        - Literal types as enum metadata
+        - Field constraints as validate section (min_length -> min, pattern, etc.)
+        - UI metadata as ui section (title -> label, description -> hint)
+        - Literal types as validate.enum
         - Nested Pydantic models as @STRUCT references
 
         Args:
@@ -194,8 +195,8 @@ class TypeRegistry:
                 as separate structs (default False - just generate references)
 
         Returns:
-            Dict schema with TYTX type codes and metadata, e.g.:
-            {'name': 'T[min:1, max:100]', 'email': 'T[reg:"^[^@]+@[^@]+$"]'}
+            Dict schema with TYTX v2 FieldValue (string or FieldDef), e.g.:
+            {'name': {'type': 'T', 'validate': {'min': 1, 'max': 100}}}
 
         Raises:
             ImportError: If pydantic is not installed
@@ -272,9 +273,9 @@ class TypeRegistry:
         model_class: Any,
         include_nested: bool,
         _registered: set[type] | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, FieldValue]:
         """
-        Convert a Pydantic model to a TYTX dict schema.
+        Convert a Pydantic model to a TYTX v2 dict schema.
 
         Args:
             model_class: Pydantic BaseModel subclass
@@ -282,12 +283,12 @@ class TypeRegistry:
             _registered: Internal set to track already registered models (avoid infinite recursion)
 
         Returns:
-            Dict schema mapping field names to TYTX type codes with metadata
+            Dict schema mapping field names to TYTX v2 FieldValue (string or FieldDef)
         """
         if _registered is None:
             _registered = set()
 
-        schema: dict[str, str] = {}
+        schema: dict[str, FieldValue] = {}
 
         # model_class is validated as BaseModel in register_struct_from_model
         for field_name, field_info in model_class.model_fields.items():
@@ -295,39 +296,29 @@ class TypeRegistry:
             type_code = self._python_type_to_tytx_code(
                 annotation, include_nested, _registered
             )
-            # Extract metadata from field_info
-            metadata = self._extract_field_metadata(field_info, annotation)
-            if metadata:
-                type_code = f"{type_code}[{metadata}]"
-            schema[field_name] = type_code
+            # Extract metadata from field_info as v2 FieldDef
+            field_def = self._extract_field_metadata_v2(field_info, annotation, type_code)
+            schema[field_name] = field_def
 
         return schema
 
-    def _extract_field_metadata(self, field_info: Any, annotation: Any) -> str:
+    def _extract_field_metadata_v2(
+        self, field_info: Any, annotation: Any, type_code: str
+    ) -> FieldValue:
         """
-        Extract TYTX metadata from Pydantic FieldInfo.
+        Extract TYTX v2 FieldDef from Pydantic FieldInfo.
 
-        Maps Pydantic constraints to TYTX metadata facets:
-        - min_length -> min (for strings)
-        - max_length -> max (for strings)
-        - pattern -> reg
-        - ge (>=) -> min (for numbers)
-        - le (<=) -> max (for numbers)
-        - gt (>) -> min+1 (for numbers)
-        - lt (<) -> max-1 (for numbers)
-        - title -> lbl
-        - description -> hint
-        - default -> def (if not None and not PydanticUndefined)
-        - Literal[...] -> enum
+        Maps Pydantic constraints to TYTX v2 format:
+        - validate section: min, max, pattern, enum, default
+        - ui section: label, hint
 
         Returns:
-            Metadata string (without brackets) or empty string
+            FieldValue: simple string if no constraints, or FieldDef dict
         """
         import typing
 
-        from .metadata_parser import format_metadata
-
-        metadata: dict[str, str] = {}
+        validate: dict[str, Any] = {}
+        ui: dict[str, Any] = {}
 
         # Extract constraints from field_info.metadata (Pydantic v2)
         # In Pydantic v2, constraints are stored as annotated_types objects
@@ -337,23 +328,23 @@ class TypeRegistry:
 
                 # String constraints
                 if constraint_type == "MinLen":
-                    metadata["min"] = str(constraint.min_length)
+                    validate["min"] = constraint.min_length
                 elif constraint_type == "MaxLen":
-                    metadata["max"] = str(constraint.max_length)
+                    validate["max"] = constraint.max_length
                 elif constraint_type == "Pattern":
-                    metadata["reg"] = constraint.pattern
+                    validate["pattern"] = constraint.pattern
 
                 # Numeric constraints
                 elif constraint_type == "Ge":
-                    metadata["min"] = str(constraint.ge)
+                    validate["min"] = constraint.ge
                 elif constraint_type == "Le":
-                    metadata["max"] = str(constraint.le)
+                    validate["max"] = constraint.le
                 elif constraint_type == "Gt":
                     # gt means > value, so min is value + 1 for integers
-                    metadata["min"] = str(constraint.gt + 1)
+                    validate["min"] = constraint.gt + 1
                 elif constraint_type == "Lt":
                     # lt means < value, so max is value - 1 for integers
-                    metadata["max"] = str(constraint.lt - 1)
+                    validate["max"] = constraint.lt - 1
 
                 # Pydantic general metadata (includes pattern for strings)
                 elif (
@@ -361,13 +352,13 @@ class TypeRegistry:
                     and hasattr(constraint, "pattern")
                     and constraint.pattern is not None
                 ):
-                    metadata["reg"] = constraint.pattern
+                    validate["pattern"] = constraint.pattern
 
         # UI metadata (these are direct attributes on FieldInfo)
         if hasattr(field_info, "title") and field_info.title is not None:
-            metadata["lbl"] = field_info.title
+            ui["label"] = field_info.title
         if hasattr(field_info, "description") and field_info.description is not None:
-            metadata["hint"] = field_info.description
+            ui["hint"] = field_info.description
 
         # Default value (skip PydanticUndefined and None)
         if hasattr(field_info, "default"):
@@ -377,19 +368,36 @@ class TypeRegistry:
                 from pydantic_core import PydanticUndefined
 
                 if default is not PydanticUndefined and default is not None:
-                    metadata["def"] = str(default)
+                    validate["default"] = default
             except ImportError:
                 if default is not None:
-                    metadata["def"] = str(default)
+                    validate["default"] = default
 
         # Handle Literal type for enum
         origin = typing.get_origin(annotation)
         if origin is typing.Literal:
             args = typing.get_args(annotation)
             if args:
-                metadata["enum"] = "|".join(str(a) for a in args)
+                validate["enum"] = list(args)
 
-        return format_metadata(metadata)
+        # Check if field is required - only add if there are other constraints
+        # (otherwise simple types like "name: str" would become verbose)
+        is_required = hasattr(field_info, "is_required") and field_info.is_required()
+
+        # Return simple string if no constraints, otherwise FieldDef
+        if not validate and not ui:
+            return type_code
+
+        # Add required flag only if there are other constraints
+        if is_required and (len(validate) > 0 or ui):
+            validate["required"] = True
+
+        result: FieldDef = {"type": type_code}
+        if validate:
+            result["validate"] = validate  # type: ignore[typeddict-item]
+        if ui:
+            result["ui"] = ui  # type: ignore[typeddict-item]
+        return result
 
     def _python_type_to_tytx_code(
         self,
@@ -667,14 +675,11 @@ class TypeRegistry:
         Returns:
             Tuple of (python_type, FieldInfo or None)
         """
-        import re
         from datetime import date, datetime, time
         from decimal import Decimal
         from typing import Any
 
-        from .metadata_parser import parse_metadata
-
-        # Handle v2 FieldDef format
+        # Handle v2 FieldDef format (dict with type/validate/ui)
         if isinstance(type_def, dict):
             base_type = type_def.get("type", "T")
             validate = type_def.get("validate", {})
@@ -686,13 +691,9 @@ class TypeRegistry:
             if ui:
                 metadata.update(ui)
         else:
-            # Legacy string format: extract base type and metadata
-            match = re.match(r"^([^[\]]+)(?:\[(.+)\])?$", type_def)
-            if not match:
-                return (str, None)
-            base_type = match.group(1).strip()
-            metadata_str = match.group(2)
-            metadata = parse_metadata(metadata_str) if metadata_str else {}
+            # Simple string format: just the type code (e.g., "T", "#L", "@CUSTOMER")
+            base_type = type_def.strip()
+            metadata = {}
 
         # Type mapping
         type_map: dict[str, type] = {
@@ -764,35 +765,28 @@ class TypeRegistry:
         if not metadata:
             return (python_type, None)
 
-        # Handle enum -> Literal type
+        # Handle enum -> Literal type (v2: list)
         if "enum" in metadata:
-            enum_values = metadata["enum"].split("|")
+            enum_val = metadata["enum"]
+            enum_values = enum_val if isinstance(enum_val, list) else [enum_val]
             # Create Literal type with the enum values
             python_type = Literal[tuple(enum_values)]
 
         # Build Field kwargs
         field_kwargs: dict[str, Any] = {}
 
-        # Title and description
-        if "lbl" in metadata:
-            field_kwargs["title"] = metadata["lbl"]
-        if "hint" in metadata:
-            field_kwargs["description"] = metadata["hint"]
+        # Title and description (v2: label/hint, legacy: lbl/hint)
+        title = metadata.get("label") or metadata.get("lbl")
+        if title:
+            field_kwargs["title"] = title
+        hint = metadata.get("hint")
+        if hint:
+            field_kwargs["description"] = hint
 
-        # Default value
-        if "def" in metadata:
-            default_str = metadata["def"]
-            # Try to convert to appropriate type
-            if is_numeric:
-                try:
-                    if "." in default_str:
-                        field_kwargs["default"] = float(default_str)
-                    else:
-                        field_kwargs["default"] = int(default_str)
-                except ValueError:
-                    field_kwargs["default"] = default_str
-            else:
-                field_kwargs["default"] = default_str
+        # Default value (v2: default, legacy: def)
+        default_val = metadata.get("default") if "default" in metadata else metadata.get("def")
+        if default_val is not None:
+            field_kwargs["default"] = default_val
 
         # Build annotations list for Annotated type
         annotations: list[Any] = []
@@ -802,26 +796,39 @@ class TypeRegistry:
         if "min" in metadata:
             min_val = metadata["min"]
             if is_numeric:
-                with contextlib.suppress(ValueError):
-                    annotations.append(Ge(int(min_val) if "." not in min_val else float(min_val)))
+                # v2 format: already numeric
+                if isinstance(min_val, (int, float)):
+                    annotations.append(Ge(min_val))
+                else:
+                    with contextlib.suppress(ValueError):
+                        annotations.append(Ge(int(min_val) if "." not in str(min_val) else float(min_val)))
             else:
-                with contextlib.suppress(ValueError):
-                    annotations.append(MinLen(int(min_val)))
+                if isinstance(min_val, int):
+                    annotations.append(MinLen(min_val))
+                else:
+                    with contextlib.suppress(ValueError):
+                        annotations.append(MinLen(int(min_val)))
 
         if "max" in metadata:
             max_val = metadata["max"]
             if is_numeric:
-                with contextlib.suppress(ValueError):
-                    annotations.append(Le(int(max_val) if "." not in max_val else float(max_val)))
+                # v2 format: already numeric
+                if isinstance(max_val, (int, float)):
+                    annotations.append(Le(max_val))
+                else:
+                    with contextlib.suppress(ValueError):
+                        annotations.append(Le(int(max_val) if "." not in str(max_val) else float(max_val)))
             else:
-                with contextlib.suppress(ValueError):
-                    annotations.append(MaxLen(int(max_val)))
+                if isinstance(max_val, int):
+                    annotations.append(MaxLen(max_val))
+                else:
+                    with contextlib.suppress(ValueError):
+                        annotations.append(MaxLen(int(max_val)))
 
-        # Pattern constraint
-        if "reg" in metadata:
-            pattern = metadata["reg"]
-            if "pattern" not in field_kwargs:
-                field_kwargs["pattern"] = pattern
+        # Pattern constraint (v2: pattern, legacy: reg)
+        pattern = metadata.get("pattern") or metadata.get("reg")
+        if pattern and "pattern" not in field_kwargs:
+            field_kwargs["pattern"] = pattern
 
         # Create FieldInfo if we have any constraints
         if field_kwargs or annotations:
