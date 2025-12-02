@@ -225,7 +225,7 @@ from_text("550e8400-e29b-41d4-a716-446655440000::~UUID")
 
 ### Level 4: Struct Schemas
 
-Define reusable schemas for data structures with `@` prefix. Try the structure editor: `gui/index.html`
+Define reusable schemas for data structures with `@` prefix.
 ```python
 # Dict schema - for objects
 registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
