@@ -14,6 +14,8 @@
 
 """Tests for register_struct_from_model() - Pydantic to TYTX struct conversion."""
 
+from __future__ import annotations
+
 from datetime import date, datetime, time
 from decimal import Decimal
 

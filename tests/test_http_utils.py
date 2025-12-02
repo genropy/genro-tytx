@@ -16,13 +16,12 @@ from genro_tytx.http_utils import (
 from genro_tytx.json_utils import as_typed_json
 from genro_tytx.xtytx import XtytxResult
 
-# Check if msgpack is available
+# Check if msgpack is available (without importing genro_tytx.msgpack_utils)
 try:
-    from genro_tytx.msgpack_utils import packb
+    import msgpack  # noqa: F401
     HAS_MSGPACK = True
 except ImportError:
     HAS_MSGPACK = False
-    packb = None  # type: ignore[assignment,misc]
 
 
 class FakeResponse:
@@ -55,6 +54,8 @@ def test_fetch_typed_hydrates_json(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.skipif(not HAS_MSGPACK, reason="msgpack not installed")
 def test_fetch_typed_request_msgpack(monkeypatch: pytest.MonkeyPatch) -> None:
+    from genro_tytx.msgpack_utils import packb
+
     captured = SimpleNamespace(request=None)
     response_body = packb({"ok": True})
 
