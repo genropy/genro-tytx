@@ -118,3 +118,4 @@ js/dist/
 js/.cache/
 js/coverage/
 *.log
+.venv310/

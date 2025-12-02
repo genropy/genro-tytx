@@ -25,6 +25,14 @@ from pydantic import BaseModel
 from genro_tytx import registry
 
 
+# Module-level class for circular reference test (needed for Python 3.10 compatibility)
+class _CircularNode(BaseModel):
+    """Node with circular reference for testing."""
+
+    value: str
+    children: list["_CircularNode"] = []
+
+
 class TestRegisterStructFromModel:
     """Tests for basic register_struct_from_model functionality."""
 
@@ -34,6 +42,8 @@ class TestRegisterStructFromModel:
         for code in list(registry._structs.keys()):
             if code not in ("SIMPLEMODEL",):  # Keep global test struct
                 registry.unregister_struct(code)
+        # Also clean up _CIRCULARNODE if registered
+        registry.unregister_struct("_CIRCULARNODE")
 
     def test_simple_model(self) -> None:
         """Test basic model with simple types."""
@@ -203,24 +213,19 @@ class TestRegisterStructFromModel:
 
     def test_circular_reference(self) -> None:
         """Test that circular references don't cause infinite recursion."""
-
-        class Node(BaseModel):
-            value: str
-            children: list["Node"] = []
-
-        # Force Pydantic to resolve forward references (needed for Python 3.10)
-        Node.model_rebuild()
+        # Uses module-level _CircularNode class for Python 3.10 compatibility
+        # (forward references in locally-defined classes don't resolve on 3.10)
 
         # Should not raise RecursionError
-        registry.register_struct_from_model("NODE", Node)
+        registry.register_struct_from_model("CIRCULARNODE", _CircularNode)
 
-        schema = registry.get_struct("NODE")
+        schema = registry.get_struct("CIRCULARNODE")
         # Note: default=[] produces a FieldDef with validate.default
         assert schema is not None
         assert schema["value"] == "T"
         # children has default value, so it's a FieldDef
         children = schema["children"]
-        assert children["type"] == "#@NODE"
+        assert children["type"] == "#@_CIRCULARNODE"
         assert children["validate"]["default"] == []
 
     def test_invalid_model_class(self) -> None:

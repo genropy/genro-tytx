@@ -506,6 +506,15 @@ class TypeRegistry:
         if isinstance(python_type, type):
             return type_mapping.get(python_type, "T")
 
+        # Handle ForwardRef (string type annotations like "Node" in list["Node"])
+        if isinstance(python_type, typing.ForwardRef):
+            ref_name = python_type.__forward_arg__
+            return f"@{ref_name.upper()}"
+
+        # Handle string forward references (e.g., "Node" from list["Node"] on Python 3.10)
+        if isinstance(python_type, str):
+            return f"@{python_type.upper()}"
+
         # Fallback
         return "T"
 
