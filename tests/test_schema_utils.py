@@ -405,6 +405,16 @@ class TestStructToJsonschema:
         assert schema["type"] == "array"
         assert len(schema["items"]) == 3
 
+    def test_string_struct_mixed_named_anonymous(self):
+        """String struct with mixed named and anonymous fields skips unnamed."""
+        # Edge case: string has ":" but some fields don't have it
+        struct = "name:T,L"  # "name:T" is named, "L" has no colon
+        schema = struct_to_jsonschema(struct)
+        # The "L" without colon will be skipped in the loop
+        assert schema["type"] == "object"
+        assert "name" in schema["properties"]
+        # Only "name" is present, "L" is skipped
+
     def test_with_title(self):
         """Include title in schema."""
         struct = {"id": "L"}
@@ -454,6 +464,280 @@ class TestRoundTrip:
         assert result["price"] == "N"
         assert result["date"] == "D"
         assert result["tags"] == "#T"
+
+
+class TestRefResolution:
+    """Tests for $ref resolution edge cases."""
+
+    def test_ref_non_local_raises(self):
+        """Non-local $ref raises ValueError."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "ext": {"$ref": "https://example.com/schema.json#/Address"},
+            },
+        }
+        with pytest.raises(ValueError, match="Only local \\$ref supported"):
+            struct_from_jsonschema(schema)
+
+    def test_ref_unresolvable_raises(self):
+        """Unresolvable $ref raises ValueError."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "missing": {"$ref": "#/definitions/NotFound"},
+            },
+            "definitions": {},
+        }
+        with pytest.raises(ValueError, match="Cannot resolve \\$ref"):
+            struct_from_jsonschema(schema)
+
+    def test_ref_to_non_object(self):
+        """$ref to non-object type converts directly."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "amount": {"$ref": "#/definitions/Money"},
+            },
+            "definitions": {
+                "Money": {"type": "number", "format": "decimal"},
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["amount"] == "N"
+
+    def test_ref_required_field(self):
+        """Required $ref field gets required flag."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "address": {"$ref": "#/definitions/Address"},
+            },
+            "definitions": {
+                "Address": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                },
+            },
+            "required": ["address"],
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["address"]["type"] == "@Address"
+        assert struct["address"]["validate"]["required"] is True
+
+
+class TestOneOfAnyOf:
+    """Tests for oneOf/anyOf handling."""
+
+    def test_oneof_takes_first(self):
+        """oneOf takes first option."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "oneOf": [
+                        {"type": "integer"},
+                        {"type": "string"},
+                    ]
+                },
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["value"] == "L"  # First option is integer
+
+    def test_anyof_all_null(self):
+        """anyOf with only null types defaults to string."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "empty": {
+                    "anyOf": [{"type": "null"}]
+                },
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        # When all are null, falls through to default "T"
+        assert struct["empty"] == "T"
+
+
+class TestRequiredFields:
+    """Tests for required field handling."""
+
+    def test_array_required(self):
+        """Required array field gets required flag."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["items"],
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["items"]["type"] == "#T"
+        assert struct["items"]["validate"]["required"] is True
+
+    def test_nested_object_required(self):
+        """Required nested object gets required flag."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                },
+            },
+            "required": ["address"],
+        }
+        struct = struct_from_jsonschema(schema, name="PERSON")
+        assert struct["address"]["type"] == "@PERSON_ADDRESS"
+        assert struct["address"]["validate"]["required"] is True
+
+
+class TestExclusiveConstraints:
+    """Tests for exclusive min/max constraints."""
+
+    def test_exclusive_minimum(self):
+        """exclusiveMinimum converts to minExclusive."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "price": {"type": "number", "exclusiveMinimum": 0},
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["price"]["type"] == "R"
+        assert struct["price"]["validate"]["min"] == 0
+        assert struct["price"]["validate"]["minExclusive"] is True
+
+    def test_exclusive_maximum(self):
+        """exclusiveMaximum converts to maxExclusive."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "discount": {"type": "number", "exclusiveMaximum": 100},
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["discount"]["type"] == "R"
+        assert struct["discount"]["validate"]["max"] == 100
+        assert struct["discount"]["validate"]["maxExclusive"] is True
+
+
+class TestDefaultValues:
+    """Tests for default value handling."""
+
+    def test_default_value_from_jsonschema(self):
+        """Default value from JSON Schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "default": "pending"},
+                "count": {"type": "integer", "default": 0},
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        assert struct["status"]["validate"]["default"] == "pending"
+        assert struct["count"]["validate"]["default"] == 0
+
+    def test_default_value_to_jsonschema(self):
+        """Default value to JSON Schema."""
+        struct = {
+            "status": {"type": "T", "validate": {"default": "active"}},
+        }
+        schema = struct_to_jsonschema(struct)
+        assert schema["properties"]["status"]["default"] == "active"
+
+
+class TestTytxToJsonSchemaConstraints:
+    """Tests for TYTX → JSON Schema constraint conversion."""
+
+    def test_numeric_min_max(self):
+        """Numeric min/max become minimum/maximum."""
+        struct = {
+            "age": {"type": "L", "validate": {"min": 0, "max": 150}},
+        }
+        schema = struct_to_jsonschema(struct)
+        assert schema["properties"]["age"]["minimum"] == 0
+        assert schema["properties"]["age"]["maximum"] == 150
+
+    def test_length_constraint(self):
+        """length constraint becomes minLength + maxLength."""
+        struct = {
+            "code": {"type": "T", "validate": {"length": 5}},
+        }
+        schema = struct_to_jsonschema(struct)
+        assert schema["properties"]["code"]["minLength"] == 5
+        assert schema["properties"]["code"]["maxLength"] == 5
+
+    def test_required_field_in_output(self):
+        """Required fields appear in JSON Schema required array."""
+        struct = {
+            "name": {"type": "T", "validate": {"required": True}},
+            "note": "T",
+        }
+        schema = struct_to_jsonschema(struct)
+        assert "required" in schema
+        assert "name" in schema["required"]
+        assert "note" not in schema["required"]
+
+    def test_ui_to_title_description(self):
+        """UI hints become title/description."""
+        struct = {
+            "email": {
+                "type": "T",
+                "ui": {"label": "Email Address", "hint": "Your email"},
+            },
+        }
+        schema = struct_to_jsonschema(struct)
+        assert schema["properties"]["email"]["title"] == "Email Address"
+        assert schema["properties"]["email"]["description"] == "Your email"
+
+
+class TestUnknownTypeCodes:
+    """Tests for unknown type code handling."""
+
+    def test_unknown_tytx_code_defaults_to_string(self):
+        """Unknown TYTX code defaults to string."""
+        struct = {"custom": "UNKNOWN_CODE"}
+        schema = struct_to_jsonschema(struct)
+        assert schema["properties"]["custom"] == {"type": "string"}
+
+    def test_struct_reference_not_in_registry(self):
+        """@STRUCT not in registry still produces $ref."""
+        struct = {"data": "@MISSING_STRUCT"}
+        schema = struct_to_jsonschema(struct, registry=registry)
+        # Should still produce $ref even if not found in registry
+        assert schema["properties"]["data"] == {"$ref": "#/definitions/MISSING_STRUCT"}
+
+
+class TestFallbackBehavior:
+    """Tests for fallback behavior in edge cases."""
+
+    def test_type_with_unknown_format_fallback(self):
+        """Type with unknown format falls back to base type."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "custom": {"type": "string", "format": "custom-format-xyz"},
+            },
+        }
+        struct = struct_from_jsonschema(schema)
+        # Falls back to string (T) since custom-format-xyz is unknown
+        assert struct["custom"] == "T"
+
+    def test_required_basic_field(self):
+        """Required basic field (no other constraints) gets required flag."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+            },
+            "required": ["id"],
+        }
+        struct = struct_from_jsonschema(schema)
+        # Should have required flag
+        assert struct["id"]["type"] == "L"
+        assert struct["id"]["validate"]["required"] is True
 
 
 class TestEdgeCases:
