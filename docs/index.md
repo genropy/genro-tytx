@@ -1,4 +1,4 @@
-```{image} _static/logo.png
+```{image} assets/logo.png
 :alt: TYTX Logo
 :width: 300px
 :align: center

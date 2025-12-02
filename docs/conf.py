@@ -37,7 +37,7 @@ myst_enable_extensions = [
 html_theme = "sphinx_rtd_theme"
 
 # Logo
-html_logo = "_static/logo.png"
+html_logo = "assets/logo.png"
 
 # Source files
 source_suffix = {
@@ -57,7 +57,7 @@ intersphinx_mapping = {
 templates_path = ["_templates"]
 
 # Static files path
-html_static_path = ["_static"]
+html_static_path = ["assets"]
 
 # Exclude patterns
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

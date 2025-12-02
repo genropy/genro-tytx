@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/_static/logo.png" alt="TYTX Logo" width="300">
+  <img src="docs/assets/logo.png" alt="TYTX Logo" width="300">
 </p>
 
 # TYTX - Typed Text Protocol
