@@ -437,11 +437,17 @@ npm install genro-tytx
 
 ---
 
-## Framework Independence
+## Dependencies
 
-TYTX is a **standalone protocol** with zero framework dependencies.
+TYTX has **zero required dependencies** - it uses only the Python standard library.
 
-While developed by the same team behind [Genropy](https://github.com/genropy), TYTX is completely independent and can be used with any:
+**Optional dependencies** (install only if needed):
+
+- `pydantic` - for Pydantic model integration (`pip install genro-tytx[pydantic]`)
+- `msgpack` - for MessagePack binary format (`pip install genro-tytx[msgpack]`)
+- `orjson` - for faster JSON serialization (auto-detected)
+
+TYTX can be used with any framework:
 
 - Web framework (Flask, FastAPI, Django, Express, Fastify...)
 - Frontend framework (React, Vue, Angular, Svelte...)
