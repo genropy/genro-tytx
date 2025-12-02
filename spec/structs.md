@@ -126,7 +126,7 @@ The `validate` object contains constraints for data validation.
 
 ## UI Section
 
-The `ui` object contains presentation hints for UI generation.
+The `ui` object contains presentation hints for consuming applications.
 
 ### UI Keys
 

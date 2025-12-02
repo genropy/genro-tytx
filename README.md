@@ -378,17 +378,6 @@ python scripts/xsd_to_tytx.py schema.xsd --json > struct.json
 
 ---
 
-## Visual Tools (Coming Soon)
-
-| Tool | Status | Description |
-|------|--------|-------------|
-| **Structure Editor** | ✅ Done | Interactive HTML editor for struct definitions |
-| **Data Editor** | 🔜 Planned | Edit data instances using struct schemas |
-
-Try the structure editor: `examples/visualizer/index.html`
-
----
-
 ## Installation
 
 ### Python
@@ -438,8 +427,6 @@ While developed by the same team behind [Genropy](https://github.com/genropy), T
 | Pydantic integration | ✅ | N/A | N/A |
 | JSON Schema | ✅ | ✅ | ✅ |
 | XSD converter | ✅ | N/A | N/A |
-| Visual struct editor | N/A | ✅ | N/A |
-| Visual data editor | 🔜 | 🔜 | N/A |
 
 See [spec/roadmap.md](spec/roadmap.md) for detailed documentation.
 

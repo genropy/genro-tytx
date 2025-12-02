@@ -359,53 +359,11 @@ python scripts/xsd_to_tytx.py schema.xsd --json
 python scripts/xsd_to_tytx.py Schema_VFPR12.xsd --json > fatturapa.json
 ```
 
-**Files**: `scripts/xsd_to_tytx.py`, `examples/schemas/fatturapa.json`
+**Files**: `scripts/xsd_to_tytx.py`
 
 ---
 
-### 10. Visual Structure Editor :white_check_mark: DONE
-
-Interactive HTML editor for TYTX struct definitions.
-
-**Location**: `examples/visualizer/index.html`
-
-**Features**:
-- Create/edit struct definitions
-- Nested struct support
-- Import/Export JSON
-- Metadata editing
-- Array field support
-
-**Metadata UI Support**:
-- Labels (`lbl`)
-- Placeholders (`ph`)
-- Hints (`hint`)
-- Default values (`def`)
-- Read-only (`ro`)
-- Enums (`enum`)
-
-**Usage**:
-1. Open `examples/visualizer/index.html` in browser
-2. Create structs or import JSON
-3. Export to JSON for use in code
-
----
-
-### 11. Visual Data Editor :red_circle: TODO
-
-Edit data instances using struct schemas.
-
-**Planned Features**:
-- Form generation from struct schema
-- Pre-filled with existing data
-- Validation feedback
-- Export to TYTX format
-
-**Current State**: `js/src/ui.js` has `FormGenerator` for empty forms, but no data binding.
-
----
-
-### 12. JSON Schema / OpenAPI Integration :white_check_mark: DONE
+### 10. JSON Schema / OpenAPI Integration :white_check_mark: DONE
 
 Bidirectional conversion between TYTX structs and JSON Schema / OpenAPI schemas.
 
@@ -513,8 +471,7 @@ genro-tytx/
 ├── js/src/                # JavaScript implementation
 │   ├── registry.js        # Core registry
 │   ├── types.js           # Built-in types
-│   ├── json_utils.js      # JSON encoding
-│   └── ui.js              # Form generator
+│   └── json_utils.js      # JSON encoding
 ├── ts/src/                # TypeScript implementation
 │   ├── registry.ts        # Core registry
 │   ├── types.ts           # Built-in types
@@ -524,22 +481,11 @@ genro-tytx/
 │   ├── type-codes.md      # Type code registry
 │   ├── structs.md         # Struct specification
 │   ├── xtytx.md           # XTYTX envelope spec
-│   ├── validation.md      # Validation facets
 │   └── roadmap.md         # This file
 ├── scripts/               # Utility scripts
 │   └── xsd_to_tytx.py     # XSD converter
-├── examples/              # Examples
-│   ├── visualizer/        # Visual editor
-│   └── schemas/           # Sample schemas
 └── tests/                 # Test suites
 ```
-
----
-
-## Next Steps (Priority Order)
-
-1. **Data editor** (Feature 11) - Form with data binding
-2. **JSON Schema for JS/TS** (Feature 12) - Port `schema-utils.py` to JS/TS
 
 ---
 

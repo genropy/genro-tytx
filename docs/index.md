@@ -347,8 +347,6 @@ While developed by the same team behind [Genropy](https://github.com/genropy), T
 | Pydantic integration | ✅ | N/A | N/A |
 | JSON Schema | ✅ | ✅ | ✅ |
 | XSD converter | ✅ | N/A | N/A |
-| Visual struct editor | N/A | ✅ | N/A |
-| Visual data editor | 🔜 | 🔜 | N/A |
 
 ---
 
