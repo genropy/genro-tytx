@@ -57,7 +57,10 @@ intersphinx_mapping = {
 templates_path = ["_templates"]
 
 # Static files path
-html_static_path = ["assets"]
+html_static_path = ["assets", "_static"]
+
+# Custom CSS files
+html_css_files = ["custom.css"]
 
 # Exclude patterns
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
