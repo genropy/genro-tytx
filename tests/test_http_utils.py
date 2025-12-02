@@ -14,8 +14,15 @@ from genro_tytx.http_utils import (
     fetch_xtytx,
 )
 from genro_tytx.json_utils import as_typed_json
-from genro_tytx.msgpack_utils import packb
 from genro_tytx.xtytx import XtytxResult
+
+# Check if msgpack is available
+try:
+    from genro_tytx.msgpack_utils import packb
+    HAS_MSGPACK = True
+except ImportError:
+    HAS_MSGPACK = False
+    packb = None  # type: ignore[assignment,misc]
 
 
 class FakeResponse:
@@ -46,6 +53,7 @@ def test_fetch_typed_hydrates_json(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["price"] == Decimal("10.5")
 
 
+@pytest.mark.skipif(not HAS_MSGPACK, reason="msgpack not installed")
 def test_fetch_typed_request_msgpack(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = SimpleNamespace(request=None)
     response_body = packb({"ok": True})

@@ -5,8 +5,11 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx.msgpack_utils import XTYTX_EXT_TYPE, packb, tytx_decoder, unpackb
+# Skip entire module if msgpack is not installed
+pytest.importorskip("msgpack")
+
 from genro_tytx import registry
+from genro_tytx.msgpack_utils import XTYTX_EXT_TYPE, packb, tytx_decoder, unpackb
 
 
 def test_tytx_exttype_roundtrip_decimal():

@@ -120,6 +120,9 @@ class TestFromText:
                 assert result == date.fromisoformat(expected_value)
             elif expected_type == "datetime":
                 assert isinstance(result, datetime)
+                # Handle Z suffix for Python 3.10 compatibility
+                if expected_value.endswith("Z"):
+                    expected_value = expected_value[:-1] + "+00:00"
                 assert result == datetime.fromisoformat(expected_value)
             elif expected_type == "time":
                 assert isinstance(result, time)

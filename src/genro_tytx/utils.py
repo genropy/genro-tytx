@@ -164,6 +164,15 @@ def python_type_to_tytx_code(
     if isinstance(python_type, type):
         return TYPE_MAPPING.get(python_type, "T")
 
+    # Handle ForwardRef (string type annotations like "Node" in list["Node"])
+    if isinstance(python_type, typing.ForwardRef):
+        ref_name = python_type.__forward_arg__
+        return f"{STRUCT_PREFIX}{ref_name.upper()}"
+
+    # Handle string forward references (e.g., "Node")
+    if isinstance(python_type, str):
+        return f"{STRUCT_PREFIX}{python_type.upper()}"
+
     # Fallback
     return "T"
 
