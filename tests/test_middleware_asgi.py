@@ -238,3 +238,190 @@ class TestTytxASGIMiddleware:
         await middleware(scope, self.make_receive(body), await self.make_send())
 
         assert captured_scope["tytx.raw_body"] == body
+
+    @pytest.mark.asyncio
+    async def test_msgpack_mode_detection(self, captured_scope: dict) -> None:
+        """MessagePack content type should set mode to 'msgpack'."""
+        pytest.importorskip("msgpack")
+        import msgpack
+
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [(b"content-type", b"application/x-msgpack")],
+            "query_string": b"",
+        }
+        body = msgpack.packb({"value": 42})
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert captured_scope["tytx.mode"] == "msgpack"
+        assert captured_scope["tytx.data"]["value"] == 42
+
+    @pytest.mark.asyncio
+    async def test_xml_mode_detection(self, captured_scope: dict) -> None:
+        """XML content type should set mode to 'xml'."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [(b"content-type", b"application/xml")],
+            "query_string": b"",
+        }
+        body = b"<root><value>test</value></root>"
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert captured_scope["tytx.mode"] == "xml"
+        assert captured_scope["tytx.data"] is not None
+
+    @pytest.mark.asyncio
+    async def test_x_tytx_request_header(self, captured_scope: dict) -> None:
+        """X-TYTX-Request header should override content type detection."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [(b"x-tytx-request", b"xml")],
+            "query_string": b"",
+        }
+        body = b"<root><value>test</value></root>"
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert captured_scope["tytx.mode"] == "xml"
+
+    @pytest.mark.asyncio
+    async def test_body_hydration_failure(self, captured_scope: dict) -> None:
+        """Body hydration failure should set data and mode to None."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        }
+        body = b"not valid json {{{"
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert captured_scope["tytx.mode"] is None
+        assert captured_scope["tytx.data"] is None
+        assert captured_scope["tytx.raw_body"] == body
+
+    @pytest.mark.asyncio
+    async def test_query_hydration_failure(self, captured_scope: dict) -> None:
+        """Query hydration failure should set query to empty dict."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app, hydrate_query=True)
+
+        # Create a scope with invalid UTF-8 bytes to force decode() to fail
+        scope = {
+            "type": "http",
+            "headers": [],
+            "query_string": b"\xff\xfe",  # Invalid UTF-8 sequence
+        }
+
+        await middleware(scope, self.make_receive(b"{}"), await self.make_send())
+
+        # Should not raise, and query should be empty dict
+        assert captured_scope["tytx.query"] == {}
+
+    @pytest.mark.asyncio
+    async def test_multi_chunk_body(self, captured_scope: dict) -> None:
+        """Multi-chunk body should be properly assembled."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [(b"content-type", b"application/json")],
+            "query_string": b"",
+        }
+
+        chunks = [b'{"price": ', b'"100::N"}']
+        chunk_idx = 0
+
+        async def multi_chunk_receive() -> dict[str, Any]:
+            nonlocal chunk_idx
+            if chunk_idx < len(chunks):
+                result = {
+                    "type": "http.request",
+                    "body": chunks[chunk_idx],
+                    "more_body": chunk_idx < len(chunks) - 1,
+                }
+                chunk_idx += 1
+                return result
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        await middleware(scope, multi_chunk_receive, await self.make_send())
+
+        assert captured_scope["tytx.raw_body"] == b'{"price": "100::N"}'
+        assert captured_scope["tytx.data"]["price"] == Decimal("100")
+
+    @pytest.mark.asyncio
+    async def test_replay_receive_consumed(self, captured_scope: dict) -> None:
+        """Second call to replay_receive should return empty body."""
+        bodies_read: list[bytes] = []
+
+        async def app(scope: dict, receive: Any, send: Any) -> None:
+            # Read body twice
+            msg1 = await receive()
+            bodies_read.append(msg1.get("body", b""))
+            msg2 = await receive()
+            bodies_read.append(msg2.get("body", b""))
+
+        middleware = TytxASGIMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "headers": [],
+            "query_string": b"",
+        }
+        body = b'{"test": true}'
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        # First read gets body, second read gets empty
+        assert bodies_read[0] == body
+        assert bodies_read[1] == b""
+
+    @pytest.mark.asyncio
+    async def test_custom_store_key(self, captured_scope: dict) -> None:
+        """Custom store_key should be used."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app, store_key="my.data")
+
+        scope = {
+            "type": "http",
+            "headers": [],
+            "query_string": b"",
+        }
+        body = b'{"value": "42::L"}'
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert "my.data" in captured_scope
+        assert captured_scope["my.data"]["value"] == 42
+
+    @pytest.mark.asyncio
+    async def test_custom_header_name(self, captured_scope: dict) -> None:
+        """Custom header_name should be used."""
+        app = self.make_app(captured_scope)
+        middleware = TytxASGIMiddleware(app, header_name="x-my-header")
+
+        scope = {
+            "type": "http",
+            "headers": [(b"x-my-header", b"xml")],
+            "query_string": b"",
+        }
+        body = b"<root><value>test</value></root>"
+
+        await middleware(scope, self.make_receive(body), await self.make_send())
+
+        assert captured_scope["tytx.mode"] == "xml"

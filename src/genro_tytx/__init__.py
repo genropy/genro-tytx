@@ -51,6 +51,7 @@ from .builtin import (
     IntType,
     JsonType,
     NaiveDateTimeType,
+    NoneType,
     StrType,
     TimeType,
 )
@@ -183,6 +184,7 @@ __all__ = [
     "IntType",
     "JsonType",
     "NaiveDateTimeType",
+    "NoneType",
     "StrType",
     "TimeType",
     # Middleware

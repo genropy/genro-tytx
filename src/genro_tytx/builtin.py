@@ -312,6 +312,30 @@ class TimeType(DataType):
             _restore_locale(prev)
 
 
+class NoneType(DataType):
+    """None/Null type - explicit null values.
+
+    Type code NN represents None/null values. Content before :: is ignored.
+    Matches legacy GnrClassCatalog behavior.
+    """
+
+    name = "none"
+    code = "NN"
+    python_type = type(None)
+    js_type = "null"
+    sql_type = "NULL"
+    align = "L"
+    empty = None
+
+    def parse(self, value: str) -> None:  # noqa: ARG002
+        # Always returns None, ignoring any content
+        return None
+
+    def serialize(self, value: Any) -> str:  # noqa: ARG002
+        # None serializes to empty string
+        return ""
+
+
 # Register built-in types
 def register_builtins() -> None:
     registry.register(IntType)
@@ -324,6 +348,7 @@ def register_builtins() -> None:
     registry.register(DateTimeType)
     registry.register(NaiveDateTimeType)  # DH - deprecated
     registry.register(TimeType)
+    registry.register(NoneType)
 
 
 register_builtins()

@@ -54,6 +54,12 @@ class TestFromText:
         # DH is deprecated but still supported (naive datetime)
         assert from_text("2025-01-15T10:00:00::DH") == datetime(2025, 1, 15, 10, 0, 0)
 
+    def test_from_text_typed_none(self):
+        """NN type code returns None, ignoring content."""
+        assert from_text("::NN") is None
+        assert from_text("foo::NN") is None
+        assert from_text("anything::NN") is None
+
     def test_from_text_no_type(self):
         """Without type suffix, returns string as-is."""
         assert from_text("123") == "123"
@@ -94,6 +100,10 @@ class TestAsText:
     def test_as_text_str(self):
         assert as_text("hello") == "hello"
 
+    def test_as_text_none(self):
+        """None serializes to empty string."""
+        assert as_text(None) == ""
+
 
 class TestAsTypedText:
     """Tests for as_typed_text() - serialize with type."""
@@ -124,6 +134,10 @@ class TestAsTypedText:
     def test_as_typed_text_str(self):
         """Strings are returned as-is (no type added)."""
         assert as_typed_text("hello") == "hello"
+
+    def test_as_typed_text_none(self):
+        """None serializes to ::NN."""
+        assert as_typed_text(None) == "::NN"
 
 
 class TestRegistryHelpers:
@@ -177,6 +191,14 @@ class TestTypeAttributes:
         assert DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"  # DHZ is timezone-aware
         assert DateTimeType.empty is None
         assert DateTimeType.code == "DHZ"
+
+    def test_none_attributes(self):
+        from genro_tytx import NoneType
+
+        assert NoneType.python_type is type(None)
+        assert NoneType.code == "NN"
+        assert NoneType.sql_type == "NULL"
+        assert NoneType.empty is None
 
     def test_mnemonic_type_codes(self):
         """Test that mnemonic type codes work."""
@@ -787,14 +809,14 @@ class TestEdgeCases:
         assert registry.get("NONEXISTENT") is None
 
     def test_as_text_none_value(self):
-        """as_text with None returns 'None'."""
+        """as_text with None returns empty string (NN type)."""
         result = as_text(None)
-        assert result == "None"
+        assert result == ""
 
     def test_as_typed_text_none_value(self):
-        """as_typed_text with None returns 'None'."""
+        """as_typed_text with None returns '::NN'."""
         result = as_typed_text(None)
-        assert result == "None"
+        assert result == "::NN"
 
     def test_xml_value_as_list_direct(self):
         """XML content value as list directly."""
