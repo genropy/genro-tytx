@@ -138,14 +138,31 @@ as_typed_text(datetime(2025, 1, 15, 10, 30))  # → "2025-01-15T10:30:00Z::DHZ"
 
 ```{warning}
 `DH` is deprecated. Use `DHZ` for new code.
+
+**Important**: When serializing a Python `datetime` object:
+- If the datetime has timezone info (`tzinfo is not None`), it is serialized as `DHZ`
+- If the datetime is naive (`tzinfo is None`), it is **also serialized as `DHZ`** (assuming UTC)
+
+This is by design because:
+1. JavaScript `Date` objects are always timezone-aware (internally UTC)
+2. Cross-language compatibility requires consistent behavior
+3. Naive datetimes are ambiguous and should be avoided
+
+A `logger.debug` message is emitted when a naive datetime is serialized to help identify code that should be updated to use timezone-aware datetimes.
 ```
 
 ```python
-from datetime import datetime
-from genro_tytx import from_text
+from datetime import datetime, timezone
+from genro_tytx import from_text, as_typed_text
 
-# Parse
+# Parse DH (still supported for backwards compatibility)
 from_text("2025-01-15T10:00:00::DH")  # → datetime(2025, 1, 15, 10, 0, 0)
+
+# Serialize naive datetime → DHZ (with debug warning)
+as_typed_text(datetime(2025, 1, 15, 10, 0))  # → "2025-01-15T10:00:00Z::DHZ"
+
+# Recommended: use timezone-aware datetime
+as_typed_text(datetime(2025, 1, 15, 10, 0, tzinfo=timezone.utc))  # → "2025-01-15T10:00:00Z::DHZ"
 ```
 
 ## Time (H)

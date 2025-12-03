@@ -1,12 +1,15 @@
 import contextlib
 import json
 import locale as locale_module
+import logging
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
 from .base import DataType
 from .registry import registry
+
+logger = logging.getLogger(__name__)
 
 
 def _set_locale(locale: str | None) -> str | None:
@@ -228,7 +231,13 @@ class DateTimeType(DataType):
             utc_value = value.astimezone(tz.utc)
             result: str = utc_value.strftime("%Y-%m-%dT%H:%M:%SZ")
             return result
-        # Naive datetime: assume UTC
+        # Naive datetime: assume UTC and serialize as DHZ
+        # Note: DH (naive datetime) is deprecated. Use timezone-aware datetimes.
+        logger.debug(
+            "Naive datetime %s serialized as DHZ (UTC). "
+            "Consider using timezone-aware datetime. DH is deprecated.",
+            value,
+        )
         result = value.strftime("%Y-%m-%dT%H:%M:%SZ")
         return str(result)
 
