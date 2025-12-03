@@ -1153,6 +1153,14 @@ class TypeRegistry:
             # Fallback: type each element individually
             return self._serialize_array_elements(value)
 
+        # Handle lists with typed objects (non-compact)
+        if isinstance(value, list) and self._has_typed_objects(value):
+            return self._serialize_array_elements(value)
+
+        # Handle dicts with typed objects
+        if isinstance(value, dict) and self._has_typed_objects(value):
+            return self._serialize_dict_values(value)
+
         code = self._get_type_code_for_value(value)
         if code:
             type_cls = self.get(code)
@@ -1160,6 +1168,22 @@ class TypeRegistry:
                 return _get_type_instance(type_cls).serialize(value) + "::" + code
 
         return str(value)
+
+    def _has_typed_objects(self, value: Any) -> bool:
+        """Check if value contains any non-JSON-serializable typed objects."""
+        from datetime import date, datetime, time
+        from decimal import Decimal
+
+        typed_classes = (date, datetime, time, Decimal)
+
+        def check_item(item: Any) -> bool:
+            if isinstance(item, list):
+                return any(check_item(i) for i in item)
+            if isinstance(item, dict):
+                return any(check_item(v) for v in item.values())
+            return isinstance(item, typed_classes)
+
+        return check_item(value)
 
     def _get_leaf_type_code(self, value: Any) -> str | None:
         """Get type code for a leaf value (non-list)."""
@@ -1224,7 +1248,7 @@ class TypeRegistry:
         )
 
     def _serialize_array_elements(self, value: list[Any]) -> str:
-        """Serialize array with each element typed individually."""
+        """Serialize array with each element typed individually, suffixed with ::TYTX."""
         import json
 
         def serialize_item(item: Any) -> Any:
@@ -1232,7 +1256,21 @@ class TypeRegistry:
                 return [serialize_item(i) for i in item]
             return self.as_typed_text(item)
 
-        return json.dumps([serialize_item(i) for i in value], separators=(",", ":"))
+        return json.dumps([serialize_item(i) for i in value], separators=(",", ":")) + "::TYTX"
+
+    def _serialize_dict_values(self, value: dict[str, Any]) -> str:
+        """Serialize dict with each value typed individually, suffixed with ::TYTX."""
+        import json
+
+        def serialize_value(v: Any) -> Any:
+            if isinstance(v, list):
+                return [serialize_value(i) for i in v]
+            if isinstance(v, dict):
+                return {k: serialize_value(val) for k, val in v.items()}
+            return self.as_typed_text(v)
+
+        result = {k: serialize_value(v) for k, v in value.items()}
+        return json.dumps(result, separators=(",", ":")) + "::TYTX"
 
 
 # Global registry instance

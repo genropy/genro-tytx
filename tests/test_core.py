@@ -1322,16 +1322,16 @@ class TestTypedArrays:
         assert result == "[]"
 
     def test_as_typed_text_compact_array_heterogeneous_fallback(self):
-        """Heterogeneous array falls back to element-by-element typing."""
+        """Heterogeneous array falls back to element-by-element typing with ::TYTX suffix."""
         result = as_typed_text([1, "hello", 2], compact_array=True)
-        # Should type each element individually
-        assert result == '["1::L","hello","2::L"]'
+        # Should type each element individually with ::TYTX suffix
+        assert result == '["1::L","hello","2::L"]::TYTX'
 
     def test_as_typed_text_compact_array_mixed_types_fallback(self):
         """Mixed numeric types (int and float) falls back to element-by-element."""
         result = as_typed_text([1, 2.5, 3], compact_array=True)
-        # L and R are different types, so fallback
-        assert result == '["1::L","2.5::R","3::L"]'
+        # L and R are different types, so fallback with ::TYTX suffix
+        assert result == '["1::L","2.5::R","3::L"]::TYTX'
 
     def test_as_typed_text_without_compact_array(self):
         """Without compact_array, arrays become JSON."""
@@ -1365,3 +1365,70 @@ class TestTypedArrays:
         serialized = as_typed_text(original, compact_array=True)
         restored = from_text(serialized)
         assert restored == original
+
+    # Tests for lists with typed objects without compact_array (Issue #21)
+
+    def test_as_typed_text_list_of_dates_no_compact(self):
+        """List of dates without compact_array should serialize with ::TYTX suffix."""
+        dates = [date(2025, 1, 15), date(2025, 6, 20), date(2025, 12, 25)]
+        result = as_typed_text(dates)
+        assert result == '["2025-01-15::D","2025-06-20::D","2025-12-25::D"]::TYTX'
+
+    def test_as_typed_text_list_of_decimals_no_compact(self):
+        """List of Decimals without compact_array should serialize with ::TYTX suffix."""
+        decimals = [Decimal("1.5"), Decimal("2.5")]
+        result = as_typed_text(decimals)
+        assert result == '["1.5::N","2.5::N"]::TYTX'
+
+    def test_as_typed_text_nested_list_of_dates_no_compact(self):
+        """Nested list of dates without compact_array."""
+        dates = [[date(2025, 1, 1)], [date(2025, 2, 1)]]
+        result = as_typed_text(dates)
+        assert result == '[["2025-01-01::D"],["2025-02-01::D"]]::TYTX'
+
+    def test_as_typed_text_mixed_list_no_compact(self):
+        """Mixed list (int + date) without compact_array."""
+        mixed = [1, date(2025, 1, 1), "hello"]
+        result = as_typed_text(mixed)
+        assert result == '["1::L","2025-01-01::D","hello"]::TYTX'
+
+    def test_as_typed_text_pure_json_list_no_compact(self):
+        """Pure JSON list (no typed objects) should use ::JS suffix."""
+        result = as_typed_text([1, 2, 3])
+        assert result == "[1, 2, 3]::JS"
+
+    def test_as_typed_text_pure_json_list_strings_no_compact(self):
+        """Pure JSON list of strings should use ::JS suffix."""
+        result = as_typed_text(["a", "b", "c"])
+        assert result == '["a", "b", "c"]::JS'
+
+    # Tests for dicts with typed objects (Issue #22)
+
+    def test_as_typed_text_dict_with_decimals(self):
+        """Dict with Decimal values should serialize with ::TYTX suffix."""
+        d = {"test": Decimal("33.33"), "best": Decimal("44.55")}
+        result = as_typed_text(d)
+        assert result == '{"test":"33.33::N","best":"44.55::N"}::TYTX'
+
+    def test_as_typed_text_dict_with_dates(self):
+        """Dict with date values should serialize with ::TYTX suffix."""
+        d = {"start": date(2025, 1, 1), "end": date(2025, 12, 31)}
+        result = as_typed_text(d)
+        assert result == '{"start":"2025-01-01::D","end":"2025-12-31::D"}::TYTX'
+
+    def test_as_typed_text_dict_mixed_values(self):
+        """Dict with mixed typed and plain values."""
+        d = {"name": "test", "amount": Decimal("100.00"), "count": 5}
+        result = as_typed_text(d)
+        assert result == '{"name":"test","amount":"100.00::N","count":"5::L"}::TYTX'
+
+    def test_as_typed_text_dict_nested(self):
+        """Nested dict with typed values."""
+        d = {"outer": {"inner": Decimal("1.5")}}
+        result = as_typed_text(d)
+        assert result == '{"outer":{"inner":"1.5::N"}}::TYTX'
+
+    def test_as_typed_text_pure_json_dict(self):
+        """Pure JSON dict (no typed objects) should use ::JS suffix."""
+        result = as_typed_text({"a": 1, "b": "hello"})
+        assert result == '{"a": 1, "b": "hello"}::JS'
