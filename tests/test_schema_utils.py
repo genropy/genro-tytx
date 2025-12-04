@@ -749,6 +749,15 @@ class TestEdgeCases:
         struct = struct_from_jsonschema(schema)
         assert struct == {}
 
+    def test_struct_to_jsonschema_unexpected_type_fallback(self):
+        """Non-dict/list/str struct falls back to object (line 609)."""
+        from genro_tytx.schema_utils import _struct_to_schema_object
+
+        # Call internal function with an unexpected type (int)
+        # This exercises the fallback at line 609
+        result = _struct_to_schema_object(12345, {}, None)  # type: ignore
+        assert result == {"type": "object"}
+
     def test_unknown_type(self):
         """Unknown types default to string."""
         schema = {
