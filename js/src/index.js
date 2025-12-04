@@ -47,7 +47,7 @@ const {
 // Import TytxModel
 const { TytxModel } = require('./tytx_model');
 // Fetch helpers
-const { fetch_typed, fetch_xtytx, fetch_typed_request, build_xtytx_envelope } = require('./fetch');
+const { fetch_typed, fetch_xtytx, fetch_typed_request, build_xtytx_envelope, detectExpect } = require('./fetch');
 
 // Import Metadata
 const {
@@ -113,13 +113,13 @@ module.exports = {
 
     // Model base class
     TytxModel,
+
+    // Fetch helpers
     fetch_typed,
     fetch_xtytx,
     fetch_typed_request,
     build_xtytx_envelope,
-    fetch_typed,
-    build_xtytx_envelope,
-    fetch_typed,
+    detectExpect,
 
     // Metadata
     parseMetadata,

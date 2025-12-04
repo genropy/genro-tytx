@@ -1220,6 +1220,43 @@ describe('types coverage', () => {
         assert.strictEqual(time.getUTCMinutes(), 30);
         assert.strictEqual(time.getUTCSeconds(), 45);
     });
+
+    test('IntType.format with locale', () => {
+        const intType = registry.get('L');
+        const formatted = intType.format(1234567, null, 'en-US');
+        // Should use Intl.NumberFormat
+        assert.ok(formatted.includes('1') && formatted.includes('234'));
+    });
+
+    test('IntType.format without locale', () => {
+        const intType = registry.get('L');
+        const formatted = intType.format(42);
+        assert.strictEqual(formatted, '42');
+    });
+
+    test('DecimalType.format with locale', () => {
+        const decimalType = registry.get('N');
+        const value = decimalType.parse('1234.56');
+        const formatted = decimalType.format(value, null, 'en-US');
+        // Should format with 2 decimal places
+        assert.ok(typeof formatted === 'string');
+        assert.ok(formatted.includes('1') && formatted.includes('234'));
+    });
+
+    test('DecimalType.format without locale', () => {
+        const decimalType = registry.get('N');
+        const value = decimalType.parse('1234.56');
+        const formatted = decimalType.format(value);
+        // Should use toFixed(2)
+        assert.ok(formatted.includes('1234.56'));
+    });
+
+    test('DecimalType.serialize with decimal instance', () => {
+        const decimalType = registry.get('N');
+        const value = decimalType.parse('99.99');
+        const serialized = decimalType.serialize(value);
+        assert.strictEqual(serialized, '99.99');
+    });
 });
 
 // =============================================================================
@@ -1850,6 +1887,32 @@ describe('xml_utils extended coverage', () => {
             as_xml({ tag: 'invalid content' });
         }, /must have 'attrs' and 'value' keys/);
     });
+
+    test('as_xml with value as direct array (repeated elements)', () => {
+        // When value is an array directly, it produces repeated same-tag elements
+        const data = {
+            item: {
+                attrs: {},
+                value: [
+                    { attrs: { n: '1' }, value: 'first' },
+                    { attrs: { n: '2' }, value: 'second' }
+                ]
+            }
+        };
+        const xml = as_xml(data);
+        // Should produce: <item n="1">first</item><item n="2">second</item>
+        assert.ok(xml.includes('<item n="1">first</item>'));
+        assert.ok(xml.includes('<item n="2">second</item>'));
+        const itemCount = (xml.match(/<item/g) || []).length;
+        assert.strictEqual(itemCount, 2);
+    });
+
+    test('from_xml throws on invalid element', () => {
+        // This tests the _parse_element_simple error path for invalid elements
+        assert.throws(() => {
+            from_xml('');
+        }, /no root tag/);
+    });
 });
 
 // =============================================================================
@@ -1896,6 +1959,43 @@ describe('registry extended coverage', () => {
         const result = registry.as_typed_text(arr, false);
         assert.ok(typeof result === 'string');
     });
+
+    test('_serializeArrayElements with Date in array', () => {
+        const arr = [new Date('2025-01-15T00:00:00.000Z')];
+        const result = registry.as_typed_text(arr, false);
+        assert.ok(result.includes('::'));
+        assert.ok(result.includes('2025-01-15'));
+    });
+
+    test('_serializeArrayElements with object in array', () => {
+        const arr = [{ x: 1, y: 2 }];
+        const result = registry.as_typed_text(arr, false);
+        assert.ok(result.includes('::TYTX'));
+    });
+
+    test('_serializeDictValuesInner with array containing Date', () => {
+        const obj = { dates: [new Date('2025-01-15T00:00:00.000Z')] };
+        const result = registry.as_typed_text(obj);
+        assert.ok(result.includes('::'));
+    });
+
+    test('_serializeDictValuesInner with array containing object', () => {
+        const obj = { items: [{ x: 1 }, { y: 2 }] };
+        const result = registry.as_typed_text(obj);
+        assert.ok(result.includes('::TYTX'));
+    });
+
+    test('_serializeDictValuesInner with Date value', () => {
+        const obj = { created: new Date('2025-01-15T00:00:00.000Z') };
+        const result = registry.as_typed_text(obj);
+        assert.ok(result.includes('2025-01-15'));
+    });
+
+    test('_serializeDictValuesInner with nested object', () => {
+        const obj = { inner: { x: 1 } };
+        const result = registry.as_typed_text(obj);
+        assert.ok(result.includes('::TYTX'));
+    });
 });
 
 // =============================================================================
@@ -1904,6 +2004,7 @@ describe('registry extended coverage', () => {
 
 describe('TytxModel extended coverage', () => {
     const { TytxModel } = require('../src/index');
+    const { packb } = require('../src/msgpack_utils');
 
     class ExtendedModel extends TytxModel {}
 
@@ -1957,6 +2058,67 @@ describe('TytxModel extended coverage', () => {
         assert.strictEqual(model.name, 'test');
         assert.strictEqual(model.active, true);
         assert.strictEqual(Number(model.price), 99.99);
+    });
+
+    test('fetchTytx returns single object', async () => {
+        const mockResponse = JSON.stringify({ id: '1::L', name: 'test' });
+        global.fetch = async () => new Response(mockResponse, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+        global.fetch.json = async () => JSON.parse(mockResponse);
+
+        const result = await ExtendedModel.fetchTytx('http://example.com/item');
+        assert.ok(result instanceof ExtendedModel);
+        assert.strictEqual(result.id, 1);
+        assert.strictEqual(result.name, 'test');
+    });
+
+    test('fetchTytx returns array of objects', async () => {
+        const mockResponse = JSON.stringify([
+            { id: '1::L', name: 'first' },
+            { id: '2::L', name: 'second' }
+        ]);
+        global.fetch = async () => new Response(mockResponse, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const results = await ExtendedModel.fetchTytx('http://example.com/items');
+        assert.ok(Array.isArray(results));
+        assert.strictEqual(results.length, 2);
+        assert.ok(results[0] instanceof ExtendedModel);
+        assert.strictEqual(results[0].id, 1);
+        assert.strictEqual(results[1].id, 2);
+    });
+
+    test('fetchTytxMsgpack returns single object', async () => {
+        const data = { id: 1, name: 'test' };
+        const packed = packb(data);
+        global.fetch = async () => new Response(packed, {
+            headers: { 'Content-Type': 'application/msgpack' }
+        });
+
+        const result = await ExtendedModel.fetchTytxMsgpack('http://example.com/item');
+        assert.ok(result instanceof ExtendedModel);
+        assert.strictEqual(result.id, 1);
+        assert.strictEqual(result.name, 'test');
+    });
+
+    test('fetchTytxMsgpack returns array of objects', async () => {
+        const data = [
+            { id: 1, name: 'first' },
+            { id: 2, name: 'second' }
+        ];
+        const packed = packb(data);
+        global.fetch = async () => new Response(packed, {
+            headers: { 'Content-Type': 'application/msgpack' }
+        });
+
+        const results = await ExtendedModel.fetchTytxMsgpack('http://example.com/items');
+        assert.ok(Array.isArray(results));
+        assert.strictEqual(results.length, 2);
+        assert.ok(results[0] instanceof ExtendedModel);
+        assert.strictEqual(results[0].id, 1);
+        assert.strictEqual(results[1].id, 2);
     });
 });
 

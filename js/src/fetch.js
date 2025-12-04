@@ -1,5 +1,5 @@
 const { from_json, as_typed_json } = require('./json_utils');
-const { from_text, registry } = require('./registry');
+const { registry } = require('./registry');
 const { from_xml } = require('./xml_utils');
 const { unpackb, packb } = require('./msgpack_utils');
 
@@ -33,7 +33,7 @@ async function fetch_typed(url, options = {}) {
     const raw = await res.text();
     if (expect === 'json') return from_json(raw);
     if (expect === 'xml') return from_xml(raw);
-    return from_text(raw);
+    return registry.from_text(raw);
 }
 
 /**
@@ -108,4 +108,4 @@ async function fetch_typed_request(url, { body, sendAs = 'json', expect, xtytx =
     return fetch_typed(url, { ...options, body: payload, headers, expect });
 }
 
-module.exports = { fetch_typed, fetch_xtytx, fetch_typed_request, build_xtytx_envelope };
+module.exports = { fetch_typed, fetch_xtytx, fetch_typed_request, build_xtytx_envelope, detectExpect };
