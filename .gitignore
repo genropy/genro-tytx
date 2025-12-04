@@ -118,5 +118,11 @@ js/dist/
 js/docs/
 js/.cache/
 js/coverage/
+
+# TypeScript
+ts/coverage/
+ts/node_modules/
+ts/dist/
+
 *.log
 .venv310/
