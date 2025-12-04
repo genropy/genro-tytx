@@ -105,7 +105,7 @@ async function fetch_typed_request(url, { body, sendAs = 'json', expect, xtytx =
         headers['Content-Type'] = 'text/plain';
         headers['X-TYTX-Request'] = 'text';
     }
-    return fetch_typed(url, { ...options, body: payload, headers, expect });
+    return fetch_typed(url, { ...options, body: payload, headers, expect, method: options.method || 'POST' });
 }
 
 module.exports = { fetch_typed, fetch_xtytx, fetch_typed_request, build_xtytx_envelope, detectExpect };

@@ -9,6 +9,33 @@
  */
 
 /**
+ * Decimal library detection (duplicated from types.js to avoid circular import).
+ * @private
+ */
+let _DecimalLib = null;
+try {
+    _DecimalLib = require('big.js');
+} catch {
+    try {
+        _DecimalLib = require('decimal.js');
+    } catch {
+        // No decimal library
+    }
+}
+
+/**
+ * Check if a value is a Decimal instance (Big or Decimal.js).
+ * @param {*} value - Value to check
+ * @returns {boolean}
+ * @private
+ */
+function _isDecimalInstance(value) {
+    if (!_DecimalLib) return false;
+    return value instanceof _DecimalLib ||
+           (value && value.constructor && value.constructor.name === _DecimalLib.name);
+}
+
+/**
  * Prefix for custom extension types.
  * @const {string}
  */
@@ -438,6 +465,10 @@ class TypeRegistry {
         if (typeof value === 'number') {
             return Number.isInteger(value) ? 'L' : 'R';  // L = Long integer, R = Real number
         }
+        // Decimal (Big.js or Decimal.js)
+        if (_isDecimalInstance(value)) {
+            return 'N';  // N = Numeric (decimal)
+        }
         if (value instanceof Date) {
             // Use UTC for consistent cross-timezone behavior
             const hours = value.getUTCHours();
@@ -818,6 +849,15 @@ class TypeRegistry {
         // Handle Date objects BEFORE generic objects check
         // (Date is also typeof 'object' but needs special handling)
         if (value instanceof Date) {
+            const code = this._get_type_code_for_value(value);
+            const type_def = this.get(code);
+            if (type_def) {
+                return type_def.serialize(value) + '::' + code;
+            }
+        }
+
+        // Handle Decimal (Big.js or Decimal.js) BEFORE generic objects check
+        if (_isDecimalInstance(value)) {
             const code = this._get_type_code_for_value(value);
             const type_def = this.get(code);
             if (type_def) {

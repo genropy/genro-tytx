@@ -28,6 +28,7 @@
 
 const { registry } = require('./registry');
 const { processEnvelope } = require('./xtytx');
+const { isDecimalInstance } = require('./types');
 
 // Protocol prefix constants
 const TYTX_PREFIX = 'TYTX://';
@@ -73,7 +74,7 @@ function _hydrateJson(dataStr, localStructs) {
  * Recursively serialize values to typed strings.
  *
  * JSON-native types (number, boolean, string, null) pass through unchanged.
- * Only Date objects get type markers (they're not JSON-native).
+ * Only Date objects and Decimal (Big.js/Decimal.js) get type markers.
  *
  * @param {*} obj - Value to serialize.
  * @param {boolean} typed - If true, use typed format for non-native types.
@@ -90,6 +91,14 @@ function _serialize(obj, typed) {
             return registry.as_typed_text(obj);
         }
         return obj.toISOString();
+    }
+
+    // Handle Decimal (Big.js or Decimal.js) - not JSON-native, needs marker
+    if (isDecimalInstance(obj)) {
+        if (typed) {
+            return registry.as_typed_text(obj);
+        }
+        return parseFloat(obj.toString());
     }
 
     // Handle arrays
