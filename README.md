@@ -499,7 +499,7 @@ See [spec/roadmap.md](spec/roadmap.md) for detailed documentation.
 
 Learn TYTX interactively with Jupyter notebooks. Click the badge to run them online:
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/genropy/genro-tytx/main?labpath=notebooks)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/genropy/genro-tytx/main?urlpath=lab/tree/notebooks)
 
 | Notebook | Description |
 |----------|-------------|
