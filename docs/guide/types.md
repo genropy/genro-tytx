@@ -15,7 +15,7 @@ TYTX includes 10 built-in types.
 | `DHZ` | datetime | `datetime` | `TIMESTAMP` | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `DH` | naive_datetime | `datetime` | `TIMESTAMP` | `Date` | `"2025-01-15T10:00::DH"` (deprecated) |
 | `H` | time | `time` | `TIME` | `Date` | `"10:30:00::H"` |
-| `JS` | json | `dict`/`list` | `JSON` | `object`/`array` | `'{"a":1}::JS'` |
+| `TYTX` | tytx | `dict`/`list` | `JSON` | `object`/`array` | `'{"a":"1::L"}::TYTX'` |
 
 ## Integer (L)
 
@@ -192,12 +192,12 @@ Embedded JSON for complex structures.
 from genro_tytx import from_text, as_typed_text
 
 # Parse
-from_text('{"a":1}::JS')    # → {"a": 1}
-from_text('[1,2,3]::JS')    # → [1, 2, 3]
+from_text('{"a":"1::L"}::TYTX')    # → {"a": 1}
+from_text('["1::L","2::L","3::L"]::TYTX')    # → [1, 2, 3]
 
 # Serialize
-as_typed_text({"a": 1})    # → '{"a": 1}::JS'
-as_typed_text([1, 2, 3])   # → '[1, 2, 3]::JS'
+as_typed_text({"a": 1})    # → '{"a":"1::L"}::TYTX'
+as_typed_text([1, 2, 3])   # → '["1::L","2::L","3::L"]::TYTX'
 ```
 
 ## Type Attributes

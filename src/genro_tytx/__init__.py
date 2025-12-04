@@ -49,11 +49,11 @@ from .builtin import (
     DecimalType,
     FloatType,
     IntType,
-    JsonType,
     NaiveDateTimeType,
     NoneType,
     StrType,
     TimeType,
+    TytxType,
 )
 from .extension import ExtensionType
 from .http_async_utils import (
@@ -178,11 +178,11 @@ __all__ = [
     "DecimalType",
     "FloatType",
     "IntType",
-    "JsonType",
     "NaiveDateTimeType",
     "NoneType",
     "StrType",
     "TimeType",
+    "TytxType",
     # Middleware
     "TytxASGIMiddleware",
     "TytxWSGIMiddleware",

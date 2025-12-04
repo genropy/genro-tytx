@@ -41,7 +41,9 @@ class DataType(ABC):
         """
         raise NotImplementedError
 
-    def format(self, value: Any, fmt: str | bool | None = None, locale: str | None = None) -> str:
+    def format(
+        self, value: Any, fmt: str | bool | None = None, locale: str | None = None
+    ) -> str:
         """
         Format python object to localized string representation.
 

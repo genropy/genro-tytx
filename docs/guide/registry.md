@@ -49,7 +49,7 @@ registry.get_for_value(1.5)             # → FloatType (code R)
 registry.get_for_value(Decimal("10"))   # → DecimalType (code N)
 registry.get_for_value(date.today())    # → DateType (code D)
 registry.get_for_value("hello")         # → StrType (code T)
-registry.get_for_value({"a": 1})        # → JsonType (code JS)
+registry.get_for_value({"a": 1})        # → TytxType (code TYTX)
 
 # Unknown types
 registry.get_for_value(object())        # → None
@@ -276,8 +276,8 @@ registry.get_for_value(123)            # → IntType (code L)
 # bool is subclass of int, but matches BoolType
 registry.get_for_value(True)           # → BoolType (code B)
 
-# dict matches JsonType
-registry.get_for_value({"a": 1})       # → JsonType (code JS)
+# dict matches TytxType
+registry.get_for_value({"a": 1})       # → TytxType (code TYTX)
 ```
 
 ## Built-in Types in Global Registry
@@ -295,4 +295,4 @@ The global registry includes:
 | DateTimeType | `DHZ` | datetime |
 | NaiveDateTimeType | `DH` | naive_datetime (deprecated) |
 | TimeType | `H` | time |
-| JsonType | `JS` | json |
+| TytxType | `TYTX` | tytx |

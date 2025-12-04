@@ -49,7 +49,7 @@ This document defines all registered type codes for the TYTX protocol.
 
 | Code | Python | JavaScript | Format | Example |
 |------|--------|------------|--------|---------|
-| `JS` | `dict`/`list` | `object`/`array` | JSON encoded | `'{"a":1}::JS'` |
+| `TYTX` | `dict`/`list` | `object`/`array` | JSON with typed values | `'{"a":"1::L"}::TYTX'` |
 
 ## Type Code Conventions
 

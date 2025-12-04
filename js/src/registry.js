@@ -474,7 +474,7 @@ class TypeRegistry {
         }
 
         if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-            return 'JS';  // JS = JavaScript object
+            return 'TYTX';  // TYTX = Typed Text
         }
 
         return null;
@@ -810,6 +810,26 @@ class TypeRegistry {
             return this._serializeArrayElements(value);
         }
 
+        // Handle arrays - always use ::TYTX with typed elements
+        if (Array.isArray(value)) {
+            return this._serializeArrayElements(value);
+        }
+
+        // Handle Date objects BEFORE generic objects check
+        // (Date is also typeof 'object' but needs special handling)
+        if (value instanceof Date) {
+            const code = this._get_type_code_for_value(value);
+            const type_def = this.get(code);
+            if (type_def) {
+                return type_def.serialize(value) + '::' + code;
+            }
+        }
+
+        // Handle plain objects - always use ::TYTX with typed values
+        if (typeof value === 'object' && value !== null) {
+            return this._serializeDictValues(value);
+        }
+
         const code = this._get_type_code_for_value(value);
         if (code) {
             const type_def = this.get(code);
@@ -897,9 +917,58 @@ class TypeRegistry {
             if (Array.isArray(item)) {
                 return item.map(serializeItem);
             }
+            // Handle Date before generic object check
+            if (item instanceof Date) {
+                return this.as_typed_text(item);
+            }
+            if (typeof item === 'object' && item !== null) {
+                return this._serializeDictValuesInner(item);
+            }
             return this.as_typed_text(item);
         };
-        return JSON.stringify(value.map(serializeItem));
+        return JSON.stringify(value.map(serializeItem)) + '::TYTX';
+    }
+
+    /**
+     * Serialize object with each value typed individually (inner, no ::TYTX suffix).
+     * @param {Object} value - Object to serialize
+     * @returns {Object} Object with typed values
+     * @private
+     */
+    _serializeDictValuesInner(value) {
+        const result = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (Array.isArray(v)) {
+                result[k] = v.map(item => {
+                    // Handle Date before generic object check
+                    if (item instanceof Date) {
+                        return this.as_typed_text(item);
+                    }
+                    if (typeof item === 'object' && item !== null) {
+                        return this._serializeDictValuesInner(item);
+                    }
+                    return this.as_typed_text(item);
+                });
+            } else if (v instanceof Date) {
+                // Handle Date before generic object check
+                result[k] = this.as_typed_text(v);
+            } else if (typeof v === 'object' && v !== null) {
+                result[k] = this._serializeDictValuesInner(v);
+            } else {
+                result[k] = this.as_typed_text(v);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Serialize object with each value typed individually.
+     * @param {Object} value - Object to serialize
+     * @returns {string} JSON object with typed values and ::TYTX suffix
+     * @private
+     */
+    _serializeDictValues(value) {
+        return JSON.stringify(this._serializeDictValuesInner(value)) + '::TYTX';
     }
 }
 

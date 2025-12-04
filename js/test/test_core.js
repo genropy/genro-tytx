@@ -76,8 +76,8 @@ describe('from_text', () => {
         assert.strictEqual(result.getUTCDate(), 1);
     });
 
-    test('parses json', () => {
-        const result = from_text('{"x":1}::JS');
+    test('parses tytx', () => {
+        const result = from_text('{"x":"1::L"}::TYTX');
         assert.deepStrictEqual(result, { x: 1 });
     });
 
@@ -153,14 +153,14 @@ describe('as_typed_text', () => {
         assert.ok(result.endsWith('::DHZ'));  // DHZ is the canonical code
     });
 
-    test('types object as JSON', () => {
+    test('types object as TYTX with typed values', () => {
         const result = as_typed_text({ x: 1 });
-        assert.strictEqual(result, '{"x":1}::JS');
+        assert.strictEqual(result, '{"x":"1::L"}::TYTX');
     });
 
-    test('types array as JSON', () => {
+    test('types array as TYTX with typed elements', () => {
         const result = as_typed_text([1, 2, 3]);
-        assert.strictEqual(result, '[1,2,3]::JS');
+        assert.strictEqual(result, '["1::L","2::L","3::L"]::TYTX');
     });
 
     test('returns string as-is', () => {
@@ -672,8 +672,10 @@ describe('typed arrays', () => {
 
         test('heterogeneous array falls back to individual typing', () => {
             const result = as_typed_text([1, 'hello', true], true);
-            // Should be JSON array with individual typing
-            const parsed = JSON.parse(result);
+            // Result has ::TYTX suffix - remove it before parsing
+            assert.ok(result.endsWith('::TYTX'));
+            const jsonPart = result.slice(0, -6);
+            const parsed = JSON.parse(jsonPart);
             assert.strictEqual(parsed[0], '1::L');
             assert.strictEqual(parsed[1], 'hello');
             assert.strictEqual(parsed[2], 'true::B');
@@ -1344,7 +1346,10 @@ describe('registry coverage', () => {
         // Heterogeneous nested array - each element typed individually
         const arr = [[1, 'hello'], [true, 42]];
         const result = as_typed_text(arr, true);
-        const parsed = JSON.parse(result);
+        // Result has ::TYTX suffix - remove it before parsing
+        assert.ok(result.endsWith('::TYTX'));
+        const jsonPart = result.slice(0, -6);
+        const parsed = JSON.parse(jsonPart);
         // Should be array of arrays with individually typed elements
         assert.ok(Array.isArray(parsed));
         assert.ok(Array.isArray(parsed[0]));

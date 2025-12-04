@@ -370,8 +370,8 @@ describe('additional registry tests', () => {
     expect(date.getUTCDate()).toBe(1);
   });
 
-  it('parses JSON type', () => {
-    const result = registry.fromText('{"a":1}::JS');
+  it('parses TYTX type', () => {
+    const result = registry.fromText('{"a":1}::TYTX');
     expect(result).toEqual({ a: 1 });
   });
 
@@ -404,9 +404,9 @@ describe('additional registry tests', () => {
     expect(registry.asTypedText(BigInt(123))).toBe('123::L');
   });
 
-  it('asTypedText handles object/array as JSON', () => {
-    expect(registry.asTypedText({ a: 1 })).toBe('{"a":1}::JS');
-    expect(registry.asTypedText([1, 2, 3])).toBe('[1,2,3]::JS');
+  it('asTypedText handles object/array as TYTX', () => {
+    expect(registry.asTypedText({ a: 1 })).toBe('{"a":1}::TYTX');
+    expect(registry.asTypedText([1, 2, 3])).toBe('[1,2,3]::TYTX');
   });
 
   it('asText handles date/time/datetime branches', () => {
@@ -516,10 +516,10 @@ describe('additional registry tests', () => {
     expect(type?.isType?.(new Date('2025-01-01T10:00:00Z'))).toBe(true);
   });
 
-  it('JsonType isType and DecimalType fallback without big.js', () => {
-    const jsonType = registry.get('JS');
-    expect(jsonType?.isType?.({ a: 1 })).toBe(true);
-    expect(jsonType?.isType?.(null)).toBe(false);
+  it('TytxType isType and DecimalType fallback without big.js', () => {
+    const tytxType = registry.get('TYTX');
+    expect(tytxType?.isType?.({ a: 1 })).toBe(true);
+    expect(tytxType?.isType?.(null)).toBe(false);
 
     __setBigLoader(() => {
       throw new Error('no big');

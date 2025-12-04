@@ -42,7 +42,7 @@ from_json('{"price": "100::N"}')          # → {"price": Decimal("100")}
 | `D` | date | `date` | `"2025-01-15::D"` |
 | `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `H` | time | `time` | `"10:30:00::H"` |
-| `JS` | json | `dict`/`list` | `'{"a":1}::JS'` |
+| `TYTX` | tytx | `dict`/`list` | `'{"a":"1::L"}::TYTX'` |
 
 ## Typed Arrays
 

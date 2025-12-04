@@ -66,7 +66,9 @@ class TestXtytxGstruct:
 
     def test_gstruct_persists_after_decoding(self):
         """gstruct remains registered after decoding completes."""
-        payload = 'XTYTX://{"gstruct": {"XPERSIST": {"x": "R"}}, "lstruct": {}, "data": ""}'
+        payload = (
+            'XTYTX://{"gstruct": {"XPERSIST": {"x": "R"}}, "lstruct": {}, "data": ""}'
+        )
         try:
             from_json(payload)
             # Should still exist
@@ -79,9 +81,7 @@ class TestXtytxGstruct:
 
     def test_gstruct_multiple_structs(self):
         """Multiple structs can be registered at once."""
-        payload = (
-            """XTYTX://{"gstruct": {"XA": {"a": "L"}, "XB": ["N"]}, "lstruct": {}, "data": ""}"""
-        )
+        payload = """XTYTX://{"gstruct": {"XA": {"a": "L"}, "XB": ["N"]}, "lstruct": {}, "data": ""}"""
         try:
             from_json(payload)
             assert registry.get_struct("XA") == {"a": "L"}
@@ -96,7 +96,9 @@ class TestXtytxLstruct:
 
     def test_lstruct_not_registered_globally(self):
         """lstruct entries are NOT registered in global registry after decoding."""
-        payload = 'XTYTX://{"gstruct": {}, "lstruct": {"XLOCAL": {"a": "L"}}, "data": ""}'
+        payload = (
+            'XTYTX://{"gstruct": {}, "lstruct": {"XLOCAL": {"a": "L"}}, "data": ""}'
+        )
         from_json(payload)
         # Should NOT be in global registry
         assert registry.get_struct("XLOCAL") is None
@@ -155,9 +157,7 @@ class TestXtytxDataDecoding:
 
     def test_data_with_tytx_prefix(self):
         """data field with TYTX:// prefix is decoded."""
-        payload = (
-            'XTYTX://{"gstruct": {}, "lstruct": {}, "data": "TYTX://{\\"price\\": \\"99.99::N\\"}"}'
-        )
+        payload = 'XTYTX://{"gstruct": {}, "lstruct": {}, "data": "TYTX://{\\"price\\": \\"99.99::N\\"}"}'
         result = from_json(payload)
         assert result.data == {"price": Decimal("99.99")}
 
@@ -210,7 +210,11 @@ class TestXtytxUseCases:
             product_data = from_text(
                 '{"sku": "ABC123", "price": "29.99", "stock": "100"}::@XPRODUCT'
             )
-            assert product_data == {"sku": "ABC123", "price": Decimal("29.99"), "stock": 100}
+            assert product_data == {
+                "sku": "ABC123",
+                "price": Decimal("29.99"),
+                "stock": 100,
+            }
         finally:
             registry.unregister_struct("XPRODUCT")
 
@@ -282,7 +286,9 @@ class TestXtytxSchemaFormats:
 
     def test_list_schema_in_gstruct(self):
         """List schema format works in gstruct."""
-        payload = 'XTYTX://{"gstruct": {"XLIST": ["T", "L", "N"]}, "lstruct": {}, "data": ""}'
+        payload = (
+            'XTYTX://{"gstruct": {"XLIST": ["T", "L", "N"]}, "lstruct": {}, "data": ""}'
+        )
         try:
             from_json(payload)
             assert registry.get_struct("XLIST") == ["T", "L", "N"]
@@ -316,7 +322,7 @@ class TestXtytxGschema:
         """gschema entries are registered in global schema_registry."""
         payload = """XTYTX://{"gstruct": {}, "lstruct": {}, "gschema": {"XCUSTOMER": {"type": "object", "properties": {"name": {"type": "string"}}}}, "lschema": {}, "data": ""}"""
         try:
-            result = from_json(payload)
+            from_json(payload)
             # Schema should be registered
             assert schema_registry.get("XCUSTOMER") is not None
             assert schema_registry.get("XCUSTOMER")["type"] == "object"

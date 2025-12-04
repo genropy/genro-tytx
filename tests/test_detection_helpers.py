@@ -17,8 +17,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from genro_tytx import (
     TYTX_PREFIX,
     XTYTX_PREFIX,

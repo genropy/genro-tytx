@@ -32,7 +32,7 @@ from_text("123::L")           # → 123
 from_text("100.50::N")        # → Decimal("100.50")
 from_text("2025-01-15::D")    # → date(2025, 1, 15)
 from_text("true::B")          # → True
-from_text('{"a":1}::JS')      # → {"a": 1}
+from_text('{"a":"1::L"}::TYTX')  # → {"a": 1}
 from_text("10:30:00::H")      # → time(10, 30)
 
 # Explicit type

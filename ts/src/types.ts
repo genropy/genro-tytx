@@ -17,7 +17,7 @@ export type TypeCode =
   | 'DHZ'  // DateTime (timezone-aware, canonical)
   | 'DH'   // DateTime (naive, deprecated)
   | 'H'    // Time
-  | 'JS'   // JSON
+  | 'TYTX' // TYTX (JSON with typed values)
   | 'NN';  // None/Null
 
 /**
@@ -25,7 +25,7 @@ export type TypeCode =
  * DHZ = timezone-aware datetime (canonical)
  * DH = naive datetime (deprecated)
  */
-export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DHZ' | 'DH' | 'H' | 'JS' | 'NN';
+export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DHZ' | 'DH' | 'H' | 'TYTX' | 'NN';
 
 /**
  * TYTX value types that can be serialized.

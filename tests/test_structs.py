@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+
 from genro_tytx import from_text, registry
 
 
@@ -41,7 +42,9 @@ class TestStructDictSchema:
 
     def test_parse_dict_struct(self):
         """Dict schema applies types to matching keys."""
-        registry.register_struct("CUSTOMER", {"name": "T", "balance": "N", "created": "D"})
+        registry.register_struct(
+            "CUSTOMER", {"name": "T", "balance": "N", "created": "D"}
+        )
         try:
             result = from_text(
                 '{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUSTOMER'
@@ -140,7 +143,9 @@ class TestStructNested:
         registry.register_struct("ADDRESS", {"city": "T", "zip": "L"})
         registry.register_struct("PERSON", {"name": "T", "addr": "@ADDRESS"})
         try:
-            result = from_text('{"name": "John", "addr": {"city": "Rome", "zip": 12345}}::@PERSON')
+            result = from_text(
+                '{"name": "John", "addr": {"city": "Rome", "zip": 12345}}::@PERSON'
+            )
             assert result == {
                 "name": "John",
                 "addr": {"city": "Rome", "zip": 12345},
@@ -161,7 +166,7 @@ class TestStructNested:
             registry.unregister_struct("ROW")
 
 
-class TestStructDictSchema:
+class TestStructDictSchemaRegistration:
     """Tests for dict schema syntax (replaces old string schema)."""
 
     def test_register_dict_schema(self):
@@ -200,7 +205,9 @@ class TestStructDictSchema:
         """Dict schema preserves field order (Python 3.7+)."""
         registry.register_struct("ROW", {"name": "T", "qty": "L", "price": "N"})
         try:
-            result = from_text('{"name": "Widget", "qty": "10", "price": "99.99"}::@ROW')
+            result = from_text(
+                '{"name": "Widget", "qty": "10", "price": "99.99"}::@ROW'
+            )
             assert result == {"name": "Widget", "qty": 10, "price": Decimal("99.99")}
             # Verify key order (Python 3.7+ dicts preserve insertion order)
             assert list(result.keys()) == ["name", "qty", "price"]
@@ -292,7 +299,10 @@ class TestStructWithMetadata:
             metadata={
                 "username": {
                     "validate": {"min": 3, "max": 50, "pattern": "^[a-z0-9_]+$"},
-                    "ui": {"label": "Username", "hint": "Only lowercase letters and numbers"},
+                    "ui": {
+                        "label": "Username",
+                        "hint": "Only lowercase letters and numbers",
+                    },
                 },
                 "balance": {
                     "validate": {"min": 0},
@@ -301,7 +311,9 @@ class TestStructWithMetadata:
             },
         )
         try:
-            result = from_text('{"username": "john_doe", "balance": "1000.50"}::@FULL_META')
+            result = from_text(
+                '{"username": "john_doe", "balance": "1000.50"}::@FULL_META'
+            )
             assert result == {"username": "john_doe", "balance": Decimal("1000.50")}
             # Verify metadata
             username_meta = registry.get_struct_metadata("FULL_META", "username")
@@ -455,7 +467,8 @@ class TestStructEdgeCases:
 
     def test_get_type_instance_with_instance(self):
         """_get_type_instance returns the instance when already instantiated."""
-        from genro_tytx.struct import _get_type_instance, StructType
+        from genro_tytx.struct import StructType, _get_type_instance
+
         dummy = StructType("TMP", ["T"], registry)
         assert _get_type_instance(dummy) is dummy
 

@@ -257,7 +257,7 @@ class TestModelFromStructNested:
         )
 
         Person = registry.model_from_struct("PERSON")
-        Address = registry.model_from_struct("ADDRESS")
+        registry.model_from_struct("ADDRESS")
 
         # Check nested type
         address_field = Person.model_fields["address"]
@@ -436,7 +436,9 @@ class TestModelFromStructConstraints:
         registry.register_struct(
             "META",
             schema={"name": "T"},
-            metadata={"name": {"ui": {"label": "Full Name", "hint": "Enter your full name"}}},
+            metadata={
+                "name": {"ui": {"label": "Full Name", "hint": "Enter your full name"}}
+            },
         )
 
         Model = registry.model_from_struct("META")
@@ -477,7 +479,9 @@ class TestModelFromStructConstraints:
         registry.register_struct(
             "ENUM",
             schema={"status": "T"},
-            metadata={"status": {"validate": {"enum": ["active", "inactive", "pending"]}}},
+            metadata={
+                "status": {"validate": {"enum": ["active", "inactive", "pending"]}}
+            },
         )
 
         Model = registry.model_from_struct("ENUM")
@@ -494,7 +498,11 @@ class TestModelFromStructConstraints:
         registry.register_struct(
             "ENUMDEF",
             schema={"status": "T"},
-            metadata={"status": {"validate": {"enum": ["active", "inactive"], "default": "active"}}},
+            metadata={
+                "status": {
+                    "validate": {"enum": ["active", "inactive"], "default": "active"}
+                }
+            },
         )
 
         Model = registry.model_from_struct("ENUMDEF")
@@ -610,10 +618,21 @@ class TestModelFromStructRealWorld:
         """Test customer-like model."""
         registry.register_struct(
             "CUSTOMER",
-            schema={"id": "L", "name": "T", "email": "T", "status": "T", "balance": "N"},
+            schema={
+                "id": "L",
+                "name": "T",
+                "email": "T",
+                "status": "T",
+                "balance": "N",
+            },
             metadata={
                 "name": {"validate": {"min": 1, "max": 100}},
-                "status": {"validate": {"enum": ["active", "inactive", "suspended"], "default": "active"}},
+                "status": {
+                    "validate": {
+                        "enum": ["active", "inactive", "suspended"],
+                        "default": "active",
+                    }
+                },
                 "balance": {"validate": {"min": 0}},
             },
         )
@@ -654,8 +673,16 @@ class TestModelFromStructRealWorld:
             number="INV-001",
             date=date(2025, 1, 15),
             items=[
-                {"description": "Widget", "quantity": 2, "unit_price": Decimal("10.00")},
-                {"description": "Gadget", "quantity": 1, "unit_price": Decimal("25.00")},
+                {
+                    "description": "Widget",
+                    "quantity": 2,
+                    "unit_price": Decimal("10.00"),
+                },
+                {
+                    "description": "Gadget",
+                    "quantity": 1,
+                    "unit_price": Decimal("25.00"),
+                },
             ],
             total=Decimal("45.00"),
         )

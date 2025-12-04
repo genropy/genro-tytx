@@ -146,7 +146,7 @@ from_xml('<root><price>99.99::N</price></root>');
 | `DHZ` | datetime | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `DH` | naive_datetime | `Date` | `"2025-01-15T10:00::DH"` (deprecated) |
 | `H` | time | `Date` | `"10:30:00::H"` |
-| `JS` | json | `object` | `'{"a":1}::JS'` |
+| `TYTX` | tytx | `object` | `'{"a":"1::L"}::TYTX'` |
 
 ## Decimal Library Support
 

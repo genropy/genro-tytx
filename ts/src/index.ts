@@ -73,7 +73,7 @@ export {
   DateTimeType,
   NaiveDateTimeType,
   TimeType,
-  JsonType,
+  TytxType,
   __setBigLoader,
 } from './registry.js';
 

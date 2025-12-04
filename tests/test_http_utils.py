@@ -19,6 +19,7 @@ from genro_tytx.xtytx import XtytxResult
 # Check if msgpack is available (without importing genro_tytx.msgpack_utils)
 try:
     import msgpack  # noqa: F401
+
     HAS_MSGPACK = True
 except ImportError:
     HAS_MSGPACK = False
@@ -32,7 +33,7 @@ class FakeResponse:
     def read(self) -> bytes:
         return self._body
 
-    def __enter__(self) -> "FakeResponse":
+    def __enter__(self) -> FakeResponse:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
@@ -65,7 +66,9 @@ def test_fetch_typed_request_msgpack(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("genro_tytx.http_utils.urlopen", fake_urlopen)
 
-    result = fetch_typed_request("http://example.com", body={"value": Decimal("2.0")}, send_as="msgpack")
+    result = fetch_typed_request(
+        "http://example.com", body={"value": Decimal("2.0")}, send_as="msgpack"
+    )
     assert result["ok"] is True
     assert captured.request is not None
     headers = {k.lower(): v for k, v in captured.request.headers.items()}
@@ -75,7 +78,9 @@ def test_fetch_typed_request_msgpack(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_build_xtytx_envelope_prefix_and_data() -> None:
-    envelope_str = build_xtytx_envelope(payload={"a": Decimal("1.0")}, gstruct={"A": {"a": "N"}})
+    envelope_str = build_xtytx_envelope(
+        payload={"a": Decimal("1.0")}, gstruct={"A": {"a": "N"}}
+    )
     assert envelope_str.startswith("XTYTX://")
     payload_json = envelope_str.removeprefix("XTYTX://")
     parsed = json.loads(payload_json)
@@ -91,8 +96,10 @@ def test_fetch_xtytx_returns_result(monkeypatch: pytest.MonkeyPatch) -> None:
         "lschema": {},
         "data": as_typed_json({"total": Decimal("3.5")}),
     }
-    response_text = f"XTYTX://{json.dumps(envelope)}".encode("utf-8")
-    responses: list[Any] = [FakeResponse(response_text, {"Content-Type": "application/json"})]
+    response_text = f"XTYTX://{json.dumps(envelope)}".encode()
+    responses: list[Any] = [
+        FakeResponse(response_text, {"Content-Type": "application/json"})
+    ]
 
     def fake_urlopen(req, timeout=None):  # type: ignore[override]
         return responses.pop(0)

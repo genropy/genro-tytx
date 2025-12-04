@@ -30,7 +30,7 @@ class _CircularNode(BaseModel):
     """Node with circular reference for testing."""
 
     value: str
-    children: list["_CircularNode"] = []
+    children: list[_CircularNode] = []
 
 
 class TestRegisterStructFromModel:
@@ -309,7 +309,6 @@ class TestStructFromModel:
 
     def test_struct_from_model_then_register(self) -> None:
         """Test typical workflow: generate schema, then register."""
-        from decimal import Decimal
 
         from pydantic import BaseModel
 
@@ -427,7 +426,6 @@ class TestFieldConstraints:
 
     def test_decimal_constraints(self) -> None:
         """Test constraints on Decimal field."""
-        from decimal import Decimal
 
         from pydantic import BaseModel, Field
 
@@ -512,7 +510,11 @@ class TestLiteralEnum:
 
         schema, metadata = registry.struct_from_model(WithStatus)
         assert schema["status"] == "T"
-        assert metadata["status"]["validate"]["enum"] == ["active", "inactive", "pending"]
+        assert metadata["status"]["validate"]["enum"] == [
+            "active",
+            "inactive",
+            "pending",
+        ]
 
     def test_literal_int(self) -> None:
         """Test Literal with integer values."""

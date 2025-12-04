@@ -11,6 +11,8 @@ Tests cover:
 - Round-trip conversion
 """
 
+import contextlib
+
 import pytest
 
 from genro_tytx import registry
@@ -135,10 +137,8 @@ class TestStructFromJsonschema:
             },
         }
         # Clear any previous registration
-        try:
+        with contextlib.suppress(KeyError):
             registry.unregister_struct("TEST_ADDRESS")
-        except KeyError:
-            pass
 
         struct = struct_from_jsonschema(
             schema, name="TEST", registry=registry, register_nested=True
@@ -347,7 +347,9 @@ class TestStructToJsonschema:
         assert schema["properties"]["address"] == {"$ref": "#/definitions/ADDR_TEST"}
         assert "definitions" in schema
         assert "ADDR_TEST" in schema["definitions"]
-        assert schema["definitions"]["ADDR_TEST"]["properties"]["street"] == {"type": "string"}
+        assert schema["definitions"]["ADDR_TEST"]["properties"]["street"] == {
+            "type": "string"
+        }
 
         # Cleanup
         registry.unregister_struct("ADDR_TEST")
@@ -550,9 +552,7 @@ class TestOneOfAnyOf:
         schema = {
             "type": "object",
             "properties": {
-                "empty": {
-                    "anyOf": [{"type": "null"}]
-                },
+                "empty": {"anyOf": [{"type": "null"}]},
             },
         }
         struct = struct_from_jsonschema(schema)

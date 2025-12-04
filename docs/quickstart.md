@@ -30,7 +30,7 @@ from_text("2025-01-15::D")             # → date(2025, 1, 15) (D = Date)
 from_text("2025-01-15T10:00:00Z::DHZ")  # → datetime(...) (DHZ = DateTime with Zone)
 from_text("10:30:00::H")               # → time(10, 30) (H = Hour/time)
 from_text("true::B")                   # → True (B = Boolean)
-from_text('{"a":1}::JS')               # → {"a": 1} (JS = JSON)
+from_text('{"a":"1::L"}::TYTX')        # → {"a": 1} (TYTX = JSON with typed values)
 
 # Parse with explicit type
 from_text("123", "L")                  # → 123
@@ -48,7 +48,7 @@ as_typed_text(Decimal("100.50"))       # → "100.50::N"
 as_typed_text(date(2025, 1, 15))       # → "2025-01-15::D"
 as_typed_text(datetime(2025, 1, 15, 10))  # → "2025-01-15T10:00:00Z::DHZ"
 as_typed_text(True)                    # → "true::B"
-as_typed_text({"a": 1})                # → '{"a": 1}::JS'
+as_typed_text({"a": 1})                # → '{"a":"1::L"}::TYTX'
 as_typed_text("hello")                 # → "hello" (no suffix for strings)
 ```
 
@@ -159,7 +159,7 @@ from_json('{"x": "10::L"}')   // → {x: 10}
 | `D` | date | `date` | `"2025-01-15::D"` |
 | `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `H` | time | `time` | `"10:30:00::H"` |
-| `JS` | json | `dict`/`list` | `'{"a":1}::JS'` |
+| `TYTX` | tytx | `dict`/`list` | `'{"a":"1::L"}::TYTX'` |
 
 ### Type Prefixes
 

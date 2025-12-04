@@ -128,11 +128,11 @@ class StrType(DataType):
         return str(value)
 
 
-class JsonType(DataType):
-    """JSON type - serialized dict/list structures."""
+class TytxType(DataType):
+    """TYTX type - JSON with typed values that get hydrated."""
 
-    name = "json"
-    code = "JS"
+    name = "tytx"
+    code = "TYTX"
     python_type = dict  # Primary type, also handles list
     js_type = "object"
     sql_type = "JSON"
@@ -140,10 +140,17 @@ class JsonType(DataType):
     empty = None
 
     def parse(self, value: str) -> Any:
-        return json.loads(value)
+        # Import here to avoid circular import
+        from genro_tytx.json_utils import _hydrate
+
+        parsed = json.loads(value)
+        return _hydrate(parsed)
 
     def serialize(self, value: Any) -> str:
-        return json.dumps(value)
+        # Import here to avoid circular import
+        from genro_tytx.json_utils import _typed_encoder
+
+        return json.dumps(value, default=_typed_encoder)
 
 
 class DecimalType(DataType):
@@ -342,7 +349,7 @@ def register_builtins() -> None:
     registry.register(FloatType)
     registry.register(BoolType)
     registry.register(StrType)
-    registry.register(JsonType)
+    registry.register(TytxType)
     registry.register(DecimalType)
     registry.register(DateType)
     registry.register(DateTimeType)

@@ -241,9 +241,9 @@ const TimeType: DataType<Date> = {
   },
 };
 
-const JsonType: DataType<object> = {
-  code: 'JS',
-  name: 'json',
+const TytxType: DataType<object> = {
+  code: 'TYTX',
+  name: 'tytx',
   parse: (value: string) => JSON.parse(value) as object,
   serialize: (value: object) => JSON.stringify(value),
   isType: (value: unknown): value is object =>
@@ -287,7 +287,7 @@ export class TypeRegistry {
       DateTimeType,
       NaiveDateTimeType, // DH - deprecated
       TimeType,
-      JsonType,
+      TytxType,
       NoneType,
     ];
 
@@ -796,7 +796,7 @@ export class TypeRegistry {
 
     // Object/Array
     if (typeof value === 'object' && value !== null) {
-      return `${JsonType.serialize(value)}::JS`;
+      return `${TytxType.serialize(value)}::TYTX`;
     }
 
     // String - return as-is
@@ -926,4 +926,4 @@ export function __setBigLoader(loader: (() => unknown) | null): void {
 /**
  * Re-export built-in types for custom type creation.
  */
-export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, NaiveDateTimeType, TimeType, JsonType, NoneType };
+export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, NaiveDateTimeType, TimeType, TytxType, NoneType };

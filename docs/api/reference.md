@@ -409,7 +409,7 @@ Complete API documentation for genro-tytx.
 | `DateTimeType` | `DHZ` | `datetime` | `genro_tytx` |
 | `NaiveDateTimeType` | `DH` | `datetime` | `genro_tytx` |
 | `TimeType` | `H` | `time` | `genro_tytx` |
-| `JsonType` | `JS` | `dict` | `genro_tytx` |
+| `TytxType` | `TYTX` | `dict` | `genro_tytx` |
 
 ## Module Exports
 
@@ -443,6 +443,6 @@ from genro_tytx import (
     DateType,
     DateTimeType,
     TimeType,
-    JsonType,
+    TytxType,
 )
 ```

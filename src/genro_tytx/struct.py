@@ -195,7 +195,9 @@ class StructType:
     def _apply_dict_schema(self, data: Any) -> Any:
         """Apply dict schema to data."""
         if not isinstance(data, dict):
-            raise TypeError(f"Expected dict for struct {self.code}, got {type(data).__name__}")
+            raise TypeError(
+                f"Expected dict for struct {self.code}, got {type(data).__name__}"
+            )
         result = dict(data)
         assert isinstance(self.schema, dict)
         for key, field_type in self.schema.items():  # pragma: no branch
@@ -206,7 +208,9 @@ class StructType:
     def _apply_list_schema(self, data: Any) -> Any:
         """Apply list schema to data."""
         if not isinstance(data, list):
-            raise TypeError(f"Expected list for struct {self.code}, got {type(data).__name__}")
+            raise TypeError(
+                f"Expected list for struct {self.code}, got {type(data).__name__}"
+            )
         assert isinstance(self.schema, list)
         if len(self.schema) == 1:
             # Homogeneous: apply single type to all elements

@@ -63,7 +63,7 @@ from_json('{"price":"99.99::N","date":"2025-01-15::D"}');
 | `DHZ` | DateTime | `Date` | `"2025-01-15T10:00:00Z::DHZ"` |
 | `DH` | Naive DateTime (deprecated) | `Date` | `"2025-01-15T10:00::DH"` |
 | `H` | Hour | `string` | `"10:30:00::H"` |
-| `JS` | JavaScript object | `object` | `'{"a":1}::JS'` |
+| `TYTX` | TYTX (JSON with typed values) | `object` | `'{"a":"1::L"}::TYTX'` |
 
 ## Type Prefixes
 

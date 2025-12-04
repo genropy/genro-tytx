@@ -53,7 +53,7 @@ Core functionality for converting between typed text and native types.
 | `DH` | Date+Hour | `datetime` | `Date` | `"2025-01-15T10:30:00::DH"` |
 | `DHZ` | Date+Hour+Zone | `datetime` | `Date` | `"2025-01-15T10:30:00Z::DHZ"` |
 | `H` | Hour | `time` | `Date` | `"10:30:00::H"` |
-| `JS` | JSON | `dict/list` | `object/array` | `'{"a":1}::JS'` |
+| `TYTX` | TYTX | `dict/list` | `object/array` | `'{"a":"1::L"}::TYTX'` |
 
 **API**:
 ```python

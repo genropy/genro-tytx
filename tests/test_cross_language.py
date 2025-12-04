@@ -85,9 +85,9 @@ class TestTypedText:
             value = _create_value(case["input"])
             expected = case["expected"]
             result = tytx.as_typed_text(value)
-            assert result == expected, (
-                f"as_typed_text({value!r}) = {result!r}, expected {expected!r}"
-            )
+            assert (
+                result == expected
+            ), f"as_typed_text({value!r}) = {result!r}, expected {expected!r}"
 
 
 class TestFromText:
@@ -167,23 +167,33 @@ class TestJsonRoundtrip:
     def _assert_equal_typed(self, result, expected, name):
         """Assert two values are equal with correct types."""
         if isinstance(expected, dict):
-            assert isinstance(result, dict), f"{name}: expected dict, got {type(result)}"
+            assert isinstance(
+                result, dict
+            ), f"{name}: expected dict, got {type(result)}"
             assert set(result.keys()) == set(expected.keys()), f"{name}: keys mismatch"
             for k in expected:
                 self._assert_equal_typed(result[k], expected[k], f"{name}.{k}")
         elif isinstance(expected, list):
-            assert isinstance(result, list), f"{name}: expected list, got {type(result)}"
+            assert isinstance(
+                result, list
+            ), f"{name}: expected list, got {type(result)}"
             assert len(result) == len(expected), f"{name}: length mismatch"
             for i, (r, e) in enumerate(zip(result, expected, strict=True)):
                 self._assert_equal_typed(r, e, f"{name}[{i}]")
         elif isinstance(expected, date) and not isinstance(expected, datetime):
-            assert isinstance(result, date), f"{name}: expected date, got {type(result)}"
+            assert isinstance(
+                result, date
+            ), f"{name}: expected date, got {type(result)}"
             assert result == expected
         elif isinstance(expected, datetime):
-            assert isinstance(result, datetime), f"{name}: expected datetime, got {type(result)}"
+            assert isinstance(
+                result, datetime
+            ), f"{name}: expected datetime, got {type(result)}"
             assert result == expected
         elif isinstance(expected, float):
-            assert isinstance(result, (int, float)), f"{name}: expected number, got {type(result)}"
+            assert isinstance(
+                result, (int, float)
+            ), f"{name}: expected number, got {type(result)}"
             assert result == pytest.approx(expected)
         else:
             assert result == expected, f"{name}: {result!r} != {expected!r}"

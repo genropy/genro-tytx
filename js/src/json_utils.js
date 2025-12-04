@@ -187,6 +187,7 @@ module.exports = {
     as_typed_json,
     as_json,
     from_json,
+    _hydrate,
     TYTX_PREFIX,
     XTYTX_PREFIX
 };

@@ -34,7 +34,7 @@ class TestFromText:
         assert from_text("hello::T") == "hello"
 
     def test_from_text_typed_json(self):
-        assert from_text('{"a":1}::JS') == {"a": 1}
+        assert from_text('{"a":"1::L"}::TYTX') == {"a": 1}
 
     def test_from_text_typed_decimal(self):
         assert from_text("123.45::N") == Decimal("123.45")
@@ -61,8 +61,9 @@ class TestFromText:
         assert from_text("anything::NN") is None
 
     def test_from_text_no_type(self):
-        """Without type suffix, returns string as-is."""
-        assert from_text("123") == "123"
+        """Without type suffix, tries JSON parsing, falls back to string."""
+        assert from_text("123") == 123  # JSON parses as int
+        assert from_text("hello") == "hello"  # Not valid JSON, returns string
 
     def test_from_text_explicit_type(self):
         """With explicit type_code parameter."""
@@ -126,10 +127,13 @@ class TestAsTypedText:
 
     def test_as_typed_text_datetime(self):
         # DHZ is the canonical code with Z suffix
-        assert as_typed_text(datetime(2025, 1, 15, 10, 0, 0)) == "2025-01-15T10:00:00Z::DHZ"
+        assert (
+            as_typed_text(datetime(2025, 1, 15, 10, 0, 0))
+            == "2025-01-15T10:00:00Z::DHZ"
+        )
 
     def test_as_typed_text_json(self):
-        assert as_typed_text({"a": 1}) == '{"a": 1}::JS'
+        assert as_typed_text({"a": 1}) == '{"a":"1::L"}::TYTX'
 
     def test_as_typed_text_str(self):
         """Strings are returned as-is (no type added)."""
@@ -188,7 +192,9 @@ class TestTypeAttributes:
         from genro_tytx import DateTimeType
 
         assert DateTimeType.python_type is datetime
-        assert DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"  # DHZ is timezone-aware
+        assert (
+            DateTimeType.sql_type == "TIMESTAMP WITH TIME ZONE"
+        )  # DHZ is timezone-aware
         assert DateTimeType.empty is None
         assert DateTimeType.code == "DHZ"
 
@@ -232,7 +238,9 @@ class TestAsTextFormatting:
     def test_as_text_format_none_returns_iso(self):
         """format=None returns ISO/technical output."""
         assert as_text(date(2025, 1, 15)) == "2025-01-15"
-        assert as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00Z"  # DHZ adds Z
+        assert (
+            as_text(datetime(2025, 1, 15, 10, 30, 0)) == "2025-01-15T10:30:00Z"
+        )  # DHZ adds Z
         assert as_text(123) == "123"
         assert as_text(Decimal("1234.56")) == "1234.56"
 
@@ -249,7 +257,10 @@ class TestAsTextFormatting:
     def test_as_text_format_string(self):
         """format=string uses specific format."""
         assert as_text(date(2025, 1, 15), format="%d/%m/%Y") == "15/01/2025"
-        assert as_text(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M") == "2025-01-15 10:30"
+        assert (
+            as_text(datetime(2025, 1, 15, 10, 30), format="%Y-%m-%d %H:%M")
+            == "2025-01-15 10:30"
+        )
 
     def test_as_text_format_numeric(self):
         """Numeric types support locale-aware formatting."""
@@ -432,7 +443,9 @@ class TestJSONUtils:
         original = {
             "price": Decimal("123.45"),
             "date": date(2025, 6, 15),
-            "timestamp": datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # Use UTC-aware
+            "timestamp": datetime(
+                2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+            ),  # Use UTC-aware
             "name": "Test",
             "count": 42,
         }
@@ -649,7 +662,9 @@ class TestEdgeCases:
 
         calls: list[str] = []
 
-        monkeypatch.setattr(builtin.locale_module, "getlocale", lambda _category: ("C", "UTF-8"))
+        monkeypatch.setattr(
+            builtin.locale_module, "getlocale", lambda _category: ("C", "UTF-8")
+        )
         monkeypatch.setattr(
             builtin.locale_module,
             "setlocale",
@@ -701,20 +716,20 @@ class TestEdgeCases:
         result = st.format("hello", True)
         assert result == "hello"
 
-    def test_json_type_serialize(self):
-        """JsonType serialize produces JSON string."""
-        from genro_tytx import JsonType
+    def test_tytx_type_serialize(self):
+        """TytxType serialize produces JSON string."""
+        from genro_tytx import TytxType
 
-        jt = JsonType()
-        result = jt.serialize({"a": 1})
+        tt = TytxType()
+        result = tt.serialize({"a": 1})
         assert result == '{"a": 1}'
 
-    def test_json_type_parse(self):
-        """JsonType parse returns dict/list."""
-        from genro_tytx import JsonType
+    def test_tytx_type_parse(self):
+        """TytxType parse returns dict/list with hydrated values."""
+        from genro_tytx import TytxType
 
-        jt = JsonType()
-        result = jt.parse('{"a": 1}')
+        tt = TytxType()
+        result = tt.parse('{"a": "1::L"}')
         assert result == {"a": 1}
 
     def test_float_format_with_locale(self):
@@ -789,12 +804,12 @@ class TestEdgeCases:
         assert BoolType.python_type is bool
         assert BoolType.empty is False
 
-    def test_json_type_attributes(self):
-        """JsonType has correct attributes."""
-        from genro_tytx import JsonType
+    def test_tytx_type_attributes(self):
+        """TytxType has correct attributes."""
+        from genro_tytx import TytxType
 
-        assert JsonType.python_type is dict
-        assert JsonType.js_type == "object"
+        assert TytxType.python_type is dict
+        assert TytxType.js_type == "object"
 
     def test_float_type_attributes(self):
         """FloatType has correct attributes."""
@@ -856,9 +871,9 @@ class TestEdgeCases:
         )
 
     def test_as_typed_text_list(self):
-        """as_typed_text with list value serializes as JSON."""
+        """as_typed_text with list value serializes as TYTX with typed elements."""
         result = as_typed_text([1, 2, 3])
-        assert "::JS" in result
+        assert "::TYTX" in result
 
     def test_xml_value_direct_list(self):
         """XML with value as direct list (same-tag children via value list)."""
@@ -974,7 +989,9 @@ class TestMsgpackUtils:
         data = {
             "price": Decimal("99.99"),
             "date": date(2025, 1, 15),
-            "timestamp": datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc),  # UTC-aware
+            "timestamp": datetime(
+                2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc
+            ),  # UTC-aware
             "count": 42,
             "name": "Test",
         }
@@ -985,7 +1002,9 @@ class TestMsgpackUtils:
         restored = unpackb(packed)
         assert restored["price"] == Decimal("99.99")
         assert restored["date"] == date(2025, 1, 15)
-        assert restored["timestamp"] == datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert restored["timestamp"] == datetime(
+            2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
         assert restored["count"] == 42
         assert restored["name"] == "Test"
 
@@ -1178,7 +1197,9 @@ class TestPydanticMsgpack:
 
         event = Event(
             name="Test Event",
-            timestamp=datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc),  # UTC-aware
+            timestamp=datetime(
+                2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+            ),  # UTC-aware
             amount=Decimal("1234.56"),
         )
 
@@ -1186,7 +1207,9 @@ class TestPydanticMsgpack:
         restored = Event.model_validate_tytx_msgpack(packed)
 
         assert restored.name == "Test Event"
-        assert restored.timestamp == datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
+        assert restored.timestamp == datetime(
+            2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc
+        )
         assert restored.amount == Decimal("1234.56")
 
     def test_tytx_model_msgpack_nested(self):
@@ -1335,7 +1358,9 @@ class TestTypedArrays:
 
     def test_as_typed_text_compact_array_date(self):
         """Serialize homogeneous date array with compact_array=True."""
-        result = as_typed_text([date(2025, 1, 15), date(2025, 1, 16)], compact_array=True)
+        result = as_typed_text(
+            [date(2025, 1, 15), date(2025, 1, 16)], compact_array=True
+        )
         assert result == '["2025-01-15","2025-01-16"]::#D'
 
     def test_as_typed_text_compact_array_empty(self):
@@ -1356,9 +1381,9 @@ class TestTypedArrays:
         assert result == '["1::L","2.5::R","3::L"]::TYTX'
 
     def test_as_typed_text_without_compact_array(self):
-        """Without compact_array, arrays become JSON."""
+        """Without compact_array, arrays become TYTX with typed elements."""
         result = as_typed_text([1, 2, 3])
-        assert result == "[1, 2, 3]::JS"
+        assert result == '["1::L","2::L","3::L"]::TYTX'
 
     def test_roundtrip_typed_array_int(self):
         """Roundtrip test for typed int array."""
@@ -1415,14 +1440,14 @@ class TestTypedArrays:
         assert result == '["1::L","2025-01-01::D","hello"]::TYTX'
 
     def test_as_typed_text_pure_json_list_no_compact(self):
-        """Pure JSON list (no typed objects) should use ::JS suffix."""
+        """List of ints should serialize with typed elements and ::TYTX suffix."""
         result = as_typed_text([1, 2, 3])
-        assert result == "[1, 2, 3]::JS"
+        assert result == '["1::L","2::L","3::L"]::TYTX'
 
     def test_as_typed_text_pure_json_list_strings_no_compact(self):
-        """Pure JSON list of strings should use ::JS suffix."""
+        """List of strings should serialize without type markers."""
         result = as_typed_text(["a", "b", "c"])
-        assert result == '["a", "b", "c"]::JS'
+        assert result == '["a","b","c"]::TYTX'
 
     # Tests for dicts with typed objects (Issue #22)
 
@@ -1451,6 +1476,140 @@ class TestTypedArrays:
         assert result == '{"outer":{"inner":"1.5::N"}}::TYTX'
 
     def test_as_typed_text_pure_json_dict(self):
-        """Pure JSON dict (no typed objects) should use ::JS suffix."""
+        """Pure JSON dict (no typed objects) should use ::TYTX suffix."""
         result = as_typed_text({"a": 1, "b": "hello"})
-        assert result == '{"a": 1, "b": "hello"}::JS'
+        assert result == '{"a":"1::L","b":"hello"}::TYTX'
+
+
+import pytest
+
+
+class TestAsTextFromTextRoundtrip:
+    """Test as_text/from_text roundtrip behavior.
+
+    Demonstrates that:
+    - JSON-native types roundtrip correctly
+    - Non-JSON types lose type information without :: markers
+
+    This proves the need for as_typed_text with ::TYTX markers.
+    """
+
+    # (original, expected_after_roundtrip)
+    ROUNDTRIP_CASES = [
+        # JSON-native types: roundtrip preserves value and type
+        (42, 42),
+        (3.14, 3.14),
+        (True, True),
+        (False, False),
+        ("hello", "hello"),
+        ([1, 2, 3], [1, 2, 3]),
+        (["a", "b"], ["a", "b"]),
+        ({"a": 1}, {"a": 1}),
+        ({"nested": {"x": 1}}, {"nested": {"x": 1}}),
+        # Non-JSON types: type is LOST
+        (Decimal("99.99"), 99.99),
+        (date(2025, 1, 15), "2025-01-15"),
+    ]
+
+    @pytest.mark.parametrize("original,expected", ROUNDTRIP_CASES)
+    def test_roundtrip(self, original, expected):
+        assert from_text(as_text(original)) == expected
+
+
+class TestAsTypedTextFromTextRoundtrip:
+    """Test as_typed_text/from_text roundtrip behavior.
+
+    All types should roundtrip perfectly with typed markers.
+    """
+
+    TYPED_ROUNDTRIP_CASES = [
+        # Scalars
+        42,
+        3.14,
+        True,
+        False,
+        "hello",
+        Decimal("99.99"),
+        date(2025, 1, 15),
+        # Lists
+        [1, 2, 3],
+        ["a", "b"],
+        [Decimal("10.5"), date(2025, 6, 1)],
+        # Dicts
+        {"a": 1, "b": "test"},
+        {"name": "Mario", "age": 30, "balance": Decimal("100.50")},
+        # Nested
+        {"nested": {"x": 1}},
+        [[1.5, 2.5], [3.0, 4.0]],
+    ]
+
+    @pytest.mark.parametrize("value", TYPED_ROUNDTRIP_CASES)
+    def test_typed_roundtrip(self, value):
+        """as_typed_text -> from_text should preserve value exactly."""
+        assert from_text(as_typed_text(value)) == value
+
+
+class TestAsJsonFromJsonRoundtrip:
+    """Test as_json/from_json roundtrip behavior.
+
+    Demonstrates that:
+    - JSON-native types roundtrip correctly
+    - Non-JSON types lose type information
+    """
+
+    # (original, expected_after_roundtrip)
+    JSON_ROUNDTRIP_CASES = [
+        (42, 42),
+        (3.14, 3.14),
+        (True, True),
+        (False, False),
+        ("hello", "hello"),
+        ([1, 2, 3], [1, 2, 3]),
+        ({"a": 1}, {"a": 1}),
+        # Non-JSON types: type is LOST
+        (Decimal("99.99"), 99.99),
+        (date(2025, 1, 15), "2025-01-15"),
+    ]
+
+    @pytest.mark.parametrize("original,expected", JSON_ROUNDTRIP_CASES)
+    def test_json_roundtrip(self, original, expected):
+        """as_json -> from_json loses type for non-JSON types."""
+        assert from_json(as_json(original)) == expected
+
+
+class TestAsTypedJsonFromJsonRoundtrip:
+    """Test as_typed_json/from_json roundtrip behavior.
+
+    All types should roundtrip perfectly with typed markers.
+    """
+
+    TYPED_JSON_ROUNDTRIP_CASES = [
+        # Scalars
+        42,
+        3.14,
+        True,
+        False,
+        "hello",
+        Decimal("99.99"),
+        date(2025, 1, 15),
+        # Lists
+        [1, 2, 3],
+        ["a", "b"],
+        [Decimal("10.5"), date(2025, 6, 1)],
+        # Dicts (struct-like)
+        {"a": 1, "b": "test"},
+        {"name": "Mario", "age": 30, "balance": Decimal("100.50")},
+        # Nested
+        {"nested": {"x": 1}},
+        [[1.5, 2.5], [3.0, 4.0]],
+        # Array of dicts
+        [
+            {"name": "Mario", "balance": Decimal("100.50")},
+            {"name": "Luigi", "balance": Decimal("50.00")},
+        ],
+    ]
+
+    @pytest.mark.parametrize("value", TYPED_JSON_ROUNDTRIP_CASES)
+    def test_typed_json_roundtrip(self, value):
+        """as_typed_json -> from_json should preserve value exactly."""
+        assert from_json(as_typed_json(value)) == value

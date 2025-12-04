@@ -194,8 +194,8 @@ from_text("hello::T")    # T → "hello"
 # Time (H = Hour)
 from_text("10:30:00::H")  # H → time
 
-# JSON (JS = JavaScript object)
-from_text('{"a":1}::JS')  # JS → dict
+# TYTX (JSON with typed values)
+from_text('{"a":"1::L"}::TYTX')  # TYTX → dict with typed values
 ```
 
 **Test:** `tests/test_core.py::TestTypeAttributes::test_type_codes`

@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Optional, Union, List
+from typing import Optional, Union
 
 import pytest
 from pydantic import BaseModel, Field
@@ -60,7 +60,7 @@ class TestPythonTypeToTytxCode:
 
     def test_list_without_arg(self):
         """list without type arg - may return JS or #T depending on origin."""
-        result = python_type_to_tytx_code(List)
+        result = python_type_to_tytx_code(list)
         assert result == "#T"
 
     def test_dict_type(self):
@@ -193,8 +193,14 @@ class TestModelToSchema:
         assert "name" in schema
         assert "age" in schema
         # Type codes are correct
-        name_type = schema["name"]["type"] if isinstance(schema["name"], dict) else schema["name"]
-        age_type = schema["age"]["type"] if isinstance(schema["age"], dict) else schema["age"]
+        name_type = (
+            schema["name"]["type"]
+            if isinstance(schema["name"], dict)
+            else schema["name"]
+        )
+        age_type = (
+            schema["age"]["type"] if isinstance(schema["age"], dict) else schema["age"]
+        )
         assert name_type == "T"
         assert age_type == "L"
 
@@ -249,7 +255,11 @@ class TestModelToSchema:
         schema = model_to_schema(Exclusive)
         # Function runs and produces schema
         assert "price" in schema
-        price_type = schema["price"]["type"] if isinstance(schema["price"], dict) else schema["price"]
+        price_type = (
+            schema["price"]["type"]
+            if isinstance(schema["price"], dict)
+            else schema["price"]
+        )
         assert price_type == "N"
 
     def test_model_with_pattern(self):
@@ -261,7 +271,11 @@ class TestModelToSchema:
 
         schema = model_to_schema(WithPattern)
         assert "code" in schema
-        code_type = schema["code"]["type"] if isinstance(schema["code"], dict) else schema["code"]
+        code_type = (
+            schema["code"]["type"]
+            if isinstance(schema["code"], dict)
+            else schema["code"]
+        )
         assert code_type == "T"
 
     def test_model_with_multiple_of(self):
@@ -273,7 +287,11 @@ class TestModelToSchema:
 
         schema = model_to_schema(WithMultiple)
         assert "quantity" in schema
-        qty_type = schema["quantity"]["type"] if isinstance(schema["quantity"], dict) else schema["quantity"]
+        qty_type = (
+            schema["quantity"]["type"]
+            if isinstance(schema["quantity"], dict)
+            else schema["quantity"]
+        )
         assert qty_type == "L"
 
     def test_model_nested(self):
@@ -291,7 +309,9 @@ class TestModelToSchema:
             address: Address
 
         schema = model_to_schema(Person, register_callback=callback)
-        assert schema["address"] == "@ADDRESS" or schema["address"]["type"] == "@ADDRESS"
+        assert (
+            schema["address"] == "@ADDRESS" or schema["address"]["type"] == "@ADDRESS"
+        )
         assert "ADDRESS" in registered
 
     def test_model_not_basemodel_raises(self):
@@ -367,7 +387,12 @@ class TestSchemaToModel:
         schema = {
             "price": {
                 "type": "N",
-                "validate": {"min": 0, "minExclusive": True, "max": 100, "maxExclusive": True},
+                "validate": {
+                    "min": 0,
+                    "minExclusive": True,
+                    "max": 100,
+                    "maxExclusive": True,
+                },
             }
         }
         Model = schema_to_model("ITEM", schema)
@@ -410,7 +435,9 @@ class TestSchemaToModel:
 
     def test_schema_with_multiple_of_and_inclusive_bounds(self):
         """Covers inclusive min/max and multipleOf branch."""
-        schema = {"qty": {"type": "N", "validate": {"min": 1, "max": 10, "multipleOf": 2}}}
+        schema = {
+            "qty": {"type": "N", "validate": {"min": 1, "max": 10, "multipleOf": 2}}
+        }
         Model = schema_to_model("QTY", schema)
         instance = Model(qty=Decimal("2"))
         assert instance.qty == Decimal("2")
@@ -604,7 +631,6 @@ class TestImportErrors:
 
     def test_schema_to_model_no_pydantic(self, monkeypatch):
         """Covers line 361-362: ImportError for pydantic in schema_to_model."""
-        import builtins
         import sys
 
         # This is similar to above - we're testing the ImportError branch
@@ -653,7 +679,6 @@ class TestUnionTypeEdgeCases:
 
     def test_union_type_without_args_line_107(self):
         """Test UnionType without initial args (line 107)."""
-        import types
 
         # Create a UnionType using the | operator
         # This tests the `if not args` branch at line 106-107

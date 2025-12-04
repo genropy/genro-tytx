@@ -148,7 +148,9 @@ class TytxASGIMiddleware:
         # Hydrate query params if enabled
         if self.hydrate_query:
             try:
-                scope["tytx.query"] = _hydrate_query_params(scope.get("query_string", b""))
+                scope["tytx.query"] = _hydrate_query_params(
+                    scope.get("query_string", b"")
+                )
             except Exception:
                 scope["tytx.query"] = {}
 

@@ -60,7 +60,7 @@ fromJson<{ price: number; active: boolean }>(
 | `D` | `DATE` | `Date` | `"2025-01-15::D"` |
 | `DH` | `DT`, `DHZ`, `DATETIME` | `Date` | `"2025-01-15T10:00::DH"` |
 | `H` | `TIME`, `HZ` | `string` | `"10:30:00::H"` |
-| `JS` | `JSON` | `object` | `'{"a":1}::JS'` |
+| `TYTX` | - | `object` | `'{"a":"1::L"}::TYTX'` |
 
 ## Type Prefixes
 

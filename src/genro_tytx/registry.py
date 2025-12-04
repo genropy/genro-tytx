@@ -134,7 +134,10 @@ class TypeRegistry:
             if ext_type.name in self._types:
                 del self._types[ext_type.name]
             # Remove from _python_types if cls was registered
-            if ext_type.python_type is not None and ext_type.python_type in self._python_types:
+            if (
+                ext_type.python_type is not None
+                and ext_type.python_type in self._python_types
+            ):
                 del self._python_types[ext_type.python_type]
 
     def register_struct(
@@ -193,10 +196,14 @@ class TypeRegistry:
             register_struct('ORDER', '{"customer": {"name": "T"}, "total": "N"}')
         """
         # Parse schema if it's a JSON string
-        parsed_schema = self._parse_schema_json(schema) if isinstance(schema, str) else schema
+        parsed_schema = (
+            self._parse_schema_json(schema) if isinstance(schema, str) else schema
+        )
 
         self._structs[code] = parsed_schema
-        struct_type = _StructType(code, schema, self)  # Pass original (str or dict/list)
+        struct_type = _StructType(
+            code, schema, self
+        )  # Pass original (str or dict/list)
         self._codes[struct_type.code] = struct_type
         self._types[struct_type.name] = struct_type
 
@@ -223,7 +230,9 @@ class TypeRegistry:
             raise ValueError(f"Invalid JSON schema: {e}") from e
 
         if not isinstance(parsed, (dict, list)):
-            raise ValueError(f"Schema must be JSON object or array, got {type(parsed).__name__}")
+            raise ValueError(
+                f"Schema must be JSON object or array, got {type(parsed).__name__}"
+            )
 
         return parsed
 
@@ -411,7 +420,9 @@ class TypeRegistry:
             # With metadata: {'name': {'validate': {'min': 1}, 'ui': {'label': 'Customer Name'}},
             #                 'balance': {'validate': {'min': 0}}}
         """
-        schema, metadata = self.struct_from_model(model_class, include_nested=include_nested)
+        schema, metadata = self.struct_from_model(
+            model_class, include_nested=include_nested
+        )
         self.register_struct(code, schema, metadata if metadata else None)
 
     def _model_to_schema(
@@ -442,7 +453,9 @@ class TypeRegistry:
         # model_class is validated as BaseModel in register_struct_from_model
         for field_name, field_info in model_class.model_fields.items():
             annotation = field_info.annotation
-            type_code = self._python_type_to_tytx_code(annotation, include_nested, _registered)
+            type_code = self._python_type_to_tytx_code(
+                annotation, include_nested, _registered
+            )
             # Extract metadata from field_info
             field_meta = self._extract_field_metadata(field_info, annotation)
 
@@ -452,7 +465,9 @@ class TypeRegistry:
 
         return schema, metadata
 
-    def _extract_field_metadata(self, field_info: Any, annotation: Any) -> FieldMetadata | None:
+    def _extract_field_metadata(
+        self, field_info: Any, annotation: Any
+    ) -> FieldMetadata | None:
         """
         Extract FieldMetadata from Pydantic FieldInfo.
 
@@ -597,16 +612,22 @@ class TypeRegistry:
             # Filter out NoneType
             non_none_args = [a for a in args if a is not type(None)]
             if len(non_none_args) == 1:
-                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
             # Multiple types - use first one
             if non_none_args:
-                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
+                return self._python_type_to_tytx_code(
+                    non_none_args[0], include_nested, _registered
+                )
             return "T"
 
         # Handle list[X] -> #X
         if origin is list:
             if args:
-                inner_code = self._python_type_to_tytx_code(args[0], include_nested, _registered)
+                inner_code = self._python_type_to_tytx_code(
+                    args[0], include_nested, _registered
+                )
                 return f"#{inner_code}"
             return "#T"  # list without type arg
 
@@ -799,7 +820,9 @@ class TypeRegistry:
 
         for field_name, type_def in schema_dict.items():
             # Get field metadata if available (cast: field_name provided → FieldMetadata | None)
-            field_meta = cast("FieldMetadata | None", self.get_struct_metadata(code, field_name))
+            field_meta = cast(
+                "FieldMetadata | None", self.get_struct_metadata(code, field_name)
+            )
             field_type, field_info = self._parse_type_def(type_def, _cache, field_meta)
             if field_info is not None:
                 field_definitions[field_name] = (field_type, field_info)
@@ -851,7 +874,9 @@ class TypeRegistry:
         # Handle dict types - always inline struct (no more FieldDef in schema)
         if isinstance(type_def, dict):
             # Inline nested struct - generate a nested model
-            inline_model = self._schema_to_model("_inline", type_def, "InlineModel", _cache)
+            inline_model = self._schema_to_model(
+                "_inline", type_def, "InlineModel", _cache
+            )
             return (inline_model, None)
 
         # Simple string format: just the type code (e.g., "T", "#L", "@CUSTOMER")
@@ -969,7 +994,11 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Ge(int(min_val) if "." not in str(min_val) else float(min_val))
+                            Ge(
+                                int(min_val)
+                                if "." not in str(min_val)
+                                else float(min_val)
+                            )
                         )
             else:
                 if isinstance(min_val, int):
@@ -987,7 +1016,11 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Le(int(max_val) if "." not in str(max_val) else float(max_val))
+                            Le(
+                                int(max_val)
+                                if "." not in str(max_val)
+                                else float(max_val)
+                            )
                         )
             else:
                 if isinstance(max_val, int):
@@ -1019,7 +1052,9 @@ class TypeRegistry:
 
         return (python_type, None)
 
-    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | _StructType | None:
+    def get(
+        self, name_or_code: str
+    ) -> type[DataType] | _ExtensionType | _StructType | None:
         """
         Retrieve a type by name or code.
         """
@@ -1048,7 +1083,9 @@ class TypeRegistry:
         self,
         text: str,
         type_code: str | None = None,
-        local_structs: (dict[str, list[FieldValue] | dict[str, FieldValue]] | None) = None,
+        local_structs: (
+            dict[str, list[FieldValue] | dict[str, FieldValue]] | None
+        ) = None,
     ) -> Any:
         """
         Parse a string to a Python value.
@@ -1075,7 +1112,14 @@ class TypeRegistry:
 
         # Check for embedded type
         if "::" not in text:
-            return text
+            # Empty string returns empty string
+            if text == "":
+                return text
+            # Try JSON parse
+            try:
+                return json.loads(f"[{text}]")[0]
+            except json.JSONDecodeError:
+                return text
 
         # Split only on the last occurrence to handle values containing '::'
         val_part, type_part = text.rsplit("::", 1)
@@ -1122,7 +1166,9 @@ class TypeRegistry:
     def _get_struct_type(
         self,
         code: str,
-        local_structs: (dict[str, list[FieldValue] | dict[str, FieldValue]] | None) = None,
+        local_structs: (
+            dict[str, list[FieldValue] | dict[str, FieldValue]] | None
+        ) = None,
     ) -> _StructType | None:
         """
         Get a struct type by code, checking local_structs first.
@@ -1247,6 +1293,10 @@ class TypeRegistry:
         if isinstance(value, str):
             return value
 
+        # Liste e dict → JSON
+        if isinstance(value, (list, dict)):
+            return json.dumps(value)
+
         code = self._get_type_code_for_value(value)
         if code:
             type_cls = self.get(code)
@@ -1283,12 +1333,12 @@ class TypeRegistry:
             # Fallback: type each element individually
             return self._serialize_array_elements(value)
 
-        # Handle lists with typed objects (non-compact)
-        if isinstance(value, list) and self._has_typed_objects(value):
+        # Handle lists - always use ::TYTX with typed elements
+        if isinstance(value, list):
             return self._serialize_array_elements(value)
 
-        # Handle dicts with typed objects
-        if isinstance(value, dict) and self._has_typed_objects(value):
+        # Handle dicts - always use ::TYTX with typed values
+        if isinstance(value, dict):
             return self._serialize_dict_values(value)
 
         code = self._get_type_code_for_value(value)
@@ -1370,7 +1420,12 @@ class TypeRegistry:
 
         # Serialize all leaf values with # prefix for typed arrays
         serialized = self._serialize_leaf(value, type_cls)
-        return json.dumps(serialized, separators=(",", ":")) + "::" + ARRAY_PREFIX + type_code
+        return (
+            json.dumps(serialized, separators=(",", ":"))
+            + "::"
+            + ARRAY_PREFIX
+            + type_code
+        )
 
     def _serialize_array_elements(self, value: list[Any]) -> str:
         """Serialize array with each element typed individually, suffixed with ::TYTX."""
@@ -1381,7 +1436,10 @@ class TypeRegistry:
                 return [serialize_item(i) for i in item]
             return self.as_typed_text(item)
 
-        return json.dumps([serialize_item(i) for i in value], separators=(",", ":")) + "::TYTX"
+        return (
+            json.dumps([serialize_item(i) for i in value], separators=(",", ":"))
+            + "::TYTX"
+        )
 
     def _serialize_dict_values(self, value: dict[str, Any]) -> str:
         """Serialize dict with each value typed individually, suffixed with ::TYTX."""

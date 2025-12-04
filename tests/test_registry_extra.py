@@ -1,6 +1,5 @@
 """Extra tests for registry.py to increase coverage."""
 
-from decimal import Decimal
 
 import pytest
 
@@ -47,7 +46,7 @@ class TestRegisterClassAutoDetect:
 
         class BadClass:
             @staticmethod
-            def from_typed_text(s: str) -> "BadClass":
+            def from_typed_text(s: str) -> "BadClass":  # noqa: ARG004
                 return BadClass()
 
         with pytest.raises(ValueError, match="must have as_typed_text"):
@@ -264,13 +263,12 @@ class TestPythonTypeEdgeCases:
 
     def test_union_all_none_registry(self):
         """Union with all None types returns T (lines 583-587)."""
-        from typing import Union
 
         from pydantic import BaseModel
 
         class ModelWithNoneUnion(BaseModel):
             # This is an edge case - Union[None, None]
-            value: Union[None, None] = None
+            value: None | None = None
 
         schema, metadata = registry.struct_from_model(ModelWithNoneUnion)
         # Should handle gracefully
@@ -278,12 +276,11 @@ class TestPythonTypeEdgeCases:
 
     def test_list_without_type_arg(self):
         """Bare list type returns #T (line 596)."""
-        from typing import List
 
         from pydantic import BaseModel
 
         class ModelWithBareList(BaseModel):
-            items: List = []
+            items: list = []
 
         schema, metadata = registry.struct_from_model(ModelWithBareList)
         # Bare list defaults to #T
@@ -291,7 +288,6 @@ class TestPythonTypeEdgeCases:
 
     def test_forward_ref_in_model(self):
         """ForwardRef in model is handled (lines 644-653)."""
-        import typing
 
         from pydantic import BaseModel
 

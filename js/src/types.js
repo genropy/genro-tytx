@@ -132,16 +132,19 @@ const StrType = {
 };
 
 /**
- * JSON type - serialized object/array structures.
- * JS = JavaScript object
+ * TYTX type - JSON with typed values that get hydrated.
+ * TYTX = Typed Text
  */
-const JsonType = {
-    name: 'json',
-    code: 'JS',
+const TytxType = {
+    name: 'tytx',
+    code: 'TYTX',
     js_type: 'object',
 
     parse(value) {
-        return JSON.parse(value);
+        // Import here to avoid circular dependency
+        const { _hydrate } = require('./json_utils');
+        const parsed = JSON.parse(value);
+        return _hydrate(parsed);
     },
 
     serialize(value) {
@@ -375,7 +378,7 @@ function register_builtins() {
     registry.register(FloatType);
     registry.register(BoolType);
     registry.register(StrType);
-    registry.register(JsonType);
+    registry.register(TytxType);
     registry.register(DecimalType);
     registry.register(DateType);
     registry.register(DateTimeType);
@@ -392,7 +395,7 @@ module.exports = {
     FloatType,
     BoolType,
     StrType,
-    JsonType,
+    TytxType,
     DecimalType,
     DateType,
     DateTimeType,

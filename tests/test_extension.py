@@ -2,8 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
-
 from genro_tytx.extension import (
     CUSTOM_PREFIX,
     X_PREFIX,
@@ -144,5 +142,3 @@ class TestConstants:
         assert X_PREFIX == "X_"
         assert Y_PREFIX == "Y_"
         assert Z_PREFIX == "Z_"
-
-
