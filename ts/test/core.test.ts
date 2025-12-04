@@ -1132,6 +1132,99 @@ describe('struct schemas', () => {
     });
   });
 
+  describe('register_class', () => {
+    it('throws when class lacks as_typed_text method', () => {
+      const reg = new TypeRegistry();
+      // Class without as_typed_text instance method
+      class NoSerialize {
+        static from_typed_text(_s: string) { return new NoSerialize(); }
+      }
+      expect(() => reg.register_class('NOSER', NoSerialize)).toThrow(
+        /must have as_typed_text\(\) method/
+      );
+    });
+
+    it('throws when class lacks from_typed_text static method', () => {
+      const reg = new TypeRegistry();
+      // Class with instance method but no static parse
+      class NoParse {
+        as_typed_text() { return 'value'; }
+      }
+      expect(() => reg.register_class('NOPARSE', NoParse)).toThrow(
+        /must have static from_typed_text\(\) method/
+      );
+    });
+
+    it('auto-detects serialize and parse from class methods', () => {
+      const reg = new TypeRegistry();
+      class Point {
+        x = 0;
+        y = 0;
+        as_typed_text() { return `${this.x},${this.y}`; }
+        static from_typed_text(s: string): Point {
+          const [x, y] = s.split(',').map(Number);
+          const p = new Point();
+          p.x = x;
+          p.y = y;
+          return p;
+        }
+      }
+      reg.register_class('POINT', Point as never);
+
+      // Test parsing
+      const parsed = reg.fromText('5,6::~POINT') as unknown as Point;
+      expect(parsed).toBeInstanceOf(Point);
+      expect(parsed.x).toBe(5);
+      expect(parsed.y).toBe(6);
+
+      reg.unregister_class('POINT');
+    });
+
+    it('unregister_class removes the custom type', () => {
+      const reg = new TypeRegistry();
+      class Custom {
+        as_typed_text() { return 'x'; }
+        static from_typed_text(_s: string) { return new Custom(); }
+      }
+      reg.register_class('CUST', Custom);
+      expect(reg.get('~CUST')).toBeDefined();
+
+      reg.unregister_class('CUST');
+      expect(reg.get('~CUST')).toBeUndefined();
+    });
+
+    it('getTypeCodeForValue returns custom type code for registered class', () => {
+      const reg = new TypeRegistry();
+      class MyType {
+        as_typed_text() { return 'val'; }
+        static from_typed_text(_s: string) { return new MyType(); }
+      }
+      reg.register_class('MYTYPE', MyType as never);
+
+      const instance = new MyType();
+      // Test that compact array detects custom type
+      const result = reg.asTypedText([instance] as never, true);
+      expect(result).toBe('["val"]::~MYTYPE');
+
+      reg.unregister_class('MYTYPE');
+    });
+  });
+
+  describe('applyListSchema edge cases', () => {
+    it('returns data unchanged when data is not array', () => {
+      // When list schema is applied to non-array data
+      registry.register_struct('LIST_SCHEMA', ['L', 'T']);
+      try {
+        // Pass non-array data through struct - schema won't apply
+        const result = registry.fromText('"not an array"::@LIST_SCHEMA');
+        // Should return the parsed string unchanged
+        expect(result).toBe('not an array');
+      } finally {
+        registry.unregister_struct('LIST_SCHEMA');
+      }
+    });
+  });
+
   describe('additional coverage tests', () => {
     it('applyPositional covers data longer than schema', () => {
       // Positional schema shorter than data - extra elements pass through

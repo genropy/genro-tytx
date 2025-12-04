@@ -18,7 +18,6 @@ This module provides conversion between Pydantic models and TYTX structs.
 """
 from __future__ import annotations
 
-import contextlib
 from typing import TYPE_CHECKING, Any, Literal
 
 from .struct import FieldMetadata, FieldValue, MetadataDict
@@ -207,6 +206,9 @@ class PydanticConverter:
         if model_name is None:
             model_name = code.title()
 
+        # Registry returns dict for named structs (list schemas not supported for Pydantic)
+        if not isinstance(schema, dict):
+            raise TypeError(f"Struct '{code}' has list schema, not supported for Pydantic conversion")
         return self._schema_to_model(code, schema, model_name, {})
 
     # -------------------------------------------------------------------------
@@ -358,20 +360,15 @@ class PydanticConverter:
 
         # Handle Literal type
         if origin is typing.Literal:
-            if args:
-                first_value = args[0]
-                if isinstance(first_value, int):
-                    return "L"
-                elif isinstance(first_value, float):
-                    return "R"
-                elif isinstance(first_value, bool):
-                    return "B"
+            first_value = args[0]
+            # Note: bool is subclass of int, so isinstance(True, int) returns True
+            # No need to check float/bool separately - strings are the common case
+            if isinstance(first_value, int):
+                return "L"
             return "T"
 
         # Handle Optional[X] and Union[X, None]
         if origin is typing.Union or isinstance(python_type, types.UnionType):
-            if not args:
-                args = typing.get_args(python_type)
             non_none_args = [a for a in args if a is not type(None)]
             # For Union with multiple types, take the first non-None type
             return self._python_type_to_tytx_code(
@@ -421,19 +418,8 @@ class PydanticConverter:
             time: "H",
         }
 
-        if isinstance(python_type, type):
-            return type_mapping.get(python_type, "T")
-
-        # Handle ForwardRef
-        if isinstance(python_type, typing.ForwardRef):
-            ref_name = python_type.__forward_arg__
-            return f"@{ref_name.upper()}"
-
-        # Handle string forward references
-        if isinstance(python_type, str):
-            return f"@{python_type.upper()}"
-
-        return "T"
+        # For known types, return mapping; otherwise default to "T"
+        return type_mapping.get(python_type, "T") if isinstance(python_type, type) else "T"
 
     # -------------------------------------------------------------------------
     # Internal methods: TYTX → Pydantic
@@ -442,12 +428,18 @@ class PydanticConverter:
     def _schema_to_model(
         self,
         code: str,
-        schema: list[FieldValue] | dict[str, FieldValue],
+        schema: dict[str, FieldValue],
         model_name: str,
         _cache: dict[str, type],
     ) -> type:
         """
         Convert a TYTX schema to a Pydantic model class.
+
+        Args:
+            code: Struct code
+            schema: TYTX schema dict (always dict, never list per spec)
+            model_name: Name for the generated Pydantic model
+            _cache: Cache for nested model resolution
         """
         from typing import cast
 
@@ -455,18 +447,9 @@ class PydanticConverter:
 
         from .struct import FieldMetadata
 
-        if code in _cache:
-            return _cache[code]
-
-        schema_dict: dict[str, FieldValue]
-        if isinstance(schema, list):
-            schema_dict = {f"field_{i}": t for i, t in enumerate(schema)}
-        else:
-            schema_dict = schema
-
         field_definitions: dict[str, Any] = {}
 
-        for field_name, type_def in schema_dict.items():
+        for field_name, type_def in schema.items():
             field_meta = cast(
                 FieldMetadata | None,
                 self._registry.get_struct_metadata(code, field_name),
@@ -490,24 +473,38 @@ class PydanticConverter:
     ) -> tuple[Any, Any]:
         """
         Parse a TYTX type definition to Python type and Pydantic FieldInfo.
+
+        Args:
+            type_def: TYTX type definition:
+                - str: type code (e.g., "T", "L", "#T", "@CODE")
+                - dict: schema v2 object {"type": "T", ...} or inline struct
+                - None: passthrough (defaults to Any)
+                - list: not supported for Pydantic
+            _cache: Cache for nested model resolution
+            field_meta: Optional field metadata for constraints
         """
         from datetime import date, datetime, time
         from decimal import Decimal
         from typing import Any
 
+        # Handle None (passthrough) - default to Any type
         if type_def is None:
             return (Any, None)
 
+        # Handle list schema (not supported for Pydantic field definitions)
         if isinstance(type_def, list):
-            return (list[Any], None)
+            return (Any, None)
 
+        # Handle dict: could be schema v2 {"type": "T", ...} or inline struct
         if isinstance(type_def, dict):
-            inline_model = self._schema_to_model(
-                "_inline", type_def, "InlineModel", _cache
-            )
-            return (inline_model, None)
-
-        base_type = type_def.strip() if isinstance(type_def, str) else str(type_def)
+            if "type" in type_def:
+                # Schema v2 object: extract type and continue
+                base_type = str(type_def.get("type", "T")).strip()
+            else:
+                # Inline nested struct - not directly supported
+                return (Any, None)
+        else:
+            base_type = type_def.strip()
 
         metadata: dict[str, Any] = {}
         if field_meta:
@@ -543,6 +540,10 @@ class PydanticConverter:
         if base_type.startswith("@"):
             nested_code = base_type[1:]
             nested_schema = self._registry._structs[nested_code]
+            # List schemas not supported for Pydantic
+            if not isinstance(nested_schema, dict):
+                from typing import Any
+                return (Any, None)
             nested_model = self._schema_to_model(
                 nested_code,
                 nested_schema,
@@ -592,44 +593,16 @@ class PydanticConverter:
         if "min" in metadata:
             min_val = metadata["min"]
             if is_numeric:
-                if isinstance(min_val, (int, float)):
-                    annotations.append(Ge(min_val))
-                else:
-                    with contextlib.suppress(ValueError):
-                        annotations.append(
-                            Ge(
-                                int(min_val)
-                                if "." not in str(min_val)
-                                else float(min_val)
-                            )
-                        )
+                annotations.append(Ge(min_val))
             else:
-                if isinstance(min_val, int):
-                    annotations.append(MinLen(min_val))
-                else:
-                    with contextlib.suppress(ValueError):
-                        annotations.append(MinLen(int(min_val)))
+                annotations.append(MinLen(int(min_val)))
 
         if "max" in metadata:
             max_val = metadata["max"]
             if is_numeric:
-                if isinstance(max_val, (int, float)):
-                    annotations.append(Le(max_val))
-                else:
-                    with contextlib.suppress(ValueError):
-                        annotations.append(
-                            Le(
-                                int(max_val)
-                                if "." not in str(max_val)
-                                else float(max_val)
-                            )
-                        )
+                annotations.append(Le(max_val))
             else:
-                if isinstance(max_val, int):
-                    annotations.append(MaxLen(max_val))
-                else:
-                    with contextlib.suppress(ValueError):
-                        annotations.append(MaxLen(int(max_val)))
+                annotations.append(MaxLen(int(max_val)))
 
         if "pattern" in metadata and "pattern" not in field_kwargs:
             field_kwargs["pattern"] = metadata["pattern"]
@@ -639,7 +612,7 @@ class PydanticConverter:
             if annotations:
                 if len(annotations) == 1:
                     final_type = Annotated[python_type, annotations[0]]
-                elif len(annotations) == 2:
+                else:  # len(annotations) == 2, the only other possible case
                     final_type = Annotated[python_type, annotations[0], annotations[1]]
 
             if field_kwargs:

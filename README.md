@@ -26,7 +26,7 @@
 | **Schema integration** | Pydantic, JSON Schema, OpenAPI, XSD |
 | **Progressive complexity** | From simple types to complex nested structures |
 | **Self-describing payloads** | XTYTX envelope ships schema + data together |
-| **Framework independent** | No dependencies on Genropy or any other framework |
+| **Framework independent** | No dependencies on any specific framework |
 
 ---
 

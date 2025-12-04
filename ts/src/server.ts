@@ -24,10 +24,8 @@ function toUint8(raw: string | Uint8Array | ArrayBuffer): Uint8Array {
   if (raw instanceof Uint8Array) {
     return raw;
   }
-  if (raw instanceof ArrayBuffer) {
-    return new Uint8Array(raw);
-  }
-  return new Uint8Array();
+  // raw is ArrayBuffer (the only remaining case per TypeScript types)
+  return new Uint8Array(raw);
 }
 
 function detectExpect(contentType?: string | null, tytxRequest?: string | null): HydrateExpect {
