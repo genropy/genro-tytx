@@ -383,3 +383,87 @@ def test_apply_metadata_two_annotations_no_field_kwargs():
     assert len(args) == 3  # (int, Ge(1), Le(10))
     # info should be ... (Ellipsis) since no field_kwargs
     assert info is ...
+
+
+def test_model_from_struct_with_list_schema():
+    """Test line 211: model_from_struct raises TypeError for list schema."""
+    from genro_tytx.registry import TypeRegistry
+
+    fresh = TypeRegistry()
+    conv = PydanticConverter(fresh)
+
+    # Register a struct with list schema (not dict)
+    fresh.register_struct("LIST_SCHEMA", ["T", "L", "N"])
+
+    with pytest.raises(TypeError, match="list schema"):
+        conv.model_from_struct("LIST_SCHEMA")
+
+
+def test_parse_type_def_with_none():
+    """Test lines 491-492: _parse_type_def with None type_def."""
+    from typing import Any
+
+    converter = PydanticConverter(registry)
+
+    # Pass None as type_def
+    typ, info = converter._parse_type_def(None, {}, None)
+
+    assert typ is Any
+    assert info is None
+
+
+def test_parse_type_def_with_list():
+    """Test lines 495-496: _parse_type_def with list type_def."""
+    from typing import Any
+
+    converter = PydanticConverter(registry)
+
+    # Pass list as type_def (not supported for Pydantic)
+    typ, info = converter._parse_type_def(["T", "L"], {}, None)
+
+    assert typ is Any
+    assert info is None
+
+
+def test_parse_type_def_with_dict_type_key():
+    """Test lines 499-502: _parse_type_def with dict containing 'type' key."""
+    converter = PydanticConverter(registry)
+
+    # Dict with "type" key (schema v2 format)
+    typ, info = converter._parse_type_def({"type": "T"}, {}, None)
+
+    assert typ is str
+    assert info is None
+
+
+def test_parse_type_def_with_dict_no_type_key():
+    """Test lines 503-505: _parse_type_def with dict without 'type' key (inline struct)."""
+    from typing import Any
+
+    converter = PydanticConverter(registry)
+
+    # Dict without "type" key (inline nested struct - not supported)
+    typ, info = converter._parse_type_def({"name": "T", "value": "L"}, {}, None)
+
+    assert typ is Any
+    assert info is None
+
+
+def test_nested_struct_with_list_schema():
+    """Test lines 544-546: nested struct with list schema returns Any."""
+    from typing import Any
+
+    from genro_tytx.registry import TypeRegistry
+
+    fresh = TypeRegistry()
+    conv = PydanticConverter(fresh)
+
+    # Register parent struct that references a nested struct with list schema
+    fresh.register_struct("NESTED_LIST", ["T", "L"])
+    fresh.register_struct("PARENT", {"items": "@NESTED_LIST"})
+
+    # Convert parent - nested list schema should return Any
+    typ, info = conv._parse_type_def("@NESTED_LIST", {}, None)
+
+    assert typ is Any
+    assert info is None
