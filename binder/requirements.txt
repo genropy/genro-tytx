@@ -1,0 +1,3 @@
+# Requirements for Binder
+# Install genro-tytx with all optional dependencies
+genro-tytx[pydantic]
