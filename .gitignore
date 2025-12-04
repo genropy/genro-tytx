@@ -115,6 +115,7 @@ temp/
 # JavaScript / Node
 js/node_modules/
 js/dist/
+js/docs/
 js/.cache/
 js/coverage/
 *.log

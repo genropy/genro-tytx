@@ -1,293 +1,225 @@
-"""Extra tests for registry.py to increase coverage."""
+from __future__ import annotations
 
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
 
 import pytest
 
-from genro_tytx import registry
-
-
-class TestRegisterClassAutoDetect:
-    """Tests for register_class auto-detection of methods."""
-
-    def test_register_class_with_methods(self):
-        """Class with as_typed_text and from_typed_text methods."""
-
-        class Point:
-            def __init__(self, x: float, y: float):
-                self.x = x
-                self.y = y
-
-            def as_typed_text(self) -> str:
-                return f"{self.x},{self.y}"
-
-            @staticmethod
-            def from_typed_text(s: str) -> "Point":
-                x, y = s.split(",")
-                return Point(float(x), float(y))
-
-        # Register without explicit serialize/parse - should auto-detect
-        registry.register_class("POINT", Point)
-        try:
-            # Test serialization
-            p = Point(3.5, 7.2)
-            text = registry.as_typed_text(p)
-            assert text == "3.5,7.2::~POINT"
-
-            # Test parsing
-            restored = registry.from_text("3.5,7.2::~POINT")
-            assert isinstance(restored, Point)
-            assert restored.x == 3.5
-            assert restored.y == 7.2
-        finally:
-            registry.unregister_class("POINT")
-
-    def test_register_class_missing_as_typed_text(self):
-        """Class without as_typed_text raises ValueError."""
-
-        class BadClass:
-            @staticmethod
-            def from_typed_text(s: str) -> "BadClass":  # noqa: ARG004
-                return BadClass()
-
-        with pytest.raises(ValueError, match="must have as_typed_text"):
-            registry.register_class("BAD", BadClass)
-
-    def test_register_class_missing_from_typed_text(self):
-        """Class without from_typed_text raises ValueError."""
-
-        class BadClass:
-            def as_typed_text(self) -> str:
-                return "test"
-
-        with pytest.raises(ValueError, match="must have from_typed_text"):
-            registry.register_class("BAD2", BadClass)
-
-    def test_register_class_with_explicit_functions(self):
-        """Explicit serialize/parse override class methods."""
-
-        class Simple:
-            def __init__(self, value: int):
-                self.value = value
-
-        registry.register_class(
-            "SIMPLE",
-            Simple,
-            serialize=lambda s: str(s.value),
-            parse=lambda v: Simple(int(v)),
-        )
-        try:
-            s = Simple(42)
-            text = registry.as_typed_text(s)
-            assert text == "42::~SIMPLE"
-
-            restored = registry.from_text("42::~SIMPLE")
-            assert restored.value == 42
-        finally:
-            registry.unregister_class("SIMPLE")
-
-
-class TestUnregisterClass:
-    """Tests for unregister_class."""
-
-    def test_unregister_removes_from_all_dicts(self):
-        """Unregistering removes from _codes, _types, and _python_types."""
-
-        class Temp:
-            def __init__(self, v: str):
-                self.v = v
-
-        registry.register_class(
-            "TEMP", Temp, serialize=lambda t: t.v, parse=lambda s: Temp(s)
-        )
-
-        # Verify registered
-        assert registry.get("~TEMP") is not None
-
-        # Unregister
-        registry.unregister_class("TEMP")
-
-        # Verify removed
-        assert registry.get("~TEMP") is None
-
-    def test_unregister_nonexistent(self):
-        """Unregistering nonexistent code does nothing."""
-        # Should not raise
-        registry.unregister_class("NONEXISTENT")
-
-
-class TestRegistryGetters:
-    """Tests for registry getter methods."""
-
-    def test_get_builtin_type(self):
-        """get() returns built-in types."""
-        int_type = registry.get("L")
-        assert int_type is not None
-
-    def test_get_unknown_returns_none(self):
-        """get() returns None for unknown codes."""
-        assert registry.get("UNKNOWN123") is None
-
-    def test_get_struct(self):
-        """get_struct returns registered struct schema."""
-        registry.register_struct("GTEST", {"name": "T"})
-        try:
-            schema = registry.get_struct("GTEST")
-            assert schema == {"name": "T"}
-        finally:
-            registry.unregister_struct("GTEST")
-
-    def test_get_struct_unknown(self):
-        """get_struct returns None for unknown struct."""
-        assert registry.get_struct("UNKNOWN_STRUCT") is None
-
-
-class TestFromTextEdgeCases:
-    """Tests for from_text edge cases."""
-
-    def test_from_text_untyped_returns_string(self):
-        """from_text without type code returns string."""
-        result = registry.from_text("hello")
-        assert result == "hello"
-
-    def test_from_text_empty_string(self):
-        """from_text with empty string."""
-        result = registry.from_text("")
-        assert result == ""
-
-    def test_from_text_only_separator(self):
-        """from_text with only :: separator."""
-        # This may raise or return something depending on implementation
-        try:
-            result = registry.from_text("::")
-            # Value is empty, type is empty - behavior varies
-            # Just verify it doesn't crash unexpectedly
-            assert result is not None or result == "" or result == "::"
-        except (ValueError, KeyError):
-            pass  # Expected for invalid input
-
-
-class TestAsTypedTextEdgeCases:
-    """Tests for as_typed_text edge cases."""
-
-    def test_as_typed_text_none(self):
-        """as_typed_text with None."""
-        # None handling - may return empty or raise
-        try:
-            result = registry.as_typed_text(None)
-            # None might serialize as "None" string
-            assert result is not None  # Just check it returns something
-        except (TypeError, AttributeError):
-            pass  # None may not be serializable
-
-    def test_as_typed_text_unknown_type(self):
-        """as_typed_text with unknown type falls back to string."""
-
-        class UnknownClass:
-            def __str__(self):
-                return "unknown"
-
-        obj = UnknownClass()
-        # Unknown types may fall back to str or raise
-        try:
-            result = registry.as_typed_text(obj)
-            assert "unknown" in result or "T" in result
-        except (TypeError, KeyError):
-            pass  # May not support unknown types
-
-
-class TestArrayTypeHandling:
-    """Tests for array type handling (#@STRUCT syntax)."""
-
-    def test_from_text_array_of_structs(self):
-        """#@STRUCT syntax for batch processing."""
-        # Schema is now dict or list - use list for positional batch processing
-        registry.register_struct("ITEM", ["T", "L"])
-        try:
-            result = registry.from_text('[["A", "1"], ["B", "2"]]::#@ITEM')
-            assert len(result) == 2
-            # With list schema, result is list of lists
-            assert result[0] == ["A", 1]
-            assert result[1] == ["B", 2]
-        finally:
-            registry.unregister_struct("ITEM")
-
-
-# TestStringSchemaToDict removed - string schema format no longer supported
-# Struct schemas must now be dict or list
-
-
-class TestMetadataEdgeCases:
-    """Tests for metadata registration edge cases."""
-
-    def test_register_struct_with_empty_field_metadata(self):
-        """Empty field metadata dict is skipped (line 217)."""
-        registry.register_struct(
-            "WITH_EMPTY",
-            schema={"name": "T", "age": "L"},
-            metadata={
-                "name": {"validate": {"min": 1}},
-                "age": {},  # Empty metadata - should be skipped
-            },
-        )
-        try:
-            # Only name should have metadata
-            meta = registry.get_struct_metadata("WITH_EMPTY")
-            assert meta is not None
-            assert "name" in meta
-            # age metadata was empty, so either not present or empty
-            assert "age" not in meta or not meta.get("age")
-        finally:
-            registry.unregister_struct("WITH_EMPTY")
-
-    def test_get_struct_metadata_unknown_struct(self):
-        """get_struct_metadata returns None for unknown struct."""
-        result = registry.get_struct_metadata("UNKNOWN_XYZ")
-        assert result is None
-
-    def test_get_struct_metadata_unknown_field(self):
-        """get_struct_metadata returns None for unknown field."""
-        registry.register_struct(
-            "META_TEST",
-            schema={"name": "T"},
-            metadata={"name": {"validate": {"min": 1}}},
-        )
-        try:
-            result = registry.get_struct_metadata("META_TEST", "unknown_field")
-            assert result is None
-        finally:
-            registry.unregister_struct("META_TEST")
-
-
-class TestPythonTypeEdgeCases:
-    """Tests for _python_type_to_tytx_code edge cases in registry."""
-
-    def test_union_all_none_registry(self):
-        """Union with all None types returns T (lines 583-587)."""
-        from typing import Union
-
-        from pydantic import BaseModel
-
-        class ModelWithNoneUnion(BaseModel):
-            # This is an edge case - Union[None, None]
-            value: Union[None, None] = None
-
-        schema, metadata = registry.struct_from_model(ModelWithNoneUnion)
-        # Should handle gracefully
-        assert schema is not None
-
-    def test_forward_ref_in_model(self):
-        """ForwardRef in model is handled (lines 644-653)."""
-
-        from pydantic import BaseModel
-
-        # Create a model with ForwardRef
-        class Container(BaseModel):
-            # Forward reference as string
-            items: list["Item"] = []
-
-        class Item(BaseModel):
-            name: str
-
-        schema, metadata = registry.struct_from_model(Container)
-        # Should reference @ITEM
-        assert "@ITEM" in schema["items"] or "#@ITEM" in schema["items"]
+from genro_tytx.registry import TypeRegistry
+
+
+class CustomValue:
+    def __init__(self, val: str) -> None:
+        self.val = val
+
+    def as_typed_text(self) -> str:  # pragma: no cover - exercised via registry
+        return f"{self.val}::X_CUSTOM"
+
+    @staticmethod
+    def from_typed_text(s: str) -> "CustomValue":  # pragma: no cover - exercised via registry
+        return CustomValue(s)
+
+
+def test_parse_schema_json_errors():
+    reg = TypeRegistry()
+    with pytest.raises(ValueError):
+        reg._parse_schema_json("not-json")
+    with pytest.raises(ValueError):
+        reg._parse_schema_json('"scalar"')  # valid JSON but wrong type
+
+
+def test_register_struct_metadata_and_get():
+    reg = TypeRegistry()
+    reg._register_struct_metadata(
+        "TEST",
+        {
+            "name": {"ui": {"label": "Name"}},
+            "age": {"validate": {"min": 0}},
+            "empty": {},
+        },
+    )
+    all_meta = reg.get_struct_metadata("TEST")
+    assert all_meta and all_meta["name"]["ui"]["label"] == "Name"
+    assert reg.get_struct_metadata("TEST", "missing") is None
+    assert reg.get_struct_metadata("UNKNOWN") is None
+
+
+def test_unregister_class_removes_python_type():
+    reg = TypeRegistry()
+    reg.register_class("CUSTOM", CustomValue)
+    assert reg.get_for_value(CustomValue("x")) is not None
+    reg.unregister_class("CUSTOM")
+    assert reg.get_for_value(CustomValue("y")) is None
+    # missing code branch
+    reg.unregister_class("NONE")
+    # remove python_type to hit skip branch
+    reg.register_class("CUSTOM2", CustomValue)
+    del reg._python_types[CustomValue]
+    reg.unregister_class("CUSTOM2")
+    # ensure branch where code not found
+    reg.unregister_class("MISSING")
+
+
+def test_get_type_code_for_value_branches():
+    reg = TypeRegistry()
+    reg.register_struct("POINT", '{"x":"L","y":"L"}')
+    assert reg._get_type_code_for_value(True) == "B"
+    assert reg._get_type_code_for_value(5) == "L"
+    assert reg._get_type_code_for_value(1.5) == "R"
+    assert reg._get_type_code_for_value(Decimal("1.0")) == "N"
+    assert reg._get_type_code_for_value(datetime.now(timezone.utc)) == "DHZ"
+    assert reg._get_type_code_for_value(date.today()) == "D"
+    assert reg._get_type_code_for_value(time(1, 2, 3)) == "H"
+    assert reg._get_type_code_for_value({"x": 1}) == "JS"
+    assert reg._get_type_code_for_value("text") is None
+    # Custom extension
+    reg.register_class("CUST2", CustomValue)
+    assert reg._get_type_code_for_value(CustomValue("a")) == "~CUST2"
+
+
+def test_try_compact_array_empty_and_mixed():
+    reg = TypeRegistry()
+    # empty array returns "[]"
+    assert reg._try_compact_array([]) == "[]"
+    # mixed types returns None (no compact)
+    assert reg._try_compact_array([1, "x"]) is None
+
+
+def test_register_class_errors_and_custom_parse():
+    reg = TypeRegistry()
+
+    class NoMethods:
+        pass
+
+    with pytest.raises(ValueError):
+        reg.register_class("ERR", NoMethods)
+
+    def ser(obj: Any) -> str:
+        return f"{obj}::CUSTOM"
+
+    def par(s: str) -> str:
+        return s + "_parsed"
+
+    reg.register_class("OK", str, serialize=ser, parse=par)
+    ext = reg.get("~OK")
+    assert ext and ext.parse("x") == "x_parsed"
+    # class with serializer but missing from_typed_text -> parse error path
+    class OnlySerialize:
+        def as_typed_text(self):
+            return "x"
+    with pytest.raises(ValueError):
+        reg.register_class("BADPARSE", OnlySerialize)
+
+
+def test_from_text_missing_struct_and_custom():
+    reg = TypeRegistry()
+    # Missing struct in array -> returns original text
+    assert reg.from_text('[{"a":1}]::#@MISSING') == '[{"a":1}]::#@MISSING'
+    # Missing custom type -> returns original text
+    assert reg.from_text("abc::~NOPE") == "abc::~NOPE"
+    # Missing built-in type -> returns original text
+    assert reg.from_text("1::ZZ") == "1::ZZ"
+    # Unknown base type in typed array
+    assert reg.from_text("[1]::#Z") == "[1]::#Z"
+    # Unknown struct reference
+    assert reg.from_text('{"a":1}::@UNKNOWN') == '{"a":1}::@UNKNOWN'
+    # Empty string path
+    assert reg.from_text("") == ""
+
+
+def test_get_type_instance_branches():
+    reg = TypeRegistry()
+    from genro_tytx.builtin import DecimalType
+    reg.register(DecimalType)
+    reg.register_struct("POINT", '{"x":"L","y":"L"}')
+    struct_type = reg.get("@POINT")
+    assert struct_type is not None
+    # instance path
+    assert reg.from_text('{"x":1,"y":2}::@POINT') == {"x": 1, "y": 2}
+    # class path via _get_type_instance on a built-in
+    assert reg.as_typed_text(Decimal("2.0")) == "2.0::N"
+    # custom extension serialize path
+    reg.register_class("CSTM", CustomValue)
+    # CustomValue.as_typed_text returns "z::X_CUSTOM", then registry adds "::~CSTM"
+    assert reg.as_typed_text(CustomValue("z")).endswith("::~CSTM")
+
+
+def test_collect_leaf_helpers():
+    reg = TypeRegistry()
+    assert reg._get_leaf_type_code([1, 2]) is None
+    leafs = reg._collect_leaf_types([1, [2]])
+    assert leafs == {"L"}
+    # _serialize_leaf with nested list
+    reg.register_struct("ROW", '{"x":"L"}')
+    st = reg.get("@ROW")
+    assert st is not None
+    res = reg._serialize_leaf([{"x": 1}, {"x": 2}], st)
+    assert res == ['{"x":1}', '{"x":2}']
+    assert reg._has_typed_objects({"d": datetime.now(timezone.utc)})
+    assert not reg._has_typed_objects({"plain": 1})
+    assert not reg._has_typed_objects([{"plain": 1}])
+
+
+def test_try_compact_array_missing_type(monkeypatch: pytest.MonkeyPatch):
+    reg = TypeRegistry()
+    monkeypatch.setattr(reg, "_collect_leaf_types", lambda v: {"ZZ"})
+    assert reg._try_compact_array([1, 2]) is None
+
+
+def test_unserialize_dict_values_nested():
+    reg = TypeRegistry()
+    reg.register_struct("ROW", '{"x":"L"}')
+    result = reg._serialize_dict_values({"a": [{"x": 1}, {"x": 2}], "b": {"x": 3}})
+    assert result.endswith("::TYTX")
+    # ensure nested values are serialized (integers become strings in typed format)
+    assert '"x":"1"' in result or '"x":1' in result
+
+
+def test_struct_metadata_empty_and_missing_content():
+    reg = TypeRegistry()
+    reg._register_struct_metadata("EMPTY", {"field": {}})
+    assert reg.get_struct_metadata("EMPTY") is None
+    reg._struct_metadata["BROKEN"] = {"x": "deadbeef"}
+    reg._metadata_content.clear()
+    assert reg.get_struct_metadata("BROKEN") == {}
+
+
+def test_unregister_struct_missing_entries():
+    reg = TypeRegistry()
+    reg.unregister_struct("NOPE")  # nothing registered
+    reg.register_struct("TMP", '{"x":"L"}')
+    # The struct name in _types uses lowercase format: "struct_tmp"
+    del reg._types["struct_tmp"]
+    reg.unregister_struct("TMP")
+
+
+def test_custom_type_code_but_not_extension():
+    reg = TypeRegistry()
+    reg.register_struct("ROW", '{"x":"L"}')
+    reg._codes["~FAKE"] = reg.get("@ROW")
+    assert reg.from_text("v::~FAKE") == "v::~FAKE"
+
+
+def test_custom_type_parse_branch():
+    reg = TypeRegistry()
+    reg.register_class("CUS3", CustomValue)
+    parsed = reg.from_text("abc::~CUS3")
+    assert isinstance(parsed, CustomValue)
+
+
+def test_unregister_class_orphan_entries():
+    reg = TypeRegistry()
+    # full_code present but name missing in _types
+    class DummyExt:
+        name = "DUMMY"
+        python_type = None
+    reg._codes["~DUMMY"] = DummyExt()
+    reg.unregister_class("DUMMY")
+
+
+def test_unregister_struct_missing_type_entry():
+    reg = TypeRegistry()
+    code = "TMP2"
+    reg.register_struct(code, '{"x":"L"}')
+    del reg._types[f"struct_{code.lower()}"]
+    reg.unregister_struct(code)

@@ -49,6 +49,10 @@ from typing import Literal, get_args, get_origin
 import pytest
 
 from genro_tytx import registry
+from genro_tytx.pydantic_utils import PydanticConverter
+
+# Create a converter for tests
+converter = PydanticConverter(registry)
 
 
 class TestModelFromStructBasic:
@@ -70,7 +74,7 @@ class TestModelFromStructBasic:
             },
         )
 
-        Model = registry.model_from_struct("SIMPLE")
+        Model = converter.model_from_struct("SIMPLE")
 
         # Check class name
         assert Model.__name__ == "Simple"
@@ -97,7 +101,7 @@ class TestModelFromStructBasic:
             },
         )
 
-        Model = registry.model_from_struct("ALLTYPES")
+        Model = converter.model_from_struct("ALLTYPES")
 
         fields = Model.model_fields
         assert fields["text"].annotation is str
@@ -112,7 +116,7 @@ class TestModelFromStructBasic:
     def test_struct_not_found(self) -> None:
         """Test error when struct code not found."""
         with pytest.raises(KeyError, match="Struct 'NOTFOUND' not registered"):
-            registry.model_from_struct("NOTFOUND")
+            converter.model_from_struct("NOTFOUND")
 
     def test_model_instantiation(self) -> None:
         """Test that generated model can be instantiated."""
@@ -124,7 +128,7 @@ class TestModelFromStructBasic:
             },
         )
 
-        Person = registry.model_from_struct("PERSON")
+        Person = converter.model_from_struct("PERSON")
 
         # Should be able to create instance
         person = Person(name="Mario", age=30)
@@ -141,7 +145,7 @@ class TestModelFromStructBasic:
             },
         )
 
-        Model = registry.model_from_struct("TYPED")
+        Model = converter.model_from_struct("TYPED")
 
         # Valid data
         obj = Model(count=5, active=True)
@@ -166,7 +170,7 @@ class TestModelFromStructList:
         """Test list[str] field."""
         registry.register_struct("TAGS", {"tags": "#T"})
 
-        Model = registry.model_from_struct("TAGS")
+        Model = converter.model_from_struct("TAGS")
 
         field_type = Model.model_fields["tags"].annotation
         assert get_origin(field_type) is list
@@ -176,7 +180,7 @@ class TestModelFromStructList:
         """Test list[int] field."""
         registry.register_struct("NUMS", {"numbers": "#L"})
 
-        Model = registry.model_from_struct("NUMS")
+        Model = converter.model_from_struct("NUMS")
 
         field_type = Model.model_fields["numbers"].annotation
         assert get_origin(field_type) is list
@@ -186,7 +190,7 @@ class TestModelFromStructList:
         """Test list[Decimal] field."""
         registry.register_struct("PRICES", {"prices": "#N"})
 
-        Model = registry.model_from_struct("PRICES")
+        Model = converter.model_from_struct("PRICES")
 
         field_type = Model.model_fields["prices"].annotation
         assert get_origin(field_type) is list
@@ -196,7 +200,7 @@ class TestModelFromStructList:
         """Test list field can be used."""
         registry.register_struct("WITHLIST", {"items": "#T"})
 
-        Model = registry.model_from_struct("WITHLIST")
+        Model = converter.model_from_struct("WITHLIST")
 
         obj = Model(items=["a", "b", "c"])
         assert obj.items == ["a", "b", "c"]
@@ -214,7 +218,7 @@ class TestModelFromStructDict:
         """Test dict field."""
         registry.register_struct("META", {"metadata": "JS"})
 
-        Model = registry.model_from_struct("META")
+        Model = converter.model_from_struct("META")
 
         # JS maps to dict[str, Any]
         field_type = Model.model_fields["metadata"].annotation
@@ -225,7 +229,7 @@ class TestModelFromStructDict:
         """Test dict field can be used."""
         registry.register_struct("WITHMETA", {"data": "JS"})
 
-        Model = registry.model_from_struct("WITHMETA")
+        Model = converter.model_from_struct("WITHMETA")
 
         obj = Model(data={"key": "value", "count": 42})
         assert obj.data == {"key": "value", "count": 42}
@@ -256,8 +260,8 @@ class TestModelFromStructNested:
             },
         )
 
-        Person = registry.model_from_struct("PERSON")
-        registry.model_from_struct("ADDRESS")
+        Person = converter.model_from_struct("PERSON")
+        converter.model_from_struct("ADDRESS")
 
         # Check nested type
         address_field = Person.model_fields["address"]
@@ -275,7 +279,7 @@ class TestModelFromStructNested:
             },
         )
 
-        Outer = registry.model_from_struct("OUTER")
+        Outer = converter.model_from_struct("OUTER")
 
         # Can instantiate with nested dict
         obj = Outer(name="test", inner={"value": 42})
@@ -299,7 +303,7 @@ class TestModelFromStructNested:
             },
         )
 
-        Order = registry.model_from_struct("ORDER")
+        Order = converter.model_from_struct("ORDER")
 
         # Check items is list[Item]
         items_field = Order.model_fields["items"]
@@ -324,7 +328,7 @@ class TestModelFromStructNested:
             },
         )
 
-        Cart = registry.model_from_struct("CART")
+        Cart = converter.model_from_struct("CART")
 
         obj = Cart(
             items=[
@@ -353,7 +357,7 @@ class TestModelFromStructConstraints:
             metadata={"name": {"validate": {"min": 1}}},
         )
 
-        Model = registry.model_from_struct("MINLEN")
+        Model = converter.model_from_struct("MINLEN")
 
         # Check constraint was applied
         field = Model.model_fields["name"]
@@ -370,7 +374,7 @@ class TestModelFromStructConstraints:
             metadata={"code": {"validate": {"max": 10}}},
         )
 
-        Model = registry.model_from_struct("MAXLEN")
+        Model = converter.model_from_struct("MAXLEN")
 
         field = Model.model_fields["code"]
         constraints = {type(c).__name__: c for c in field.metadata}
@@ -385,7 +389,7 @@ class TestModelFromStructConstraints:
             metadata={"email": {"validate": {"pattern": r"^[^@]+@[^@]+$"}}},
         )
 
-        Model = registry.model_from_struct("PATTERN")
+        Model = converter.model_from_struct("PATTERN")
 
         # Pydantic should validate pattern
         obj = Model(email="test@example.com")
@@ -403,7 +407,7 @@ class TestModelFromStructConstraints:
             metadata={"age": {"validate": {"min": 0}}},
         )
 
-        Model = registry.model_from_struct("GE")
+        Model = converter.model_from_struct("GE")
 
         # Valid
         obj = Model(age=0)
@@ -421,7 +425,7 @@ class TestModelFromStructConstraints:
             metadata={"score": {"validate": {"max": 100}}},
         )
 
-        Model = registry.model_from_struct("LE")
+        Model = converter.model_from_struct("LE")
 
         # Valid
         obj = Model(score=100)
@@ -441,7 +445,7 @@ class TestModelFromStructConstraints:
             },
         )
 
-        Model = registry.model_from_struct("META")
+        Model = converter.model_from_struct("META")
 
         field = Model.model_fields["name"]
         assert field.title == "Full Name"
@@ -455,7 +459,7 @@ class TestModelFromStructConstraints:
             metadata={"status": {"validate": {"default": "active"}}},
         )
 
-        Model = registry.model_from_struct("DEFSTR")
+        Model = converter.model_from_struct("DEFSTR")
 
         # Can create without providing status
         obj = Model()
@@ -469,7 +473,7 @@ class TestModelFromStructConstraints:
             metadata={"count": {"validate": {"default": 0}}},
         )
 
-        Model = registry.model_from_struct("DEFINT")
+        Model = converter.model_from_struct("DEFINT")
 
         obj = Model()
         assert obj.count == 0
@@ -484,7 +488,7 @@ class TestModelFromStructConstraints:
             },
         )
 
-        Model = registry.model_from_struct("ENUM")
+        Model = converter.model_from_struct("ENUM")
 
         field = Model.model_fields["status"]
         # Check it's a Literal type
@@ -505,7 +509,7 @@ class TestModelFromStructConstraints:
             },
         )
 
-        Model = registry.model_from_struct("ENUMDEF")
+        Model = converter.model_from_struct("ENUMDEF")
 
         # Default should work
         obj = Model()
@@ -531,7 +535,7 @@ class TestModelFromStructConstraints:
             },
         )
 
-        Model = registry.model_from_struct("COMBO")
+        Model = converter.model_from_struct("COMBO")
 
         field = Model.model_fields["name"]
         assert field.title == "Customer Name"
@@ -559,11 +563,11 @@ class TestModelFromStructRoundTrip:
             balance: Decimal
 
         # Pydantic → TYTX (now returns tuple)
-        schema, metadata = registry.struct_from_model(Original)
+        schema, metadata = converter.struct_from_model(Original)
         registry.register_struct("ROUNDTRIP", schema, metadata)
 
         # TYTX → Pydantic
-        Generated = registry.model_from_struct("ROUNDTRIP")
+        Generated = converter.model_from_struct("ROUNDTRIP")
 
         # Should have same fields
         assert set(Generated.model_fields.keys()) == {"name", "age", "balance"}
@@ -586,11 +590,11 @@ class TestModelFromStructRoundTrip:
             age: int = Field(ge=0, le=150)
 
         # Pydantic → TYTX (now returns tuple)
-        schema, metadata = registry.struct_from_model(Original)
+        schema, metadata = converter.struct_from_model(Original)
         registry.register_struct("CONSTRAINED", schema, metadata)
 
         # TYTX → Pydantic
-        Generated = registry.model_from_struct("CONSTRAINED")
+        Generated = converter.model_from_struct("CONSTRAINED")
 
         # Constraints should be preserved
         # Valid
@@ -637,7 +641,7 @@ class TestModelFromStructRealWorld:
             },
         )
 
-        Customer = registry.model_from_struct("CUSTOMER")
+        Customer = converter.model_from_struct("CUSTOMER")
 
         # Create customer
         customer = Customer(
@@ -667,7 +671,7 @@ class TestModelFromStructRealWorld:
             schema={"number": "T", "date": "D", "items": "#@LINEITEM", "total": "N"},
         )
 
-        Invoice = registry.model_from_struct("INVOICE")
+        Invoice = converter.model_from_struct("INVOICE")
 
         invoice = Invoice(
             number="INV-001",
@@ -702,7 +706,7 @@ class TestModelFromStructRealWorld:
             },
         )
 
-        Model = registry.model_from_struct("JSONTEST")
+        Model = converter.model_from_struct("JSONTEST")
 
         obj = Model(name="test", count=42)
 

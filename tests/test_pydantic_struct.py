@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for register_struct_from_model() - Pydantic to TYTX struct conversion."""
+"""Tests for PydanticConverter - Pydantic to TYTX struct conversion."""
 
 from __future__ import annotations
 
@@ -23,6 +23,10 @@ import pytest
 from pydantic import BaseModel
 
 from genro_tytx import registry
+from genro_tytx.pydantic_utils import PydanticConverter
+
+# Create a converter for tests
+converter = PydanticConverter(registry)
 
 
 # Module-level class for circular reference test (needed for Python 3.10 compatibility)
@@ -53,7 +57,7 @@ class TestRegisterStructFromModel:
             age: int
             balance: Decimal
 
-        registry.register_struct_from_model("CUSTOMER", Customer)
+        converter.register_struct_from_model("CUSTOMER", Customer)
 
         schema = registry.get_struct("CUSTOMER")
         assert schema == {"name": "T", "age": "L", "balance": "N"}
@@ -71,7 +75,7 @@ class TestRegisterStructFromModel:
             datetime_field: datetime
             time_field: time
 
-        registry.register_struct_from_model("ALLTYPES", AllTypes)
+        converter.register_struct_from_model("ALLTYPES", AllTypes)
 
         schema = registry.get_struct("ALLTYPES")
         assert schema == {
@@ -93,7 +97,7 @@ class TestRegisterStructFromModel:
             optional_str: str | None = None
             optional_int: int | None = None
 
-        registry.register_struct_from_model("WITHOPTIONAL", WithOptional)
+        converter.register_struct_from_model("WITHOPTIONAL", WithOptional)
 
         schema = registry.get_struct("WITHOPTIONAL")
         assert schema == {
@@ -110,7 +114,7 @@ class TestRegisterStructFromModel:
             numbers: list[int]
             prices: list[Decimal]
 
-        registry.register_struct_from_model("WITHLISTS", WithLists)
+        converter.register_struct_from_model("WITHLISTS", WithLists)
 
         schema = registry.get_struct("WITHLISTS")
         assert schema == {
@@ -126,7 +130,7 @@ class TestRegisterStructFromModel:
             name: str
             metadata: dict[str, str]
 
-        registry.register_struct_from_model("WITHDICT", WithDict)
+        converter.register_struct_from_model("WITHDICT", WithDict)
 
         schema = registry.get_struct("WITHDICT")
         assert schema == {"name": "T", "metadata": "JS"}
@@ -142,7 +146,7 @@ class TestRegisterStructFromModel:
             name: str
             address: Address
 
-        registry.register_struct_from_model("PERSON", Person)
+        converter.register_struct_from_model("PERSON", Person)
 
         # Person schema should reference @ADDRESS
         person_schema = registry.get_struct("PERSON")
@@ -164,7 +168,7 @@ class TestRegisterStructFromModel:
             id: int
             items: list[LineItem]
 
-        registry.register_struct_from_model("ORDER", Order)
+        converter.register_struct_from_model("ORDER", Order)
 
         order_schema = registry.get_struct("ORDER")
         assert order_schema == {"id": "L", "items": "#@LINEITEM"}
@@ -183,7 +187,7 @@ class TestRegisterStructFromModel:
             name: str
             inner: Inner
 
-        registry.register_struct_from_model("OUTER", Outer, include_nested=False)
+        converter.register_struct_from_model("OUTER", Outer, include_nested=False)
 
         # Outer should still reference @INNER
         outer_schema = registry.get_struct("OUTER")
@@ -205,7 +209,7 @@ class TestRegisterStructFromModel:
         class Level1(BaseModel):
             level2: Level2
 
-        registry.register_struct_from_model("LEVEL1", Level1)
+        converter.register_struct_from_model("LEVEL1", Level1)
 
         assert registry.get_struct("LEVEL1") == {"level2": "@LEVEL2"}
         assert registry.get_struct("LEVEL2") == {"level3": "@LEVEL3"}
@@ -217,7 +221,7 @@ class TestRegisterStructFromModel:
         # (forward references in locally-defined classes don't resolve on 3.10)
 
         # Should not raise RecursionError
-        registry.register_struct_from_model("CIRCULARNODE", _CircularNode)
+        converter.register_struct_from_model("CIRCULARNODE", _CircularNode)
 
         schema = registry.get_struct("CIRCULARNODE")
         # Schema contains pure type codes
@@ -237,7 +241,7 @@ class TestRegisterStructFromModel:
             pass
 
         with pytest.raises(TypeError, match="must be a Pydantic BaseModel subclass"):
-            registry.register_struct_from_model("INVALID", NotPydantic)
+            converter.register_struct_from_model("INVALID", NotPydantic)
 
     def test_hydration_after_registration(self) -> None:
         """Test that registered struct can hydrate data."""
@@ -247,7 +251,7 @@ class TestRegisterStructFromModel:
             price: Decimal
             in_stock: bool
 
-        registry.register_struct_from_model("PRODUCT", Product)
+        converter.register_struct_from_model("PRODUCT", Product)
 
         # Test hydration
         result = registry.from_text(
@@ -272,7 +276,7 @@ class TestGlobalRegistry:
             value: int
 
         # Use global registry
-        registry.register_struct_from_model("SIMPLEMODEL", SimpleModel)
+        converter.register_struct_from_model("SIMPLEMODEL", SimpleModel)
 
         schema = registry.get_struct("SIMPLEMODEL")
         assert schema == {"name": "T", "value": "L"}
@@ -297,7 +301,7 @@ class TestStructFromModel:
             name: str
             age: int
 
-        schema, metadata = registry.struct_from_model(Simple)
+        schema, metadata = converter.struct_from_model(Simple)
 
         # Should return pure schema dict
         assert schema == {"name": "T", "age": "L"}
@@ -317,7 +321,7 @@ class TestStructFromModel:
             price: Decimal
 
         # Step 1: Generate schema and metadata
-        schema, metadata = registry.struct_from_model(Product)
+        schema, metadata = converter.struct_from_model(Product)
         assert schema == {"name": "T", "price": "N"}
 
         # Step 2: Register with custom code
@@ -342,7 +346,7 @@ class TestFieldConstraints:
         class WithMinLen(BaseModel):
             name: str = Field(min_length=1)
 
-        schema, metadata = registry.struct_from_model(WithMinLen)
+        schema, metadata = converter.struct_from_model(WithMinLen)
         assert schema["name"] == "T"
         assert metadata["name"]["validate"]["min"] == 1
 
@@ -353,7 +357,7 @@ class TestFieldConstraints:
         class WithMaxLen(BaseModel):
             code: str = Field(max_length=10)
 
-        schema, metadata = registry.struct_from_model(WithMaxLen)
+        schema, metadata = converter.struct_from_model(WithMaxLen)
         assert schema["code"] == "T"
         assert metadata["code"]["validate"]["max"] == 10
 
@@ -364,7 +368,7 @@ class TestFieldConstraints:
         class WithBothLen(BaseModel):
             name: str = Field(min_length=2, max_length=50)
 
-        schema, metadata = registry.struct_from_model(WithBothLen)
+        schema, metadata = converter.struct_from_model(WithBothLen)
         assert schema["name"] == "T"
         assert metadata["name"]["validate"]["min"] == 2
         assert metadata["name"]["validate"]["max"] == 50
@@ -376,7 +380,7 @@ class TestFieldConstraints:
         class WithPattern(BaseModel):
             email: str = Field(pattern=r"^[^@]+@[^@]+$")
 
-        schema, metadata = registry.struct_from_model(WithPattern)
+        schema, metadata = converter.struct_from_model(WithPattern)
         assert schema["email"] == "T"
         assert metadata["email"]["validate"]["pattern"] == r"^[^@]+@[^@]+$"
 
@@ -387,7 +391,7 @@ class TestFieldConstraints:
         class WithGe(BaseModel):
             age: int = Field(ge=0)
 
-        schema, metadata = registry.struct_from_model(WithGe)
+        schema, metadata = converter.struct_from_model(WithGe)
         assert schema["age"] == "L"
         assert metadata["age"]["validate"]["min"] == 0
 
@@ -398,7 +402,7 @@ class TestFieldConstraints:
         class WithLe(BaseModel):
             score: int = Field(le=100)
 
-        schema, metadata = registry.struct_from_model(WithLe)
+        schema, metadata = converter.struct_from_model(WithLe)
         assert schema["score"] == "L"
         assert metadata["score"]["validate"]["max"] == 100
 
@@ -409,7 +413,7 @@ class TestFieldConstraints:
         class WithGt(BaseModel):
             quantity: int = Field(gt=0)  # > 0 means >= 1
 
-        schema, metadata = registry.struct_from_model(WithGt)
+        schema, metadata = converter.struct_from_model(WithGt)
         assert schema["quantity"] == "L"
         assert metadata["quantity"]["validate"]["min"] == 1
 
@@ -420,7 +424,7 @@ class TestFieldConstraints:
         class WithLt(BaseModel):
             count: int = Field(lt=100)  # < 100 means <= 99
 
-        schema, metadata = registry.struct_from_model(WithLt)
+        schema, metadata = converter.struct_from_model(WithLt)
         assert schema["count"] == "L"
         assert metadata["count"]["validate"]["max"] == 99
 
@@ -432,7 +436,7 @@ class TestFieldConstraints:
         class WithDecimal(BaseModel):
             price: Decimal = Field(ge=0, le=9999.99)
 
-        schema, metadata = registry.struct_from_model(WithDecimal)
+        schema, metadata = converter.struct_from_model(WithDecimal)
         assert schema["price"] == "N"
         assert metadata["price"]["validate"]["min"] == 0
         assert metadata["price"]["validate"]["max"] == 9999.99
@@ -444,7 +448,7 @@ class TestFieldConstraints:
         class WithTitle(BaseModel):
             name: str = Field(title="Customer Name")
 
-        schema, metadata = registry.struct_from_model(WithTitle)
+        schema, metadata = converter.struct_from_model(WithTitle)
         assert schema["name"] == "T"
         assert metadata["name"]["ui"]["label"] == "Customer Name"
 
@@ -455,7 +459,7 @@ class TestFieldConstraints:
         class WithDesc(BaseModel):
             email: str = Field(description="Enter your email address")
 
-        schema, metadata = registry.struct_from_model(WithDesc)
+        schema, metadata = converter.struct_from_model(WithDesc)
         assert schema["email"] == "T"
         assert metadata["email"]["ui"]["hint"] == "Enter your email address"
 
@@ -466,7 +470,7 @@ class TestFieldConstraints:
         class WithDefault(BaseModel):
             status: str = Field(default="active")
 
-        schema, metadata = registry.struct_from_model(WithDefault)
+        schema, metadata = converter.struct_from_model(WithDefault)
         assert schema["status"] == "T"
         assert metadata["status"]["validate"]["default"] == "active"
 
@@ -482,7 +486,7 @@ class TestFieldConstraints:
                 description="Customer's full name",
             )
 
-        schema, metadata = registry.struct_from_model(Customer)
+        schema, metadata = converter.struct_from_model(Customer)
         assert schema["name"] == "T"
         name_meta = metadata["name"]
         assert name_meta["validate"]["min"] == 1
@@ -508,7 +512,7 @@ class TestLiteralEnum:
         class WithStatus(BaseModel):
             status: Literal["active", "inactive", "pending"]
 
-        schema, metadata = registry.struct_from_model(WithStatus)
+        schema, metadata = converter.struct_from_model(WithStatus)
         assert schema["status"] == "T"
         assert metadata["status"]["validate"]["enum"] == [
             "active",
@@ -525,7 +529,7 @@ class TestLiteralEnum:
         class WithPriority(BaseModel):
             priority: Literal[1, 2, 3]
 
-        schema, metadata = registry.struct_from_model(WithPriority)
+        schema, metadata = converter.struct_from_model(WithPriority)
         assert schema["priority"] == "L"
         assert metadata["priority"]["validate"]["enum"] == [1, 2, 3]
 
@@ -538,7 +542,7 @@ class TestLiteralEnum:
         class WithMixed(BaseModel):
             value: Literal["auto", 0, 100]
 
-        schema, metadata = registry.struct_from_model(WithMixed)
+        schema, metadata = converter.struct_from_model(WithMixed)
         # Mixed literal -> defaults to T (first value is string)
         assert metadata["value"]["validate"]["enum"] == ["auto", 0, 100]
 
@@ -551,7 +555,7 @@ class TestLiteralEnum:
         class WithLiteralAndTitle(BaseModel):
             status: Literal["A", "B", "C"] = Field(title="Status Code")
 
-        schema, metadata = registry.struct_from_model(WithLiteralAndTitle)
+        schema, metadata = converter.struct_from_model(WithLiteralAndTitle)
         assert metadata["status"]["validate"]["enum"] == ["A", "B", "C"]
         assert metadata["status"]["ui"]["label"] == "Status Code"
 
@@ -585,7 +589,7 @@ class TestRealWorldExamples:
             items: list[LineItem]
             total: Decimal
 
-        registry.register_struct_from_model("INVOICE", Invoice)
+        converter.register_struct_from_model("INVOICE", Invoice)
 
         # Check all structs were registered
         assert registry.get_struct("INVOICE") == {
@@ -624,7 +628,7 @@ class TestRealWorldExamples:
             users: list[User]
             pagination: Pagination
 
-        registry.register_struct_from_model("USERLIST", UserListResponse)
+        converter.register_struct_from_model("USERLIST", UserListResponse)
 
         assert registry.get_struct("USERLIST") == {
             "users": "#@USER",

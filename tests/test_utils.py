@@ -3,6 +3,8 @@
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional, Union
+import typing
+from typing import Any
 
 import pytest
 from pydantic import BaseModel, Field
@@ -115,6 +117,97 @@ class TestPythonTypeToTytxCode:
         """Union with only None returns T."""
         # Edge case: Union[None] (weird but possible)
         assert python_type_to_tytx_code(type(None)) == "T"
+
+    def test_union_with_monkeypatched_get_args_empty(self, monkeypatch):
+        """Covers branch when get_args returns empty for a Union-like type."""
+        sentinel = object()
+
+        monkeypatch.setattr(typing, "get_origin", lambda obj: typing.Union if obj is sentinel else typing.get_origin(obj))
+        monkeypatch.setattr(typing, "get_args", lambda obj: () if obj is sentinel else typing.get_args(obj))
+
+        assert python_type_to_tytx_code(sentinel) == "T"
+
+    def test_list_without_args_defaults_to_T(self, monkeypatch):
+        """Covers branch where origin=list and args are empty."""
+        sentinel = object()
+        monkeypatch.setattr(typing, "get_origin", lambda obj: list if obj is sentinel else typing.get_origin(obj))
+        monkeypatch.setattr(typing, "get_args", lambda obj: () if obj is sentinel else typing.get_args(obj))
+        assert python_type_to_tytx_code(sentinel) == "#T"
+
+    def test_forwardref_and_fallback_object(self):
+        """Covers ForwardRef path and final fallback."""
+        ref = typing.ForwardRef("Foo")
+        assert python_type_to_tytx_code(ref) == "@FOO"
+        assert python_type_to_tytx_code(object()) == "T"
+
+    def test_python_type_to_tytx_code_nested_models_register_callback(self):
+        class Inner(BaseModel):
+            x: int
+
+        class Outer(BaseModel):
+            inner: Inner | None
+
+        collected = {}
+
+        def cb(code, schema):
+            collected[code] = schema
+
+        schema = model_to_schema(Outer, include_nested=True, register_callback=cb)
+        assert schema["inner"]["type"] == "@INNER"
+        assert "INNER" in collected
+
+    def test_model_to_schema_import_error(self, monkeypatch):
+        """Force ImportError for pydantic to hit defensive branch."""
+        import builtins
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("pydantic"):
+                raise ImportError("forced")
+            return orig_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        with pytest.raises(ImportError):
+            model_to_schema(object)  # type: ignore[arg-type]
+        monkeypatch.setattr(builtins, "__import__", orig_import)
+
+    def test_extract_field_constraints_import_error_default_and_ui(self, monkeypatch):
+        """Cover default + ui path with ImportError for pydantic_core."""
+        import builtins
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("pydantic_core"):
+                raise ImportError("forced")
+            return orig_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        field_info = Field(default=9, title="Lbl", description="Hint")
+        result = _extract_field_constraints(field_info, "L")
+        assert result["validate"]["default"] == 9
+        assert result["ui"]["label"] == "Lbl"
+        assert result["ui"]["hint"] == "Hint"
+
+        monkeypatch.setattr(builtins, "__import__", orig_import)
+
+    def test_schema_to_model_import_error(self, monkeypatch):
+        """Force ImportError for schema_to_model to cover defensive branch."""
+        import builtins
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name.startswith("pydantic"):
+                raise ImportError("forced")
+            return orig_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        with pytest.raises(ImportError):
+            schema_to_model("TEST", {"name": "T"})
+        monkeypatch.setattr(builtins, "__import__", orig_import)
 
 
 class TestTytxCodeToPythonType:
@@ -510,6 +603,23 @@ class TestExtractFieldConstraints:
         assert validate["max"] == 9
         assert validate["maxExclusive"] is True
         assert validate["multipleOf"] == 2
+        assert "ui" not in field_def
+
+    def test_extract_ui_only_and_plain_type(self):
+        """Covers ui-only path and plain type return when no constraints."""
+        # ui only
+        field_info = Field(default=None, title="Lbl")
+        res = _extract_field_constraints(field_info, "T")
+        assert res["ui"]["label"] == "Lbl"
+        # no constraints -> returns simple type code
+        plain = _extract_field_constraints(Field(default=None), "T")
+        assert plain == "T"
+
+    def test_extract_default_with_pydantic_core(self):
+        """Covers try branch when pydantic_core is available."""
+        field_info = Field(default=11)
+        result = _extract_field_constraints(field_info, "L")
+        assert result["validate"]["default"] == 11
 
 
 class TestTypeMapping:

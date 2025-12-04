@@ -488,6 +488,16 @@ class TestStructEdgeCases:
         st = StructType("SERIAL", {"a": "L"}, registry)
         assert st.serialize({"a": 1, "b": 2}) == '{"a":1,"b":2}'
 
+    def test_struct_parse_json_schema_errors_and_list_order(self):
+        """StructType._parse_json_schema handles errors and list schema."""
+        from genro_tytx.struct import StructType
+
+        with pytest.raises(ValueError):
+            StructType("BAD", "not json", registry)
+
+        st = StructType("LISTSCHEMA", '["T","L"]', registry)
+        assert st.field_order is None
+
     def test_homogeneous_with_struct_reference(self):
         """Homogeneous list with @STRUCT reference applies to each element."""
         registry.register_struct("ITEM", {"name": "T", "qty": "L"})

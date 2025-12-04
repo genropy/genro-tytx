@@ -5,7 +5,11 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx.http_async_utils import fetch_typed_async, fetch_typed_request_async
+from genro_tytx.http_async_utils import (
+    fetch_typed_async,
+    fetch_typed_request_async,
+    fetch_xtytx_async,
+)
 
 
 def test_fetch_typed_async_uses_thread(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,4 +61,18 @@ def test_fetch_typed_request_async_text(monkeypatch: pytest.MonkeyPatch) -> None
         )
     )
     assert result == 5
+    assert called["url"] == "http://example.com"
+
+
+def test_fetch_xtytx_async(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = {}
+
+    def fake_sync(url: str, **kwargs):
+        called["url"] = url
+        return {"ok": True}
+
+    monkeypatch.setattr("genro_tytx.http_async_utils.fetch_xtytx", fake_sync)
+
+    result = asyncio.run(fetch_xtytx_async("http://example.com", payload={"a": 1}))
+    assert result["ok"] is True
     assert called["url"] == "http://example.com"

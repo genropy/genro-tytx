@@ -12,6 +12,9 @@ from genro_tytx.http_utils import (
     fetch_typed,
     fetch_typed_request,
     fetch_xtytx,
+    _hydrate_response,
+    _prepare_body,
+    detect_expect,
 )
 from genro_tytx.json_utils import as_typed_json
 from genro_tytx.xtytx import XtytxResult
@@ -75,6 +78,87 @@ def test_fetch_typed_request_msgpack(monkeypatch: pytest.MonkeyPatch) -> None:
     assert headers["x-tytx-request"] == "msgpack"
     assert headers["content-type"] == "application/x-msgpack"
     assert captured.request.data  # payload was serialized
+
+
+def test_detect_expect_fallbacks_and_xtytx():
+    assert detect_expect(None) == "text"
+    assert detect_expect("application/xtytx") == "xtytx"
+    assert detect_expect("application/xml") == "xml"
+    assert detect_expect("application/msgpack") == "msgpack"
+    assert detect_expect("text/plain") == "text"
+
+
+def test_hydrate_response_xtytx_and_xml(monkeypatch: pytest.MonkeyPatch) -> None:
+    # XTYTX path
+    envelope = 'XTYTX://{"gstruct":{},"lstruct":{},"gschema":{},"lschema":{},"data":"{\\"x\\":\\"1::L\\"}"}'
+    res = _hydrate_response("application/xtytx", envelope.encode("utf-8"), "xtytx")
+    assert hasattr(res, "data") and res.data["x"] == 1
+    # XML path
+    xml_body = b"<root><a>1::L</a></root>"
+    result = _hydrate_response("application/xml", xml_body, None)
+    assert result["root"]["value"]["a"]["value"] == 1
+    # plain typed text path
+    plain = _hydrate_response("text/plain", b"5::L", None)
+    assert plain == 5
+
+
+def test_prepare_body_defaults():
+    headers = {}
+    payload = _prepare_body(body="hi", send_as="text", headers=headers)
+    assert headers["Content-Type"] == "text/plain"
+    assert headers["X-TYTX-Request"] == "text"
+    assert payload.decode() == "hi"
+
+
+def test_prepare_body_json_and_with_params():
+    headers = {}
+    payload = _prepare_body(body={"a": 1}, send_as="json", headers=headers)
+    assert headers["Content-Type"] == "application/json"
+    assert headers["X-TYTX-Request"] == "json"
+    assert payload
+    url = "http://example.com"
+    from genro_tytx.http_utils import _with_params
+
+    new_url = _with_params(url, {"q": "v"})
+    assert "q=v" in new_url
+
+
+def test_fetch_typed_bad_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResp:
+        def __init__(self):
+            self.headers = {"Content-Type": "text/plain"}
+            self.status = 500
+            self.body = b"error"
+
+        def read(self):
+            return self.body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        raise Exception("boom")
+
+    monkeypatch.setattr("genro_tytx.http_utils.urlopen", fake_urlopen)
+    with pytest.raises(Exception):
+        fetch_typed("http://example.com")
+
+
+def test_fetch_typed_request_xtytx(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = {}
+
+    def fake_fetch_xtytx(url, **kwargs):
+        called["url"] = url
+        called["payload"] = kwargs["payload"]
+        return {"ok": True}
+
+    monkeypatch.setattr("genro_tytx.http_utils.fetch_xtytx", fake_fetch_xtytx)
+    res = fetch_typed_request("http://example.com", body={"x": 1}, xtytx=True)
+    assert res["ok"] is True
+    assert called["payload"] == {"x": 1}
 
 
 def test_build_xtytx_envelope_prefix_and_data() -> None:
