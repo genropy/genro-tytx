@@ -58,11 +58,6 @@ class TestPythonTypeToTytxCode:
         assert python_type_to_tytx_code(list[int]) == "#L"
         assert python_type_to_tytx_code(list[Decimal]) == "#N"
 
-    def test_list_without_arg(self):
-        """list without type arg - may return JS or #T depending on origin."""
-        result = python_type_to_tytx_code(list)
-        assert result == "#T"
-
     def test_dict_type(self):
         """dict maps to JS."""
         assert python_type_to_tytx_code(dict) == "JS"

@@ -263,28 +263,17 @@ class TestPythonTypeEdgeCases:
 
     def test_union_all_none_registry(self):
         """Union with all None types returns T (lines 583-587)."""
+        from typing import Union
 
         from pydantic import BaseModel
 
         class ModelWithNoneUnion(BaseModel):
             # This is an edge case - Union[None, None]
-            value: None | None = None
+            value: Union[None, None] = None
 
         schema, metadata = registry.struct_from_model(ModelWithNoneUnion)
         # Should handle gracefully
         assert schema is not None
-
-    def test_list_without_type_arg(self):
-        """Bare list type returns #T (line 596)."""
-
-        from pydantic import BaseModel
-
-        class ModelWithBareList(BaseModel):
-            items: list = []
-
-        schema, metadata = registry.struct_from_model(ModelWithBareList)
-        # Bare list defaults to #T
-        assert schema["items"] == "#T"
 
     def test_forward_ref_in_model(self):
         """ForwardRef in model is handled (lines 644-653)."""

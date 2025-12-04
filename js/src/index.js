@@ -71,7 +71,7 @@ const from_text = registry.from_text.bind(registry);
 const as_text = registry.as_text.bind(registry);
 const as_typed_text = registry.as_typed_text.bind(registry);
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.1';
 
 module.exports = {
     // Version
