@@ -11,7 +11,9 @@ const http = require('http');
 const { as_typed_json, from_json } = require('../src/json_utils');
 const { registry } = require('../src/registry');
 const { packb, unpackb } = require('../src/msgpack_utils');
+const { as_typed_xml, from_xml } = require('../src/xml_utils');
 require('../src/types'); // Register built-in types
+const Big = require('big.js');
 
 const PORT = process.env.PORT || 8766;
 
@@ -19,7 +21,7 @@ const PORT = process.env.PORT || 8766;
 const TEST_DATA = {
     integer: 42,
     float: 3.14159,
-    decimal: 99.99,  // JS uses number, will be typed as R or N
+    decimal: new Big('99.99'),  // Use Big.js for decimal type
     string: 'hello world',
     boolean: true,
     date: new Date('2025-01-15T00:00:00Z'),
@@ -79,6 +81,89 @@ function sendTextResponse(res, value) {
 }
 
 /**
+ * Check if value is a Big.js instance.
+ */
+function isBigInstance(value) {
+    return value && value.constructor && value.constructor.name === 'Big';
+}
+
+/**
+ * Convert a simple value to XML structure {attrs: {}, value: ...}.
+ */
+function toXmlStructure(value) {
+    if (value === null || value === undefined) {
+        return { attrs: {}, value: null };
+    }
+    if (value instanceof Date) {
+        return { attrs: {}, value: value };
+    }
+    // Big.js instances should be treated as scalars, not objects
+    if (isBigInstance(value)) {
+        return { attrs: {}, value: value };
+    }
+    if (Array.isArray(value)) {
+        return value.map(item => toXmlStructure(item));
+    }
+    if (typeof value === 'object') {
+        const children = {};
+        for (const [k, v] of Object.entries(value)) {
+            children[k] = toXmlStructure(v);
+        }
+        return { attrs: {}, value: children };
+    }
+    return { attrs: {}, value: value };
+}
+
+/**
+ * Extract values from XML structure {attrs: {}, value: ...}.
+ */
+function fromXmlStructure(value) {
+    if (value === null || value === undefined) {
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return value.map(item => fromXmlStructure(item));
+    }
+    // Big.js instances should be returned as-is
+    if (isBigInstance(value)) {
+        return value;
+    }
+    if (typeof value === 'object' && 'attrs' in value && 'value' in value) {
+        const inner = value.value;
+        if (inner !== null && typeof inner === 'object' && !Array.isArray(inner) && !(inner instanceof Date) && !isBigInstance(inner)) {
+            const result = {};
+            for (const [k, v] of Object.entries(inner)) {
+                result[k] = fromXmlStructure(v);
+            }
+            return result;
+        }
+        return inner;
+    }
+    if (typeof value === 'object') {
+        const result = {};
+        for (const [k, v] of Object.entries(value)) {
+            result[k] = fromXmlStructure(v);
+        }
+        return result;
+    }
+    return value;
+}
+
+/**
+ * Send XML response with TYTX types.
+ */
+function sendXmlResponse(res, data) {
+    // Convert data to XML structure recursively
+    const xmlData = { root: toXmlStructure(data) };
+    const body = as_typed_xml(xmlData);
+    res.writeHead(200, {
+        'Content-Type': 'application/xml',
+        'Content-Length': Buffer.byteLength(body)
+    });
+    res.end(body);
+}
+
+/**
  * Handle HTTP requests.
  */
 async function handleRequest(req, res) {
@@ -101,6 +186,9 @@ async function handleRequest(req, res) {
                     return;
                 case '/msgpack':
                     sendMsgpackResponse(res, TEST_DATA);
+                    return;
+                case '/xml':
+                    sendXmlResponse(res, TEST_DATA);
                     return;
                 case '/text/integer':
                     sendTextResponse(res, 42);
@@ -126,6 +214,8 @@ async function handleRequest(req, res) {
             // Parse request body
             if (contentType.includes('msgpack')) {
                 data = unpackb(body);
+            } else if (contentType.includes('xml')) {
+                data = from_xml(body.toString('utf-8'));
             } else if (contentType.includes('json')) {
                 data = from_json(body.toString('utf-8'));
             } else {
@@ -141,6 +231,17 @@ async function handleRequest(req, res) {
                     return;
                 case '/echo/msgpack':
                     sendMsgpackResponse(res, data);
+                    return;
+                case '/echo/xml':
+                    // For XML echo, extract values from XML structure
+                    // from_xml returns {root: {attrs: {}, value: {...}}}
+                    if (data && typeof data === 'object' && data.root) {
+                        const rootVal = data.root.value || data.root;
+                        const flatData = fromXmlStructure(rootVal);
+                        sendXmlResponse(res, flatData);
+                    } else {
+                        sendXmlResponse(res, data);
+                    }
                     return;
                 case '/echo/text':
                     sendTextResponse(res, data);
@@ -169,9 +270,11 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('Endpoints:');
     console.log('  GET  /json        - All types as TYTX JSON');
     console.log('  GET  /msgpack     - All types as msgpack');
+    console.log('  GET  /xml         - All types as TYTX XML');
     console.log('  GET  /text/*      - Single typed values');
     console.log('  POST /echo/json   - Echo JSON with TYTX types');
     console.log('  POST /echo/msgpack- Echo msgpack');
+    console.log('  POST /echo/xml    - Echo XML with TYTX types');
     console.log('Press Ctrl+C to stop...');
 });
 

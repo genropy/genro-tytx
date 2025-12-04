@@ -20,6 +20,7 @@
  */
 
 const { registry } = require('./registry');
+const { isDecimalInstance } = require('./types');
 
 /**
  * Escape XML special characters.
@@ -63,8 +64,8 @@ function _build_element(tag, content, typed) {
         return `<${tag}${attrs_str} />`;
     }
 
-    // Object of children
-    if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+    // Object of children (exclude Date and Decimal instances which are scalar values)
+    if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !isDecimalInstance(value)) {
         let children_xml = '';
         for (const [child_tag, child_content] of Object.entries(value)) {
             if (Array.isArray(child_content)) {

@@ -14,6 +14,58 @@ const path = require('path');
 const { fetch_typed, fetch_typed_request } = require('../src');
 const { packb } = require('../src/msgpack_utils');
 
+/**
+ * Check if value is a Big.js instance.
+ */
+function isBigInstance(value) {
+    return value && value.constructor && value.constructor.name === 'Big';
+}
+
+/**
+ * Extract values from XML structure {attrs: {}, value: ...}.
+ * XML parsing returns nested dicts with 'attrs' and 'value' keys.
+ * This function flattens it to get the actual data values.
+ */
+function extractXmlValues(data) {
+    if (data === null || data === undefined) {
+        return data;
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => extractXmlValues(item));
+    }
+    // Big.js instances should be returned as-is (they're scalar values)
+    if (isBigInstance(data)) {
+        return data;
+    }
+    if (typeof data === 'object') {
+        if ('attrs' in data && 'value' in data) {
+            const inner = data.value;
+            if (inner === null) {
+                return null;
+            }
+            if (typeof inner === 'object' && !Array.isArray(inner) && !(inner instanceof Date) && !isBigInstance(inner)) {
+                // Check if it's another XML node or actual data
+                if ('attrs' in inner && 'value' in inner) {
+                    return extractXmlValues(inner);
+                }
+                // It's children - extract recursively
+                const result = {};
+                for (const [k, v] of Object.entries(inner)) {
+                    result[k] = extractXmlValues(v);
+                }
+                return result;
+            }
+            return inner;
+        }
+        const result = {};
+        for (const [k, v] of Object.entries(data)) {
+            result[k] = extractXmlValues(v);
+        }
+        return result;
+    }
+    return data;
+}
+
 // Server configuration
 const SERVER_PORT = 8765;
 const BASE_URL = `http://127.0.0.1:${SERVER_PORT}`;
@@ -187,14 +239,57 @@ describe('Cross-Language HTTP Round-Trip', { skip: !process.env.CROSS_LANG }, ()
     // =========================================================================
 
     describe('Python → JS: msgpack', () => {
-        test('hydrates all types from msgpack', async () => {
+        test('hydrates integer from msgpack', async () => {
             const result = await fetch_typed(`${BASE_URL}/msgpack`);
-
             assert.strictEqual(result.integer, 42);
+            assert.strictEqual(typeof result.integer, 'number');
+        });
+
+        test('hydrates float from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
+            assert.ok(Math.abs(result.float - 3.14159) < 0.0001);
+        });
+
+        test('hydrates string from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
             assert.strictEqual(result.string, 'hello world');
+        });
+
+        test('hydrates boolean from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
             assert.strictEqual(result.boolean, true);
+        });
+
+        test('hydrates date from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
             assert.ok(result.date instanceof Date);
+            assert.strictEqual(result.date.getUTCFullYear(), 2025);
+            assert.strictEqual(result.date.getUTCMonth(), 0);
+            assert.strictEqual(result.date.getUTCDate(), 15);
+        });
+
+        test('hydrates datetime from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
             assert.ok(result.datetime instanceof Date);
+            assert.strictEqual(result.datetime.getUTCHours(), 10);
+            assert.strictEqual(result.datetime.getUTCMinutes(), 30);
+        });
+
+        test('hydrates null from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
+            assert.strictEqual(result.null, null);
+        });
+
+        test('hydrates array from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
+            assert.ok(Array.isArray(result.array));
+            assert.deepStrictEqual(result.array, [1, 2, 3]);
+        });
+
+        test('hydrates nested object from msgpack', async () => {
+            const result = await fetch_typed(`${BASE_URL}/msgpack`);
+            assert.strictEqual(result.nested.x, 10);
+            assert.strictEqual(result.nested.y, 20);
         });
     });
 
@@ -343,24 +438,292 @@ describe('Cross-Language HTTP Round-Trip', { skip: !process.env.CROSS_LANG }, ()
     });
 
     describe('JS → Python → JS: msgpack echo', () => {
-        test('msgpack round-trip preserves types', async () => {
-            const input = {
-                id: 456,
-                value: 3.14,
-                timestamp: new Date('2025-06-01T12:00:00Z'),
-                active: true
-            };
+        test('msgpack round-trip preserves integer', async () => {
+            const input = { value: 12345 };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.strictEqual(result.value, 12345);
+        });
 
+        test('msgpack round-trip preserves float', async () => {
+            const input = { value: 3.14159 };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.ok(Math.abs(result.value - 3.14159) < 0.0001);
+        });
+
+        test('msgpack round-trip preserves boolean', async () => {
+            const input = { active: true, disabled: false };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.strictEqual(result.active, true);
+            assert.strictEqual(result.disabled, false);
+        });
+
+        test('msgpack round-trip preserves date', async () => {
+            const date = new Date('2025-01-15T00:00:00Z');
+            const input = { created: date };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.ok(result.created instanceof Date);
+            assert.strictEqual(result.created.getUTCFullYear(), 2025);
+            assert.strictEqual(result.created.getUTCMonth(), 0);
+            assert.strictEqual(result.created.getUTCDate(), 15);
+        });
+
+        test('msgpack round-trip preserves datetime', async () => {
+            const datetime = new Date('2025-06-15T14:30:45Z');
+            const input = { timestamp: datetime };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.ok(result.timestamp instanceof Date);
+            assert.strictEqual(result.timestamp.getUTCHours(), 14);
+            assert.strictEqual(result.timestamp.getUTCMinutes(), 30);
+        });
+
+        test('msgpack round-trip preserves array', async () => {
+            const input = { items: [1, 2, 3, 4, 5] };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.deepStrictEqual(result.items, [1, 2, 3, 4, 5]);
+        });
+
+        test('msgpack round-trip preserves nested object', async () => {
+            const input = {
+                user: {
+                    id: 123,
+                    name: 'test',
+                    meta: { role: 'admin' }
+                }
+            };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
+                body: input,
+                sendAs: 'msgpack',
+                expect: 'msgpack'
+            });
+            assert.strictEqual(result.user.id, 123);
+            assert.strictEqual(result.user.name, 'test');
+            assert.strictEqual(result.user.meta.role, 'admin');
+        });
+
+        test('msgpack round-trip preserves complex object', async () => {
+            const input = {
+                id: 999,
+                price: 149.99,
+                created: new Date('2025-03-20T08:15:30Z'),
+                active: true,
+                tags: ['premium', 'featured'],
+                details: {
+                    weight: 2.5,
+                    dimensions: { width: 10, height: 20 }
+                }
+            };
             const result = await fetch_typed_request(`${BASE_URL}/echo/msgpack`, {
                 body: input,
                 sendAs: 'msgpack',
                 expect: 'msgpack'
             });
 
-            assert.strictEqual(result.id, 456);
-            assert.ok(Math.abs(result.value - 3.14) < 0.01);
-            assert.ok(result.timestamp instanceof Date);
+            assert.strictEqual(result.id, 999);
+            assert.ok(Math.abs(result.price - 149.99) < 0.01);
+            assert.ok(result.created instanceof Date);
             assert.strictEqual(result.active, true);
+            assert.deepStrictEqual(result.tags, ['premium', 'featured']);
+            assert.ok(Math.abs(result.details.weight - 2.5) < 0.01);
+            assert.strictEqual(result.details.dimensions.width, 10);
+        });
+    });
+
+    // =========================================================================
+    // GET XML endpoint - Python serves, JS receives
+    // =========================================================================
+
+    describe('Python → JS: XML', () => {
+        test('hydrates integer from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            // XML returns nested structure with attrs/value - flatten it
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.integer, 42);
+            assert.strictEqual(typeof data.integer, 'number');
+        });
+
+        test('hydrates float from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.ok(Math.abs(data.float - 3.14159) < 0.0001);
+        });
+
+        test('hydrates decimal from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(Number(data.decimal), 99.99);
+        });
+
+        test('hydrates string from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.string, 'hello world');
+        });
+
+        test('hydrates boolean from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.boolean, true);
+        });
+
+        test('hydrates date from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.ok(data.date instanceof Date);
+            assert.strictEqual(data.date.getUTCFullYear(), 2025);
+            assert.strictEqual(data.date.getUTCMonth(), 0);
+            assert.strictEqual(data.date.getUTCDate(), 15);
+        });
+
+        test('hydrates datetime from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.ok(data.datetime instanceof Date);
+            assert.strictEqual(data.datetime.getUTCHours(), 10);
+            assert.strictEqual(data.datetime.getUTCMinutes(), 30);
+        });
+
+        test('hydrates time from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.ok(data.time instanceof Date);
+            assert.strictEqual(data.time.getUTCHours(), 14);
+            assert.strictEqual(data.time.getUTCMinutes(), 30);
+        });
+
+        test('hydrates null from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.null, null);
+        });
+
+        test('hydrates array from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.ok(Array.isArray(data.array));
+            assert.deepStrictEqual(data.array, [1, 2, 3]);
+        });
+
+        test('hydrates nested object from XML', async () => {
+            const result = await fetch_typed(`${BASE_URL}/xml`);
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.nested.x, 10);
+            assert.strictEqual(data.nested.y, 20);
+        });
+    });
+
+    // =========================================================================
+    // POST echo XML endpoints - JS sends, Python echoes back, JS receives
+    // =========================================================================
+
+    describe('JS → Python → JS: XML echo', () => {
+        test('XML round-trip preserves integer', async () => {
+            const input = { value: 12345 };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',  // Send as JSON, server converts to XML
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.value, 12345);
+        });
+
+        test('XML round-trip preserves float', async () => {
+            const input = { value: 3.14159 };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.ok(Math.abs(data.value - 3.14159) < 0.0001);
+        });
+
+        test('XML round-trip preserves boolean', async () => {
+            const input = { active: true, disabled: false };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.active, true);
+            assert.strictEqual(data.disabled, false);
+        });
+
+        test('XML round-trip preserves date', async () => {
+            const date = new Date('2025-01-15T00:00:00Z');
+            const input = { created: date };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.ok(data.created instanceof Date);
+            assert.strictEqual(data.created.getUTCFullYear(), 2025);
+            assert.strictEqual(data.created.getUTCMonth(), 0);
+            assert.strictEqual(data.created.getUTCDate(), 15);
+        });
+
+        test('XML round-trip preserves datetime', async () => {
+            const datetime = new Date('2025-06-15T14:30:45Z');
+            const input = { timestamp: datetime };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.ok(data.timestamp instanceof Date);
+            assert.strictEqual(data.timestamp.getUTCHours(), 14);
+            assert.strictEqual(data.timestamp.getUTCMinutes(), 30);
+        });
+
+        test('XML round-trip preserves array', async () => {
+            const input = { items: [1, 2, 3, 4, 5] };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.deepStrictEqual(data.items, [1, 2, 3, 4, 5]);
+        });
+
+        test('XML round-trip preserves nested object', async () => {
+            const input = { user: { id: 123, name: 'test' } };
+            const result = await fetch_typed_request(`${BASE_URL}/echo/xml`, {
+                body: input,
+                sendAs: 'json',
+                expect: 'xml'
+            });
+            const data = extractXmlValues(result.root || result);
+            assert.strictEqual(data.user.id, 123);
+            assert.strictEqual(data.user.name, 'test');
         });
     });
 });

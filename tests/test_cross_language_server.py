@@ -34,6 +34,50 @@ from genro_tytx import as_typed_json, from_json, registry
 from genro_tytx.msgpack_utils import packb, unpackb
 from genro_tytx.xml_utils import as_typed_xml, from_xml
 
+
+def _to_xml_structure(value: Any) -> dict[str, Any]:
+    """Convert a simple value to XML structure {attrs: {}, value: ...}."""
+    if isinstance(value, dict):
+        # Dict becomes children
+        children = {}
+        for k, v in value.items():
+            children[k] = _to_xml_structure(v)
+        return {"attrs": {}, "value": children}
+    elif isinstance(value, list):
+        # List becomes repeated elements
+        return [_to_xml_structure(item) for item in value]
+    else:
+        # Scalar value
+        return {"attrs": {}, "value": value}
+
+
+def _from_xml_structure(value: Any) -> Any:
+    """Extract values from XML structure {attrs: {}, value: ...}."""
+    if isinstance(value, dict):
+        if "attrs" in value and "value" in value:
+            # This is an XML node
+            inner = value["value"]
+            if isinstance(inner, dict):
+                # Children dict
+                result = {}
+                for k, v in inner.items():
+                    result[k] = _from_xml_structure(v)
+                return result
+            else:
+                # Scalar value
+                return inner
+        else:
+            # Regular dict
+            result = {}
+            for k, v in value.items():
+                result[k] = _from_xml_structure(v)
+            return result
+    elif isinstance(value, list):
+        return [_from_xml_structure(item) for item in value]
+    else:
+        return value
+
+
 # Test data with all TYTX types
 TEST_DATA: dict[str, Any] = {
     "integer": 42,
@@ -80,10 +124,8 @@ class TytxTestHandler(BaseHTTPRequestHandler):
 
     def _send_xml_response(self, data: Any) -> None:
         """Send XML response with TYTX types."""
-        # Wrap data in root element
-        xml_data = {"root": {"attrs": {}, "value": {}}}
-        for key, value in data.items():
-            xml_data["root"]["value"][key] = {"attrs": {}, "value": value}
+        # Convert data to XML structure recursively
+        xml_data = {"root": _to_xml_structure(data)}
         body = as_typed_xml(xml_data).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/xml")
@@ -151,6 +193,16 @@ class TytxTestHandler(BaseHTTPRequestHandler):
             self._send_json_response(data)
         elif self.path == "/echo/msgpack":
             self._send_msgpack_response(data)
+        elif self.path == "/echo/xml":
+            # For XML echo, we need to extract the value from the XML structure
+            # from_xml returns {root: {attrs: {}, value: {...}}}
+            if isinstance(data, dict) and "root" in data:
+                root_val = data["root"].get("value", data["root"])
+                # Extract values from the XML structure
+                flat_data = _from_xml_structure(root_val)
+                self._send_xml_response(flat_data)
+            else:
+                self._send_xml_response(data)
         elif self.path == "/echo/text":
             self._send_text_response(data)
         else:
