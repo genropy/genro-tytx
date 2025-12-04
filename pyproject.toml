@@ -147,3 +147,6 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
 ]
+partial_branches = [
+    "pragma: no branch",
+]
