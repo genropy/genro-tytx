@@ -495,6 +495,22 @@ See [spec/roadmap.md](spec/roadmap.md) for detailed documentation.
 
 ---
 
+## Interactive Notebooks
+
+Learn TYTX interactively with Jupyter notebooks. Click the badge to run them online:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/genropy/genro-tytx/main?labpath=notebooks)
+
+| Notebook | Description |
+|----------|-------------|
+| [01_basic_types.ipynb](notebooks/01_basic_types.ipynb) | Basic types: int, Decimal, float, bool, date, datetime, time |
+| [02_json_serialization.ipynb](notebooks/02_json_serialization.ipynb) | JSON serialization with `as_json`, `as_typed_json`, `from_json` |
+| [03_struct_types.ipynb](notebooks/03_struct_types.ipynb) | Struct schemas, nested types, typed arrays, metadata |
+| [04_xml_support.ipynb](notebooks/04_xml_support.ipynb) | XML support with `as_xml`, `as_typed_xml`, `from_xml` |
+| [05_advanced_features.ipynb](notebooks/05_advanced_features.ipynb) | Custom types, Pydantic integration, compact arrays |
+
+---
+
 ## License
 
 Apache License 2.0 - See [LICENSE](LICENSE) for details.

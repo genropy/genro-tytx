@@ -113,7 +113,7 @@ from_text = registry.from_text
 as_text = registry.as_text
 as_typed_text = registry.as_typed_text
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "__version__",
     # Protocol constants
