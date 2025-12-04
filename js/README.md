@@ -85,15 +85,15 @@ registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
 from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER');
 // → { name: "Acme", balance: 100 }
 
-// String schema for CSV-like data
-registry.register_struct('POINT', 'x:R,y:R');
+// List schema - positional types
+registry.register_struct('POINT', '["R", "R"]');
 
-from_text('["3.7", "7.3"]::@POINT');
-// → { x: 3.7, y: 7.3 }
+from_text('[3.7, 7.3]::@POINT');
+// → [3.7, 7.3]
 
 // Array of structs
-from_text('[["1", "2"], ["3", "4"]]::#@POINT');
-// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+from_text('[[1, 2], [3, 4]]::#@POINT');
+// → [[1, 2], [3, 4]]
 ```
 
 ## API Reference

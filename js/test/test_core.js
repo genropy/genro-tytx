@@ -724,11 +724,18 @@ describe('struct schemas', () => {
             registry.unregister_struct('TEST_LIST');
         });
 
-        test('registers string schema', () => {
-            registry.register_struct('TEST_STR', 'x:R,y:R');
+        test('registers JSON string schema', () => {
+            registry.register_struct('TEST_STR', '["R", "R"]');
             const schema = registry.get_struct('TEST_STR');
-            assert.strictEqual(schema, 'x:R,y:R');
+            assert.deepStrictEqual(schema, ['R', 'R']);
             registry.unregister_struct('TEST_STR');
+        });
+
+        test('rejects old string format', () => {
+            assert.throws(
+                () => registry.register_struct('INVALID', 'x:R,y:R'),
+                /Invalid JSON schema/
+            );
         });
 
         test('unregister removes struct', () => {
@@ -827,56 +834,45 @@ describe('struct schemas', () => {
         });
     });
 
-    describe('string schema', () => {
-        test('named fields produce dict output', () => {
-            registry.register_struct('POINT', 'x:R,y:R');
+    describe('JSON string schema', () => {
+        test('JSON dict schema', () => {
+            registry.register_struct('POINT', '{"x": "R", "y": "R"}');
             try {
-                const result = from_text('["3.7", "7.3"]::@POINT');
+                const result = from_text('{"x": "3.7", "y": "7.3"}::@POINT');
                 assert.deepStrictEqual(result, { x: 3.7, y: 7.3 });
             } finally {
                 registry.unregister_struct('POINT');
             }
         });
 
-        test('anonymous fields produce list output', () => {
-            registry.register_struct('COORDS', 'R,R');
+        test('JSON list schema (positional)', () => {
+            registry.register_struct('COORDS', '["R", "R"]');
             try {
-                const result = from_text('["3.7", "7.3"]::@COORDS');
+                const result = from_text('[3.7, 7.3]::@COORDS');
                 assert.deepStrictEqual(result, [3.7, 7.3]);
             } finally {
                 registry.unregister_struct('COORDS');
             }
         });
 
-        test('preserves field order', () => {
-            registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N');
+        test('preserves field order from JSON', () => {
+            registry.register_struct('CSV_ROW', '{"name": "T", "qty": "L", "price": "N"}');
             try {
-                const result = from_text('["Widget", "10", "99.99"]::@CSV_ROW');
+                const result = from_text('{"name": "Widget", "qty": "10", "price": "99.99"}::@CSV_ROW');
                 assert.strictEqual(result.name, 'Widget');
                 assert.strictEqual(result.qty, 10);
                 assert.strictEqual(result.price.toString(), '99.99');
-                assert.deepStrictEqual(Object.keys(result), ['name', 'qty', 'price']);
             } finally {
                 registry.unregister_struct('CSV_ROW');
-            }
-        });
-
-        test('handles spaces in definition', () => {
-            registry.register_struct('POINT2', 'x : R , y : R');
-            try {
-                const result = from_text('["1.0", "2.0"]::@POINT2');
-                assert.deepStrictEqual(result, { x: 1.0, y: 2.0 });
-            } finally {
-                registry.unregister_struct('POINT2');
             }
         });
     });
 
     describe('array of structs (#@)', () => {
-        test('batch mode with named string schema', () => {
-            registry.register_struct('ROW', 'name:T,qty:L,price:N');
+        test('batch mode with dict schema', () => {
+            registry.register_struct('ROW', '{"name": "T", "qty": "L", "price": "N"}');
             try {
-                const result = from_text('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW');
+                const result = from_text('[{"name":"A","qty":"1","price":"10"},{"name":"B","qty":"2","price":"20"}]::#@ROW');
                 assert.strictEqual(result.length, 2);
                 assert.strictEqual(result[0].name, 'A');
                 assert.strictEqual(result[0].qty, 1);
@@ -889,10 +885,10 @@ describe('struct schemas', () => {
             }
         });
 
-        test('batch mode with anonymous string schema', () => {
-            registry.register_struct('PAIR', 'R,R');
+        test('batch mode with list schema', () => {
+            registry.register_struct('PAIR', '["R", "R"]');
             try {
-                const result = from_text('[["1.5", "2.5"], ["3.5", "4.5"]]::#@PAIR');
+                const result = from_text('[[1.5, 2.5], [3.5, 4.5]]::#@PAIR');
                 assert.deepStrictEqual(result, [[1.5, 2.5], [3.5, 4.5]]);
             } finally {
                 registry.unregister_struct('PAIR');
@@ -1856,11 +1852,12 @@ describe('xml_utils extended coverage', () => {
 // =============================================================================
 
 describe('registry extended coverage', () => {
-    test('register_struct with string schema', () => {
-        registry.register_struct('POINT_STR', 'x:R,y:R');
+    test('register_struct with JSON string schema', () => {
+        registry.register_struct('POINT_STR', '{"x": "R", "y": "R"}');
         try {
             const struct = registry.get_struct('POINT_STR');
             assert.ok(struct);
+            assert.deepStrictEqual(struct, { x: 'R', y: 'R' });
         } finally {
             registry.unregister_struct('POINT_STR');
         }

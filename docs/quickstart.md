@@ -195,13 +195,13 @@ registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
 registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
 # → {"name": "Acme", "balance": Decimal("100")}
 
-# String schema - positional data → dict
-registry.register_struct('POINT', 'x:R,y:R')
-registry.from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+# List schema - positional types
+registry.register_struct('POINT', '["R", "R"]')
+registry.from_text('[3.7, 7.3]::@POINT')  # → [3.7, 7.3]
 
 # Array of structs with #@
-registry.from_text('[["1", "2"], ["3", "4"]]::#@POINT')
-# → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
+registry.from_text('[[1, 2], [3, 4]]::#@POINT')
+# → [[1.0, 2.0], [3.0, 4.0]]
 ```
 
 ## Typed Arrays (#)

@@ -111,20 +111,14 @@ Register a struct schema with the `@` prefix:
 ```python
 from genro_tytx import registry
 
-# Dict schema - keys map to types
-registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
+# Dict schema (JSON string) - keys map to types
+registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N", "created": "D"}')
 
-# List positional schema - types by position
-registry.register_struct('ROW', ['T', 'L', 'N'])
+# List positional schema (JSON string) - types by position
+registry.register_struct('ROW', '["T", "L", "N"]')
 
-# List homogeneous schema - one type for all elements
-registry.register_struct('PRICES', ['N'])
-
-# String schema (named) - CSV-like data → dict output
-registry.register_struct('POINT', 'x:R,y:R')
-
-# String schema (anonymous) - CSV-like data → list output
-registry.register_struct('COORDS', 'R,R')
+# List homogeneous schema (JSON string) - one type for all elements
+registry.register_struct('PRICES', '["N"]')
 ```
 
 Usage:
@@ -134,13 +128,13 @@ Usage:
 registry.from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
 # → {"name": "Acme", "balance": Decimal("100"), ...}
 
-# String schema (named fields)
-registry.from_text('["3.7", "7.3"]::@POINT')
-# → {"x": 3.7, "y": 7.3}
+# List schema (positional)
+registry.from_text('[3.7, 7.3]::@ROW')
+# → ["3.7", 7, 7.3]  (types applied by position)
 
 # Array of structs with #@
-registry.from_text('[["A", "1"], ["B", "2"]]::#@POINT')
-# → [{"x": "A", "y": 1}, {"x": "B", "y": 2}]
+registry.from_text('[[1, 2, 3], [4, 5, 6]]::#@ROW')
+# → [["1", 2, 3.0], ["4", 5, 6.0]]
 ```
 
 See [structs.md](../../spec/structs.md) for complete documentation.
@@ -235,13 +229,13 @@ my_registry.register_class(
 )
 
 # Register struct schemas
-my_registry.register_struct('POINT', 'x:R,y:R')
+my_registry.register_struct('POINT', '["R", "R"]')
 
 # Use custom registry
 my_registry.from_text("123::L")              # → 123
 my_registry.from_text("hello::T")            # → "hello::T" (StrType not registered)
 my_registry.from_text("1|100::~INV")         # → Invoice(1, 100)
-my_registry.from_text('["1", "2"]::@POINT')  # → {"x": 1.0, "y": 2.0}
+my_registry.from_text('[1, 2]::@POINT')      # → [1.0, 2.0]
 ```
 
 ## Fallback Behavior

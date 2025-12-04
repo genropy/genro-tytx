@@ -201,20 +201,14 @@ Register a struct schema (prefixed with `@`).
 ```javascript
 const { registry, from_text } = require('genro-tytx');
 
-// Dict schema - keys map to types
-registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
+// Dict schema (JSON string) - keys map to types
+registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N"}');
 
-// List positional schema - types by position
-registry.register_struct('ROW', ['T', 'L', 'N']);
+// List positional schema (JSON string) - types by position
+registry.register_struct('ROW', '["T", "L", "N"]');
 
-// List homogeneous schema - one type for all elements
-registry.register_struct('PRICES', ['N']);
-
-// String schema (named) - CSV-like → dict output
-registry.register_struct('POINT', 'x:R,y:R');
-
-// String schema (anonymous) - CSV-like → list output
-registry.register_struct('COORDS', 'R,R');
+// List homogeneous schema (JSON string) - one type for all elements
+registry.register_struct('PRICES', '["N"]');
 ```
 
 Usage:
@@ -224,13 +218,13 @@ Usage:
 from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER');
 // → { name: "Acme", balance: 100 }
 
-// String schema (named fields)
-from_text('["3.7", "7.3"]::@POINT');
-// → { x: 3.7, y: 7.3 }
+// List schema (positional)
+from_text('[1, 2, 3]::@ROW');
+// → ["1", 2, 3.0]
 
 // Array of structs with #@
-from_text('[["1", "2"], ["3", "4"]]::#@POINT');
-// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+from_text('[[1, 2, 3], [4, 5, 6]]::#@ROW');
+// → [["1", 2, 3.0], ["4", 5, 6.0]]
 ```
 
 See the [structs specification](../../spec/structs.md) for complete documentation.

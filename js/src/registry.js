@@ -45,12 +45,6 @@ const ARRAY_PREFIX = '#';
  */
 
 /**
- * @typedef {Object} StringSchemaField
- * @property {string} name - Field name (empty string if anonymous)
- * @property {string} typeCode - Type code for this field
- */
-
-/**
  * @typedef {Object} FieldValidate
  * @property {number} [min] - Minimum value
  * @property {number} [max] - Maximum value
@@ -129,9 +123,9 @@ function getFieldUI(field) {
  * @typedef {Object} StructType
  * @property {string} code - Full code with @ prefix
  * @property {string} name - Struct name without prefix
- * @property {Array|Object|string} schema - Schema definition
- * @property {StringSchemaField[]|null} stringFields - Parsed fields for string schema
- * @property {boolean} stringHasNames - Whether string schema has named fields
+ * @property {Array|Object} schema - Parsed schema (always object or array, never string)
+ * @property {string} schemaJson - Original JSON string representation
+ * @property {string[]|null} fieldOrder - Field order for dict schemas (null for arrays)
  */
 
 class TypeRegistry {
@@ -241,28 +235,39 @@ class TypeRegistry {
     /**
      * Register a struct schema.
      * @param {string} name - Struct name (without @ prefix)
-     * @param {Array|Object|string} schema - Schema definition (pure types only)
+     * @param {Array|Object|string} schema - Schema definition (JSON string preferred):
+     *        - string: JSON '{"name": "T", "age": "L"}' or '["T", "L"]'
+     *        - Array: list schema (legacy)
+     *        - Object: dict schema (legacy)
      * @param {Object|null} [metadata] - Optional field metadata (validation, UI hints)
      *        Maps field names to FieldMetadata objects:
      *        {"name": {"validate": {"min": 1}, "ui": {"label": "Name"}}}
      */
     register_struct(name, schema, metadata = null) {
         const code = STRUCT_PREFIX + name;
-        let stringFields = null;
-        let stringHasNames = false;
+        let parsedSchema;
+        let schemaJson;
+        let fieldOrder = null;
 
         if (typeof schema === 'string') {
-            const parsed = this._parseStringSchema(schema);
-            stringFields = parsed.fields;
-            stringHasNames = parsed.hasNames;
+            const parsed = this._parseJsonSchema(schema);
+            parsedSchema = parsed.schema;
+            schemaJson = schema;
+            fieldOrder = parsed.fieldOrder;
+        } else {
+            parsedSchema = schema;
+            schemaJson = JSON.stringify(schema);
+            if (!Array.isArray(schema)) {
+                fieldOrder = Object.keys(schema);
+            }
         }
 
         const struct_type = {
             code: code,
             name: name,
-            schema: schema,
-            stringFields: stringFields,
-            stringHasNames: stringHasNames
+            schema: parsedSchema,
+            schemaJson: schemaJson,
+            fieldOrder: fieldOrder
         };
 
         this._structs.set(name, struct_type);
@@ -363,28 +368,31 @@ class TypeRegistry {
     }
 
     /**
-     * Parse a string schema like "x:R,y:R" or "R,R".
-     * @param {string} schema - String schema definition
-     * @returns {{fields: StringSchemaField[], hasNames: boolean}}
+     * Parse a JSON schema string, preserving field order.
+     * @param {string} jsonStr - JSON schema string like '{"name": "T"}' or '["T", "L"]'
+     * @returns {{schema: Array|Object, fieldOrder: string[]|null}}
+     * @throws {Error} If not valid JSON
      * @private
      */
-    _parseStringSchema(schema) {
-        const fields = [];
-        let hasNames = false;
-
-        const parts = schema.split(',');
-        for (const part of parts) {
-            const trimmed = part.trim();
-            if (trimmed.includes(':')) {
-                const [name, typeCode] = trimmed.split(':').map(s => s.trim());
-                fields.push({ name, typeCode });
-                hasNames = true;
-            } else {
-                fields.push({ name: '', typeCode: trimmed });
-            }
+    _parseJsonSchema(jsonStr) {
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonStr);
+        } catch (e) {
+            throw new Error(`Invalid JSON schema: ${e.message}`);
         }
 
-        return { fields, hasNames };
+        if (Array.isArray(parsed)) {
+            return { schema: parsed, fieldOrder: null };
+        }
+
+        if (typeof parsed === 'object' && parsed !== null) {
+            // Object.keys preserves insertion order from JSON.parse
+            const fieldOrder = Object.keys(parsed);
+            return { schema: parsed, fieldOrder };
+        }
+
+        throw new Error(`Schema must be JSON object or array, got ${typeof parsed}`);
     }
 
     /**
@@ -561,21 +569,29 @@ class TypeRegistry {
         if (localStructs && name in localStructs) {
             // Create temporary struct type for local schema
             const schema = localStructs[name];
-            let stringFields = null;
-            let stringHasNames = false;
+            let parsedSchema;
+            let schemaJson;
+            let fieldOrder = null;
 
             if (typeof schema === 'string') {
-                const parsed = this._parseStringSchema(schema);
-                stringFields = parsed.fields;
-                stringHasNames = parsed.hasNames;
+                const parsed = this._parseJsonSchema(schema);
+                parsedSchema = parsed.schema;
+                schemaJson = schema;
+                fieldOrder = parsed.fieldOrder;
+            } else {
+                parsedSchema = schema;
+                schemaJson = JSON.stringify(schema);
+                if (!Array.isArray(schema)) {
+                    fieldOrder = Object.keys(schema);
+                }
             }
 
             return {
                 code: STRUCT_PREFIX + name,
                 name: name,
-                schema: schema,
-                stringFields: stringFields,
-                stringHasNames: stringHasNames
+                schema: parsedSchema,
+                schemaJson: schemaJson,
+                fieldOrder: fieldOrder
             };
         }
 
@@ -620,6 +636,7 @@ class TypeRegistry {
 
     /**
      * Apply struct schema to parsed JSON data.
+     * Schema is always parsed (object or array), never a string.
      * @param {*} data - Parsed JSON data
      * @param {StructType} struct_type - Struct type definition
      * @returns {*} Hydrated data
@@ -627,10 +644,6 @@ class TypeRegistry {
      */
     _applySchema(data, struct_type) {
         const schema = struct_type.schema;
-
-        if (typeof schema === 'string') {
-            return this._applyStringSchema(data, struct_type);
-        }
 
         if (Array.isArray(schema)) {
             return this._applyListSchema(data, schema);
@@ -641,40 +654,6 @@ class TypeRegistry {
         }
 
         return data;
-    }
-
-    /**
-     * Apply string schema to data.
-     * @param {*} data - Data (should be array)
-     * @param {StructType} struct_type - Struct type with parsed stringFields
-     * @returns {Object|Array} Dict if named, list if anonymous
-     * @private
-     */
-    _applyStringSchema(data, struct_type) {
-        const fields = struct_type.stringFields;
-        const hasNames = struct_type.stringHasNames;
-
-        if (!Array.isArray(data)) {
-            return data;
-        }
-
-        if (hasNames) {
-            // Named fields → return object
-            const result = {};
-            for (let i = 0; i < fields.length && i < data.length; i++) {
-                const field = fields[i];
-                result[field.name] = this._hydrateValue(data[i], field.typeCode);
-            }
-            return result;
-        } else {
-            // Anonymous fields → return array
-            return data.map((item, i) => {
-                if (i < fields.length) {
-                    return this._hydrateValue(item, fields[i].typeCode);
-                }
-                return item;
-            });
-        }
     }
 
     /**

@@ -120,25 +120,20 @@ Schema-based data hydration using `@` prefix.
 
 | Type | Definition | Input | Output |
 |------|------------|-------|--------|
-| Dict | `{'name': 'T', 'price': 'N'}` | object | object |
-| List Positional | `['T', 'L', 'N']` | array | array |
-| List Homogeneous | `['N']` | array | array |
-| String Named | `'x:R,y:R'` | array | object |
-| String Anonymous | `'R,R'` | array | array |
+| JSON Dict | `'{"name": "T", "price": "N"}'` | object | object |
+| JSON List Positional | `'["T", "L", "N"]'` | array | array |
+| JSON List Homogeneous | `'["N"]'` | array | array |
 
 **Hierarchical Structs**:
 ```python
-registry.register_struct('ADDRESS', {'street': 'T', 'city': 'T'})
-registry.register_struct('CUSTOMER', {
-    'name': 'T',
-    'address': '@ADDRESS'  # nested struct
-})
+registry.register_struct('ADDRESS', '{"street": "T", "city": "T"}')
+registry.register_struct('CUSTOMER', '{"name": "T", "address": "@ADDRESS"}')
 ```
 
 **Array of Structs**:
 ```python
-registry.register_struct('ROW', 'name:T,qty:L,price:N')
-from_text('[["A",1,"10"],["B",2,"20"]]::#@ROW')
+registry.register_struct('ROW', '{"name": "T", "qty": "L", "price": "N"}')
+from_text('[{"name":"A","qty":1,"price":"10"},{"name":"B","qty":2,"price":"20"}]::#@ROW')
 # → [{"name":"A","qty":1,"price":Decimal("10")}, ...]
 ```
 

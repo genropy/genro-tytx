@@ -124,25 +124,24 @@ from_text("550e8400-...::~UUID");  // -> "550e8400-..."
 
 ### Decision
 
-Struct schemas use the `@` prefix and support three definition formats:
+Struct schemas use the `@` prefix and accept only JSON string format:
 
 | Format | Example | Input | Output |
 |--------|---------|-------|--------|
-| Dict | `{name: 'T', balance: 'N'}` | `{...}` | `{...}` |
-| List | `['T', 'L', 'N']` | `[...]` | `[...]` |
-| String | `'x:R,y:R'` | `[...]` | `{...}` or `[...]` |
+| JSON dict | `'{"name": "T", "balance": "N"}'` | `{...}` | `{...}` |
+| JSON list | `'["T", "L", "N"]'` | `[...]` | `[...]` |
 
 ### `register_struct` Pattern
 
 ```python
-# Dict schema - for objects
-registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+# Dict schema (JSON string) - for objects
+registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N"}')
 
-# List schema - for positional tuples
-registry.register_struct('ROW', ['T', 'L', 'N'])
+# List schema (JSON string) - for positional tuples
+registry.register_struct('ROW', '["T", "L", "N"]')
 
-# String schema - for CSV-like data
-registry.register_struct('POINT', 'x:R,y:R')
+# List schema (JSON string) - homogeneous type
+registry.register_struct('PRICES', '["N"]')
 ```
 
 ### Array of Structs with `#@`

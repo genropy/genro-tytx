@@ -225,18 +225,16 @@ Struct schemas enable schema-based hydration of JSON data. Instead of inline typ
 
 | Schema Type | Definition | Input | Output |
 |-------------|------------|-------|--------|
-| **Dict** | `{name: 'T', balance: 'N'}` | `{...}` object | `{...}` object |
-| **List Positional** | `['T', 'L', 'N']` | `[...]` array | `[...]` array |
-| **List Homogeneous** | `['N']` | `[...]` array | `[...]` array |
-| **String Named** | `'x:R,y:R'` | `[...]` array | `{...}` object |
-| **String Anonymous** | `'R,R'` | `[...]` array | `[...]` array |
+| **JSON Dict** | `'{"name": "T", "balance": "N"}'` | `{...}` object | `{...}` object |
+| **JSON List Positional** | `'["T", "L", "N"]'` | `[...]` array | `[...]` array |
+| **JSON List Homogeneous** | `'["N"]'` | `[...]` array | `[...]` array |
 
 ### Dict Schema
 
-Maps field names to types:
+Maps field names to types (JSON string format):
 
 ```python
-registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N', 'created': 'D'})
+registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N", "created": "D"}')
 
 from_text('{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUSTOMER')
 # → {"name": "Acme", "balance": Decimal("100.50"), "created": date(2025, 1, 15)}
@@ -251,7 +249,7 @@ from_text('{"name": "Acme", "balance": "100.50", "created": "2025-01-15"}::@CUST
 Applies types by position (for fixed-length tuples):
 
 ```python
-registry.register_struct('ROW', ['T', 'L', 'N'])
+registry.register_struct('ROW', '["T", "L", "N"]')
 
 from_text('["Product", 2, "100.50"]::@ROW')
 # → ["Product", 2, Decimal("100.50")]
@@ -262,7 +260,7 @@ from_text('["Product", 2, "100.50"]::@ROW')
 Single-element schema applies to all elements:
 
 ```python
-registry.register_struct('PRICES', ['N'])
+registry.register_struct('PRICES', '["N"]')
 
 from_text('[100, 200, "50.25"]::@PRICES')
 # → [Decimal("100"), Decimal("200"), Decimal("50.25")]
@@ -272,37 +270,15 @@ from_text('[[1, 2], [3, 4]]::@PRICES')
 # → [[Decimal("1"), Decimal("2")], [Decimal("3"), Decimal("4")]]
 ```
 
-### String Schema (CSV-like data)
-
-String schema is ideal for CSV data with guaranteed field order:
-
-**Named fields → dict output:**
-
-```python
-registry.register_struct('POINT', 'x:R,y:R')
-
-from_text('["3.7", "7.3"]::@POINT')
-# → {"x": 3.7, "y": 7.3}
-```
-
-**Anonymous fields → list output:**
-
-```python
-registry.register_struct('COORDS', 'R,R')
-
-from_text('["3.7", "7.3"]::@COORDS')
-# → [3.7, 7.3]
-```
-
 ### Array of Structs (`#@` syntax)
 
 Use `#@STRUCT` to apply a struct schema to each element of an array:
 
 ```python
-registry.register_struct('ROW', 'name:T,qty:L,price:N')
+registry.register_struct('ROW', '{"name": "T", "qty": "L", "price": "N"}')
 
-# Batch mode: array of arrays → array of dicts
-from_text('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW')
+# Batch mode: array of objects → array of typed objects
+from_text('[{"name":"A","qty":"1","price":"10"},{"name":"B","qty":"2","price":"20"}]::#@ROW')
 # → [{"name": "A", "qty": 1, "price": Decimal("10")},
 #    {"name": "B", "qty": 2, "price": Decimal("20")}]
 ```
@@ -312,21 +288,21 @@ from_text('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW')
 ```javascript
 const { registry, from_text } = require('genro-tytx');
 
-// Dict schema
-registry.register_struct('CUSTOMER', { name: 'T', balance: 'N' });
+// Dict schema (JSON string)
+registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N"}');
 
 from_text('{"name": "Acme", "balance": "100.50"}::@CUSTOMER');
 // → { name: "Acme", balance: 100.5 }  (N → number in JS)
 
-// String schema for CSV
-registry.register_struct('POINT', 'x:R,y:R');
+// List schema (JSON string)
+registry.register_struct('POINT', '["R", "R"]');
 
-from_text('["3.7", "7.3"]::@POINT');
-// → { x: 3.7, y: 7.3 }
+from_text('[3.7, 7.3]::@POINT');
+// → [3.7, 7.3]
 
 // Batch mode
-from_text('[["1", "2"], ["3", "4"]]::#@POINT');
-// → [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+from_text('[[1, 2], [3, 4]]::#@POINT');
+// → [[1, 2], [3, 4]]
 ```
 
 ### Unregistering Structs

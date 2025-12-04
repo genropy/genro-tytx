@@ -190,11 +190,9 @@ order = OrderModel(id=123, total=Decimal("99.99"))
 
 | Schema Type | Definition | Best For |
 |-------------|------------|----------|
-| Dict | `{'name': 'T', 'balance': 'N'}` | JSON objects |
-| List positional | `['T', 'L', 'N']` | Fixed-length tuples |
-| List homogeneous | `['N']` | Arrays of same type |
-| String named | `'x:R,y:R'` | CSV data → dict |
-| String anonymous | `'R,R'` | CSV data → list |
+| JSON dict | `'{"name": "T", "balance": "N"}'` | JSON objects |
+| JSON list positional | `'["T", "L", "N"]'` | Fixed-length tuples |
+| JSON list homogeneous | `'["N"]'` | Arrays of same type |
 
 ### Why use `::` as separator?
 

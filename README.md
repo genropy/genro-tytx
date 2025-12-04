@@ -236,10 +236,10 @@ registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
 from_text('{"name": "Acme", "balance": "100"}::@CUSTOMER')
 # → {"name": "Acme", "balance": Decimal("100")}
 
-# String schema - for CSV-like data
-registry.register_struct('POINT', 'x:R,y:R')
-from_text('["3.7", "7.3"]::@POINT')
-# → {"x": 3.7, "y": 7.3}
+# List schema - positional types
+registry.register_struct('POINT', '["R", "R"]')
+from_text('[3.7, 7.3]::@POINT')
+# → [3.7, 7.3]
 ```
 
 ### Level 5: Nested Structures & Arrays of Structs
@@ -258,8 +258,8 @@ from_text('{"name": "John", "address": {"city": "Rome", "zip": "00100"}}::@CUSTO
 # → {"name": "John", "address": {"city": "Rome", "zip": 100}}
 
 # Array of structs
-registry.register_struct('ROW', 'name:T,qty:L,price:N')
-from_text('[["A",1,"10"],["B",2,"20"]]::#@ROW')
+registry.register_struct('ROW', '{"name": "T", "qty": "L", "price": "N"}')
+from_text('[{"name":"A","qty":1,"price":"10"},{"name":"B","qty":2,"price":"20"}]::#@ROW')
 # → [{"name": "A", "qty": 1, "price": Decimal("10")},
 #    {"name": "B", "qty": 2, "price": Decimal("20")}]
 ```

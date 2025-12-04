@@ -266,28 +266,26 @@ Complete API documentation for genro-tytx.
 
       **Schema Types:**
 
-      - **Dict schema**: ``{'name': 'T', 'balance': 'N'}`` - key-based typing
-      - **List positional**: ``['T', 'L', 'N']`` - type by position
-      - **List homogeneous**: ``['N']`` - one type for all elements
-      - **String named**: ``'x:R,y:R'`` - CSV-like → dict output
-      - **String anonymous**: ``'R,R'`` - CSV-like → list output
+      - **JSON dict schema**: ``'{"name": "T", "balance": "N"}'`` - key-based typing
+      - **JSON list positional**: ``'["T", "L", "N"]'`` - type by position
+      - **JSON list homogeneous**: ``'["N"]'`` - one type for all elements
 
       **Example:**
 
       .. code-block:: python
 
-         # Dict schema
-         registry.register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})
+         # Dict schema (JSON string)
+         registry.register_struct('CUSTOMER', '{"name": "T", "balance": "N"}')
 
-         # String schema for CSV data
-         registry.register_struct('POINT', 'x:R,y:R')
+         # List schema (JSON string) - positional types
+         registry.register_struct('POINT', '["R", "R"]')
 
          # Usage
-         from_text('["3.7", "7.3"]::@POINT')  # → {"x": 3.7, "y": 7.3}
+         from_text('[3.7, 7.3]::@POINT')  # → [3.7, 7.3]
 
          # Array of structs
-         from_text('[["1", "2"], ["3", "4"]]::#@POINT')
-         # → [{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}]
+         from_text('[[1, 2], [3, 4]]::#@POINT')
+         # → [[1.0, 2.0], [3.0, 4.0]]
 
    .. py:method:: unregister_struct(code: str) -> None
 
