@@ -1,11 +1,15 @@
-from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+import hashlib
+import json
+from collections.abc import Callable
+from typing import Any, cast
 
 from .base import DataType
 from .extension import CUSTOM_PREFIX
 from .extension import ExtensionType as _ExtensionType
-from .struct import STRUCT_PREFIX, FieldDef, FieldValue
-from .struct import StructType as _StructType
+from .struct import STRUCT_PREFIX, FieldMetadata, FieldValue, MetadataDict, StructType
+
+# Internal alias for type hints
+_StructType = StructType
 
 # Symbol prefix for typed arrays (hash = each element #i)
 ARRAY_PREFIX = "#"
@@ -46,8 +50,12 @@ class TypeRegistry:
         self._types: dict[str, type[DataType] | _ExtensionType | _StructType] = {}
         self._codes: dict[str, type[DataType] | _ExtensionType | _StructType] = {}
         self._python_types: dict[type, type[DataType] | _ExtensionType] = {}
-        # Struct schemas registry: code -> schema (list, dict, or str)
-        self._structs: dict[str, list[FieldValue] | dict[str, FieldValue] | str] = {}
+        # Struct schemas registry: code -> parsed schema (dict or list)
+        self._structs: dict[str, dict[str, Any] | list[Any]] = {}
+        # Struct metadata registry: code -> field_name -> metadata hash
+        self._struct_metadata: dict[str, dict[str, str]] = {}
+        # Metadata content registry: hash -> metadata content (deduplicated)
+        self._metadata_content: dict[str, FieldMetadata] = {}
 
     def register(self, type_cls: type[DataType]) -> None:
         """
@@ -126,44 +134,139 @@ class TypeRegistry:
             if ext_type.name in self._types:
                 del self._types[ext_type.name]
             # Remove from _python_types if cls was registered
-            if (
-                ext_type.python_type is not None
-                and ext_type.python_type in self._python_types
-            ):
+            if ext_type.python_type is not None and ext_type.python_type in self._python_types:
                 del self._python_types[ext_type.python_type]
 
     def register_struct(
-        self, code: str, schema: "Sequence[FieldValue] | Mapping[str, FieldValue] | str"
+        self,
+        code: str,
+        schema: dict[str, Any] | list[Any],
+        metadata: MetadataDict | None = None,
     ) -> None:
         """
         Register a struct schema for schema-based hydration.
 
         Args:
             code: Struct code (will be prefixed with @)
-            schema: Type schema - either:
-                - list: positional types ['T', 'L', 'N'] or homogeneous ['N']
-                - dict: keyed types {'name': 'T', 'balance': 'N'}
-                - str: ordered types with explicit field order:
-                    - "x:R,y:R" (named fields → output dict)
-                    - "R,R" (anonymous fields → output list)
+            schema: Schema definition as dict or list (pure types only):
+                - dict: {"name": "T", "age": "L"} → produces dict
+                - list: ["T", "L", "N"] → produces list
+                Type codes:
+                - None or "": passthrough (no conversion, JSON-native types)
+                - "@CODE": reference to another struct
+                - Nested dict/list: inline nested struct
+            metadata: Optional field metadata (validation, UI hints).
+                Maps field names to FieldMetadata dicts:
+                {"name": {"validate": {"min": 1}, "ui": {"label": "Name"}}}
 
         Examples:
-            register_struct('ROW', ['T', 'L', 'N'])      # positional list
-            register_struct('PRICES', ['N'])             # homogeneous list
-            register_struct('CUSTOMER', {'name': 'T', 'balance': 'N'})  # dict
-            register_struct('POINT', 'x:R,y:R')          # string → dict output
-            register_struct('COORDS', 'R,R')             # string → list output
+            # Dict output (pure schema)
+            register_struct('CUSTOMER', {"name": "T", "balance": "N"})
+
+            # With metadata
+            register_struct(
+                'CUSTOMER',
+                schema={"name": "", "balance": "N"},
+                metadata={
+                    "name": {"validate": {"min": 1, "max": 200}, "ui": {"label": "Customer Name"}},
+                    "balance": {"validate": {"min": 0}}
+                }
+            )
+
+            # List output
+            register_struct('POINT', ["R", "R"])
+
+            # Homogeneous list (single type for all elements)
+            register_struct('PRICES', ["N"])
+
+            # Passthrough for JSON-native types (None or "")
+            register_struct('MIXED', {"name": None, "active": "", "balance": "N"})
+
+            # Nested struct reference
+            register_struct('ORDER', {"customer": "@CUSTOMER", "total": "N"})
+
+            # Inline nested struct
+            register_struct('ORDER', {"customer": {"name": "T"}, "total": "N"})
         """
-        # Store schema (convert Mapping/Sequence to concrete types for storage)
-        if isinstance(schema, str):
-            self._structs[code] = schema
-        elif isinstance(schema, Mapping):
-            self._structs[code] = dict(schema)
-        else:
-            self._structs[code] = list(schema)
-        struct_type = _StructType(code, self._structs[code], self)
+        self._structs[code] = schema
+        struct_type = _StructType(code, schema, self)
         self._codes[struct_type.code] = struct_type
         self._types[struct_type.name] = struct_type
+
+        # Process and store metadata if provided
+        if metadata:
+            self._register_struct_metadata(code, metadata)
+
+    def _register_struct_metadata(self, code: str, metadata: MetadataDict) -> None:
+        """
+        Register metadata for a struct, with hash-based deduplication.
+
+        Args:
+            code: Struct code (without @ prefix)
+            metadata: Dict mapping field names to FieldMetadata
+        """
+        field_hashes: dict[str, str] = {}
+
+        for field_name, field_meta in metadata.items():
+            if not field_meta:
+                continue
+            # Compute hash of metadata content
+            meta_hash = self._compute_metadata_hash(field_meta)
+            field_hashes[field_name] = meta_hash
+            # Store content if not already present (deduplication)
+            if meta_hash not in self._metadata_content:
+                self._metadata_content[meta_hash] = field_meta
+
+        if field_hashes:
+            self._struct_metadata[code] = field_hashes
+
+    def _compute_metadata_hash(self, metadata: FieldMetadata) -> str:
+        """
+        Compute a stable hash for metadata content.
+
+        Args:
+            metadata: FieldMetadata dict
+
+        Returns:
+            Short hash string (first 8 chars of SHA256)
+        """
+        # Sort keys for stable serialization
+        serialized = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(serialized.encode()).hexdigest()[:8]
+
+    def get_struct_metadata(
+        self, code: str, field_name: str | None = None
+    ) -> MetadataDict | FieldMetadata | None:
+        """
+        Get metadata for a struct or specific field.
+
+        Args:
+            code: Struct code (without @ prefix)
+            field_name: Optional field name. If None, returns all field metadata.
+
+        Returns:
+            - If field_name is None: dict of all fields with metadata
+            - If field_name is provided: FieldMetadata for that field or None
+        """
+        if code not in self._struct_metadata:
+            return None
+
+        field_hashes = self._struct_metadata[code]
+
+        if field_name is not None:
+            # Return specific field metadata
+            meta_hash = field_hashes.get(field_name)
+            if meta_hash is None:
+                return None
+            return self._metadata_content.get(meta_hash)
+
+        # Return all field metadata
+        result: MetadataDict = {}
+        for fname, meta_hash in field_hashes.items():
+            content = self._metadata_content.get(meta_hash)
+            if content:
+                result[fname] = content
+        return result
 
     def unregister_struct(self, code: str) -> None:
         """
@@ -174,6 +277,8 @@ class TypeRegistry:
         """
         if code in self._structs:
             del self._structs[code]
+        if code in self._struct_metadata:
+            del self._struct_metadata[code]
         full_code = f"{STRUCT_PREFIX}{code}"
         if full_code in self._codes:
             struct_type = self._codes.pop(full_code)
@@ -185,15 +290,14 @@ class TypeRegistry:
         model_class: type,
         *,
         include_nested: bool = False,
-    ) -> dict[str, FieldValue]:
+    ) -> tuple[dict[str, FieldValue], MetadataDict]:
         """
-        Generate a TYTX v2 struct schema from a Pydantic model.
+        Generate a TYTX struct schema and metadata from a Pydantic model.
 
         Extracts:
-        - Type mappings (str -> T, int -> L, Decimal -> N, etc.)
-        - Field constraints as validate section (min_length -> min, pattern, etc.)
-        - UI metadata as ui section (title -> label, description -> hint)
-        - Literal types as validate.enum
+        - Schema: pure type mappings (str -> T, int -> L, Decimal -> N, etc.)
+        - Metadata: field constraints and UI hints separately
+        - Literal types as validate.enum in metadata
         - Nested Pydantic models as @STRUCT references
 
         Args:
@@ -202,8 +306,9 @@ class TypeRegistry:
                 as separate structs (default False - just generate references)
 
         Returns:
-            Dict schema with TYTX v2 FieldValue (string or FieldDef), e.g.:
-            {'name': {'type': 'T', 'validate': {'min': 1, 'max': 100}}}
+            Tuple of (schema, metadata):
+            - schema: pure types {"name": "T", "balance": "N"}
+            - metadata: {"name": {"validate": {"min": 1}, "ui": {"label": "Name"}}}
 
         Raises:
             ImportError: If pydantic is not installed
@@ -213,14 +318,16 @@ class TypeRegistry:
             from pydantic import BaseModel, Field
 
             class Customer(BaseModel):
-                name: str = Field(min_length=1, max_length=100)
+                name: str = Field(min_length=1, max_length=100, title="Name")
                 email: str = Field(pattern=r'^[^@]+@[^@]+$')
 
-            schema = registry.struct_from_model(Customer)
-            # → {'name': 'T[min:1, max:100]', 'email': 'T[reg:"^[^@]+@[^@]+$"]'}
+            schema, metadata = registry.struct_from_model(Customer)
+            # schema → {'name': 'T', 'email': 'T'}
+            # metadata → {'name': {'validate': {'min': 1, 'max': 100}, 'ui': {'label': 'Name'}},
+            #             'email': {'validate': {'pattern': '^[^@]+@[^@]+$'}}}
 
             # Then register:
-            registry.register_struct('CUSTOMER', schema)
+            registry.register_struct('CUSTOMER', schema, metadata)
         """
         try:
             from pydantic import BaseModel
@@ -270,19 +377,21 @@ class TypeRegistry:
                 balance: Decimal = Field(ge=0)
 
             registry.register_struct_from_model('CUSTOMER', Customer)
-            # Registers: {'name': 'T[min:1, lbl:"Customer Name"]', 'balance': 'N[min:0]'}
+            # Registers schema: {'name': 'T', 'balance': 'N'}
+            # With metadata: {'name': {'validate': {'min': 1}, 'ui': {'label': 'Customer Name'}},
+            #                 'balance': {'validate': {'min': 0}}}
         """
-        schema = self.struct_from_model(model_class, include_nested=include_nested)
-        self.register_struct(code, schema)
+        schema, metadata = self.struct_from_model(model_class, include_nested=include_nested)
+        self.register_struct(code, schema, metadata if metadata else None)
 
     def _model_to_schema(
         self,
         model_class: Any,
         include_nested: bool,
         _registered: set[type] | None = None,
-    ) -> dict[str, FieldValue]:
+    ) -> tuple[dict[str, FieldValue], MetadataDict]:
         """
-        Convert a Pydantic model to a TYTX v2 dict schema.
+        Convert a Pydantic model to TYTX schema and metadata.
 
         Args:
             model_class: Pydantic BaseModel subclass
@@ -290,39 +399,39 @@ class TypeRegistry:
             _registered: Internal set to track already registered models (avoid infinite recursion)
 
         Returns:
-            Dict schema mapping field names to TYTX v2 FieldValue (string or FieldDef)
+            Tuple of (schema, metadata):
+            - schema: dict mapping field names to type codes
+            - metadata: dict mapping field names to FieldMetadata
         """
         if _registered is None:
             _registered = set()
 
         schema: dict[str, FieldValue] = {}
+        metadata: MetadataDict = {}
 
         # model_class is validated as BaseModel in register_struct_from_model
         for field_name, field_info in model_class.model_fields.items():
             annotation = field_info.annotation
-            type_code = self._python_type_to_tytx_code(
-                annotation, include_nested, _registered
-            )
-            # Extract metadata from field_info as v2 FieldDef
-            field_def = self._extract_field_metadata_v2(
-                field_info, annotation, type_code
-            )
-            schema[field_name] = field_def
+            type_code = self._python_type_to_tytx_code(annotation, include_nested, _registered)
+            # Extract metadata from field_info
+            field_meta = self._extract_field_metadata(field_info, annotation)
 
-        return schema
+            schema[field_name] = type_code
+            if field_meta:
+                metadata[field_name] = field_meta
 
-    def _extract_field_metadata_v2(
-        self, field_info: Any, annotation: Any, type_code: str
-    ) -> FieldValue:
+        return schema, metadata
+
+    def _extract_field_metadata(self, field_info: Any, annotation: Any) -> FieldMetadata | None:
         """
-        Extract TYTX v2 FieldDef from Pydantic FieldInfo.
+        Extract FieldMetadata from Pydantic FieldInfo.
 
-        Maps Pydantic constraints to TYTX v2 format:
-        - validate section: min, max, pattern, enum, default
+        Maps Pydantic constraints to FieldMetadata format:
+        - validate section: min, max, pattern, enum, default, required
         - ui section: label, hint
 
         Returns:
-            FieldValue: simple string if no constraints, or FieldDef dict
+            FieldMetadata if any constraints found, None otherwise
         """
         import typing
 
@@ -393,15 +502,15 @@ class TypeRegistry:
         # (otherwise simple types like "name: str" would become verbose)
         is_required = hasattr(field_info, "is_required") and field_info.is_required()
 
-        # Return simple string if no constraints, otherwise FieldDef
+        # Return None if no constraints found
         if not validate and not ui:
-            return type_code
+            return None
 
         # Add required flag only if there are other constraints
         if is_required and (len(validate) > 0 or ui):
             validate["required"] = True
 
-        result: FieldDef = {"type": type_code}
+        result: FieldMetadata = {}
         if validate:
             result["validate"] = validate  # type: ignore[typeddict-item]
         if ui:
@@ -437,6 +546,18 @@ class TypeRegistry:
         origin = typing.get_origin(python_type)
         args = typing.get_args(python_type)
 
+        # Handle Literal type - infer type from first value
+        if origin is typing.Literal:
+            if args:
+                first_value = args[0]
+                if isinstance(first_value, int):
+                    return "L"
+                elif isinstance(first_value, float):
+                    return "R"
+                elif isinstance(first_value, bool):
+                    return "B"
+            return "T"  # Default to text for string or mixed literals
+
         # Handle Optional[X] and Union[X, None] -> X
         # In Python 3.10+, `str | None` creates a types.UnionType
         if origin is typing.Union or isinstance(python_type, types.UnionType):
@@ -446,22 +567,16 @@ class TypeRegistry:
             # Filter out NoneType
             non_none_args = [a for a in args if a is not type(None)]
             if len(non_none_args) == 1:
-                return self._python_type_to_tytx_code(
-                    non_none_args[0], include_nested, _registered
-                )
+                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
             # Multiple types - use first one
             if non_none_args:
-                return self._python_type_to_tytx_code(
-                    non_none_args[0], include_nested, _registered
-                )
+                return self._python_type_to_tytx_code(non_none_args[0], include_nested, _registered)
             return "T"
 
         # Handle list[X] -> #X
         if origin is list:
             if args:
-                inner_code = self._python_type_to_tytx_code(
-                    args[0], include_nested, _registered
-                )
+                inner_code = self._python_type_to_tytx_code(args[0], include_nested, _registered)
                 return f"#{inner_code}"
             return "#T"  # list without type arg
 
@@ -479,12 +594,16 @@ class TypeRegistry:
 
                 if include_nested and python_type not in _registered:
                     _registered.add(python_type)
-                    nested_schema = self._model_to_schema(
+                    nested_schema, nested_metadata = self._model_to_schema(
                         python_type, include_nested, _registered
                     )
                     # Only register if not already registered
                     if struct_code not in self._structs:
-                        self.register_struct(struct_code, nested_schema)
+                        self.register_struct(
+                            struct_code,
+                            nested_schema,
+                            nested_metadata if nested_metadata else None,
+                        )
 
                 return f"@{struct_code}"
         except ImportError:
@@ -518,9 +637,7 @@ class TypeRegistry:
         # Fallback
         return "T"
 
-    def get_struct(
-        self, code: str
-    ) -> list[FieldValue] | dict[str, FieldValue] | str | None:
+    def get_struct(self, code: str) -> dict[str, Any] | list[Any] | None:
         """
         Get a struct schema by code.
 
@@ -528,7 +645,7 @@ class TypeRegistry:
             code: Struct code without @ prefix
 
         Returns:
-            Schema (list, dict, or str) or None if not found
+            Schema (dict or list) or None if not found
         """
         return self._structs.get(code)
 
@@ -615,7 +732,7 @@ class TypeRegistry:
     def _schema_to_model(
         self,
         code: str,
-        schema: "list[FieldValue] | dict[str, FieldValue] | str",
+        schema: "list[FieldValue] | dict[str, FieldValue]",
         model_name: str,
         _cache: dict[str, type],
     ) -> type:
@@ -624,7 +741,7 @@ class TypeRegistry:
 
         Args:
             code: Struct code (for caching)
-            schema: TYTX schema (dict, list, or str)
+            schema: TYTX schema (dict or list)
             model_name: Class name for the model
             _cache: Cache of already-created models to avoid infinite recursion
 
@@ -641,9 +758,7 @@ class TypeRegistry:
 
         # Convert schema to dict if needed
         schema_dict: dict[str, FieldValue]
-        if isinstance(schema, str):
-            schema_dict = self._string_schema_to_dict(schema)
-        elif isinstance(schema, list):
+        if isinstance(schema, list):
             # List schema: positional types
             schema_dict = {f"field_{i}": t for i, t in enumerate(schema)}
         else:
@@ -653,7 +768,9 @@ class TypeRegistry:
         field_definitions: dict[str, Any] = {}
 
         for field_name, type_def in schema_dict.items():
-            field_type, field_info = self._parse_type_def(type_def, _cache)
+            # Get field metadata if available (cast: field_name provided → FieldMetadata | None)
+            field_meta = cast("FieldMetadata | None", self.get_struct_metadata(code, field_name))
+            field_type, field_info = self._parse_type_def(type_def, _cache, field_meta)
             if field_info is not None:
                 field_definitions[field_name] = (field_type, field_info)
             else:
@@ -667,30 +784,23 @@ class TypeRegistry:
 
         return model
 
-    def _string_schema_to_dict(self, schema: str) -> dict[str, FieldValue]:
-        """Convert string schema to dict schema."""
-        result: dict[str, FieldValue] = {}
-        for i, part in enumerate(schema.split(",")):
-            part = part.strip()
-            if ":" in part:
-                name, type_code = part.split(":", 1)
-                result[name.strip()] = type_code.strip()
-            else:
-                result[f"field_{i}"] = part
-        return result
-
     def _parse_type_def(
         self,
         type_def: FieldValue,
         _cache: dict[str, type],
+        field_meta: FieldMetadata | None = None,
     ) -> "tuple[Any, Any]":
         """
         Parse a TYTX type definition to Python type and Pydantic FieldInfo.
 
         Args:
-            type_def: Type definition - either a string like "T", "L[min:0]", "@CUSTOMER"
-                     or a FieldDef dict with type/validate/ui sections (v2 format)
+            type_def: Type definition - either:
+                     - None: passthrough (Any type)
+                     - str: type code like "T", "#L", "@CUSTOMER"
+                     - dict: inline nested struct
+                     - list: inline nested list struct
             _cache: Cache of already-created models
+            field_meta: Optional FieldMetadata with validate/ui sections
 
         Returns:
             Tuple of (python_type, FieldInfo or None)
@@ -699,21 +809,31 @@ class TypeRegistry:
         from decimal import Decimal
         from typing import Any
 
-        # Handle v2 FieldDef format (dict with type/validate/ui)
+        # None = passthrough (Any type in Pydantic)
+        if type_def is None:
+            return (Any, None)
+
+        # Inline nested list struct
+        if isinstance(type_def, list):
+            # For Pydantic, treat as list[Any] since we can't express positional types
+            return (list[Any], None)
+
+        # Handle dict types - always inline struct (no more FieldDef in schema)
         if isinstance(type_def, dict):
-            base_type = type_def.get("type", "T")
-            validate = type_def.get("validate", {})
-            ui = type_def.get("ui", {})
-            # Convert v2 format to metadata dict for unified processing
-            metadata: dict[str, Any] = {}
-            if validate:
-                metadata.update(validate)
-            if ui:
-                metadata.update(ui)
-        else:
-            # Simple string format: just the type code (e.g., "T", "#L", "@CUSTOMER")
-            base_type = type_def.strip()
-            metadata = {}
+            # Inline nested struct - generate a nested model
+            inline_model = self._schema_to_model("_inline", type_def, "InlineModel", _cache)
+            return (inline_model, None)
+
+        # Simple string format: just the type code (e.g., "T", "#L", "@CUSTOMER")
+        base_type = type_def.strip() if isinstance(type_def, str) else str(type_def)
+
+        # Build metadata dict from field_meta if available
+        metadata: dict[str, Any] = {}
+        if field_meta:
+            if "validate" in field_meta:
+                metadata.update(field_meta["validate"])
+            if "ui" in field_meta:
+                metadata.update(field_meta["ui"])
 
         # Type mapping
         type_map: dict[str, type] = {
@@ -795,20 +915,15 @@ class TypeRegistry:
         # Build Field kwargs
         field_kwargs: dict[str, Any] = {}
 
-        # Title and description (v2: label/hint, legacy: lbl/hint)
-        title = metadata.get("label") or metadata.get("lbl")
-        if title:
-            field_kwargs["title"] = title
-        hint = metadata.get("hint")
-        if hint:
-            field_kwargs["description"] = hint
+        # Title and description
+        if "label" in metadata:
+            field_kwargs["title"] = metadata["label"]
+        if "hint" in metadata:
+            field_kwargs["description"] = metadata["hint"]
 
-        # Default value (v2: default, legacy: def)
-        default_val = (
-            metadata.get("default") if "default" in metadata else metadata.get("def")
-        )
-        if default_val is not None:
-            field_kwargs["default"] = default_val
+        # Default value
+        if "default" in metadata:
+            field_kwargs["default"] = metadata["default"]
 
         # Build annotations list for Annotated type
         annotations: list[Any] = []
@@ -824,11 +939,7 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Ge(
-                                int(min_val)
-                                if "." not in str(min_val)
-                                else float(min_val)
-                            )
+                            Ge(int(min_val) if "." not in str(min_val) else float(min_val))
                         )
             else:
                 if isinstance(min_val, int):
@@ -846,11 +957,7 @@ class TypeRegistry:
                 else:
                     with contextlib.suppress(ValueError):
                         annotations.append(
-                            Le(
-                                int(max_val)
-                                if "." not in str(max_val)
-                                else float(max_val)
-                            )
+                            Le(int(max_val) if "." not in str(max_val) else float(max_val))
                         )
             else:
                 if isinstance(max_val, int):
@@ -859,10 +966,9 @@ class TypeRegistry:
                     with contextlib.suppress(ValueError):
                         annotations.append(MaxLen(int(max_val)))
 
-        # Pattern constraint (v2: pattern, legacy: reg)
-        pattern = metadata.get("pattern") or metadata.get("reg")
-        if pattern and "pattern" not in field_kwargs:
-            field_kwargs["pattern"] = pattern
+        # Pattern constraint
+        if "pattern" in metadata and "pattern" not in field_kwargs:
+            field_kwargs["pattern"] = metadata["pattern"]
 
         # Create FieldInfo if we have any constraints
         if field_kwargs or annotations:
@@ -883,9 +989,7 @@ class TypeRegistry:
 
         return (python_type, None)
 
-    def get(
-        self, name_or_code: str
-    ) -> type[DataType] | _ExtensionType | _StructType | None:
+    def get(self, name_or_code: str) -> type[DataType] | _ExtensionType | _StructType | None:
         """
         Retrieve a type by name or code.
         """
@@ -914,9 +1018,7 @@ class TypeRegistry:
         self,
         text: str,
         type_code: str | None = None,
-        local_structs: (
-            dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None
-        ) = None,
+        local_structs: (dict[str, list[FieldValue] | dict[str, FieldValue]] | None) = None,
     ) -> Any:
         """
         Parse a string to a Python value.
@@ -990,9 +1092,7 @@ class TypeRegistry:
     def _get_struct_type(
         self,
         code: str,
-        local_structs: (
-            dict[str, list[FieldValue] | dict[str, FieldValue] | str] | None
-        ) = None,
+        local_structs: (dict[str, list[FieldValue] | dict[str, FieldValue]] | None) = None,
     ) -> _StructType | None:
         """
         Get a struct type by code, checking local_structs first.
@@ -1240,12 +1340,7 @@ class TypeRegistry:
 
         # Serialize all leaf values with # prefix for typed arrays
         serialized = self._serialize_leaf(value, type_cls)
-        return (
-            json.dumps(serialized, separators=(",", ":"))
-            + "::"
-            + ARRAY_PREFIX
-            + type_code
-        )
+        return json.dumps(serialized, separators=(",", ":")) + "::" + ARRAY_PREFIX + type_code
 
     def _serialize_array_elements(self, value: list[Any]) -> str:
         """Serialize array with each element typed individually, suffixed with ::TYTX."""

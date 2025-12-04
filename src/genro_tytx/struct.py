@@ -17,7 +17,10 @@ Struct types for TYTX.
 
 This module provides:
 - StructType: Schema-based data structures for type hydration
-- Field type definitions (FieldDef, FieldValidate, FieldUI)
+- Field metadata types (FieldMetadata, FieldValidate, FieldUI)
+
+Schema is pure type information only. Metadata (validation, UI hints) is
+stored separately and accessed via TypeRegistry.get_struct_metadata().
 
 TYTX is a transport format, not a validator. For validation, use JSON Schema
 via schema_registry (from genro_tytx.xtytx).
@@ -59,102 +62,50 @@ class FieldUI(TypedDict, total=False):
     rows: int  # Textarea rows
 
 
-class FieldDef(TypedDict, total=False):
-    """Extended field definition with type and metadata."""
+class FieldMetadata(TypedDict, total=False):
+    """Metadata for a struct field (validation + UI)."""
 
-    type: str  # Required: TYTX type code
     validate: FieldValidate  # Validation constraints
     ui: FieldUI  # UI presentation hints
 
 
-# Type alias for field value: string (simple) or FieldDef (extended)
-FieldValue = str | FieldDef
+# Type alias for schema field value (pure types only):
+# - str: type code like "T", "N", "@CUSTOMER", "" (passthrough)
+# - None: passthrough (no conversion)
+# - dict: inline nested struct
+# - list: inline nested list struct
+FieldValue = str | None | dict[str, Any] | list[Any]
 
-
-def get_field_type(field: FieldValue) -> str:
-    """
-    Extract the type code from a field definition.
-
-    Args:
-        field: Either a string type code or a FieldDef object
-
-    Returns:
-        The TYTX type code
-
-    Examples:
-        get_field_type("T") -> "T"
-        get_field_type({"type": "T", "validate": {"min": 1}}) -> "T"
-    """
-    if isinstance(field, str):
-        return field
-    return field.get("type", "T")
-
-
-def get_field_validate(field: FieldValue) -> FieldValidate | None:
-    """Extract validation constraints from a field definition."""
-    if isinstance(field, str):
-        return None
-    return field.get("validate")
-
-
-def get_field_ui(field: FieldValue) -> FieldUI | None:
-    """Extract UI hints from a field definition."""
-    if isinstance(field, str):
-        return None
-    return field.get("ui")
-
-
-def _parse_string_schema(schema_str: str) -> tuple[list[tuple[str, str]], bool]:
-    """
-    Parse a string schema definition.
-
-    Args:
-        schema_str: Schema string like "x:R,y:R" (named) or "R,R" (anonymous)
-
-    Returns:
-        Tuple of (fields, has_names) where:
-        - fields: list of (name, type_code) tuples. For anonymous, name is ""
-        - has_names: True if schema has field names (output dict), False (output list)
-    """
-    fields: list[tuple[str, str]] = []
-    has_names = False
-
-    for part in schema_str.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        if ":" in part:
-            name, type_code = part.split(":", 1)
-            fields.append((name.strip(), type_code.strip()))
-            has_names = True
-        else:
-            fields.append(("", part.strip()))
-
-    return fields, has_names
+# Type alias for metadata dict
+MetadataDict = dict[str, FieldMetadata]
 
 
 class StructType:
     """
     Wrapper for struct schema types registered via register_struct.
 
-    Supports three schema formats:
-    - list: positional types ['T', 'L', 'N'] or homogeneous ['N']
-    - dict: keyed types {'name': 'T', 'balance': 'N'}
-    - str: ordered types "x:R,y:R" (named → dict) or "R,R" (anonymous → list)
+    Supports two schema formats:
+    - list: positional types ["T", "L", "N"] or homogeneous ["N"]
+    - dict: keyed types {"name": "T", "balance": "N"}
+
+    Type codes:
+    - None or "": passthrough (no conversion, keep JSON-native value)
+    - str: TYTX type code ("T", "N", "D", etc.)
+    - str starting with "@": reference to another struct
+    - dict: inline nested struct
+    - list: inline nested list struct
     """
 
     code: str
     name: str
     python_type: None
-    schema: list[FieldValue] | dict[str, FieldValue] | str
+    schema: list[FieldValue] | dict[str, FieldValue]
     _registry: Any  # TypeRegistry - avoid circular import
-    _string_fields: list[tuple[str, str]] | None
-    _string_has_names: bool
 
     def __init__(
         self,
         code: str,
-        schema: list[FieldValue] | dict[str, FieldValue] | str,
+        schema: list[FieldValue] | dict[str, FieldValue],
         registry: Any,  # TypeRegistry
     ) -> None:
         self.code = f"{STRUCT_PREFIX}{code}"
@@ -162,15 +113,6 @@ class StructType:
         self._registry = registry
         self.python_type = None
         self.schema = schema
-
-        # Parse string schema to internal representation
-        if isinstance(schema, str):
-            fields, has_names = _parse_string_schema(schema)
-            self._string_fields = fields
-            self._string_has_names = has_names
-        else:
-            self._string_fields = None
-            self._string_has_names = False
 
     def parse(self, value: str) -> Any:
         """Parse JSON string using schema."""
@@ -187,76 +129,30 @@ class StructType:
 
     def _apply_schema(self, data: Any) -> Any:
         """Apply schema to hydrate data."""
-        # String schema: use parsed fields
-        if self._string_fields is not None:
-            return self._apply_string_schema(data)
-        # Dict schema
         if isinstance(self.schema, dict):
             return self._apply_dict_schema(data)
-        # List schema
         return self._apply_list_schema(data)
-
-    def _apply_string_schema(self, data: Any) -> Any:
-        """Apply string schema to data (list input).
-
-        Always treats data as a single record. For batch processing
-        (array of records), use ::#@STRUCT syntax instead.
-        """
-        if not isinstance(data, list):
-            raise TypeError(
-                f"Expected list for struct {self.code}, got {type(data).__name__}"
-            )
-        return self._apply_string_schema_single(data)
-
-    def _apply_string_schema_single(self, data: list[Any]) -> Any:
-        """Apply string schema to a single list."""
-        # Type narrowing: this method is only called when _string_fields is set
-        assert self._string_fields is not None
-        result_list = []
-        for i, (_name, type_code) in enumerate(self._string_fields):
-            if i < len(data):
-                result_list.append(self._hydrate_value(data[i], type_code))
-            else:
-                result_list.append(None)
-
-        # If schema has names, return dict; otherwise return list
-        if self._string_has_names:
-            return {
-                name: value
-                for (name, _), value in zip(
-                    self._string_fields, result_list, strict=False
-                )
-            }
-        return result_list
 
     def _apply_dict_schema(self, data: Any) -> Any:
         """Apply dict schema to data."""
         if not isinstance(data, dict):
-            raise TypeError(
-                f"Expected dict for struct {self.code}, got {type(data).__name__}"
-            )
+            raise TypeError(f"Expected dict for struct {self.code}, got {type(data).__name__}")
         result = dict(data)
-        # Type narrowing: this method is only called when schema is a dict
         assert isinstance(self.schema, dict)
-        for key, field_def in self.schema.items():
-            type_code = get_field_type(field_def)
+        for key, field_type in self.schema.items():  # pragma: no branch
             if key in result:
-                result[key] = self._hydrate_value(result[key], type_code)
+                result[key] = self._hydrate_field(result[key], field_type)
         return result
 
     def _apply_list_schema(self, data: Any) -> Any:
         """Apply list schema to data."""
         if not isinstance(data, list):
-            raise TypeError(
-                f"Expected list for struct {self.code}, got {type(data).__name__}"
-            )
-        # Type narrowing: this method is only called when schema is a list
+            raise TypeError(f"Expected list for struct {self.code}, got {type(data).__name__}")
         assert isinstance(self.schema, list)
         if len(self.schema) == 1:
             # Homogeneous: apply single type to all elements
-            field_def = self.schema[0]
-            type_code = get_field_type(field_def)
-            return [self._apply_homogeneous(item, type_code) for item in data]
+            field_type = self.schema[0]
+            return [self._apply_homogeneous(item, field_type) for item in data]
         else:
             # Positional: apply type at index i to data[i]
             # If data is array of arrays, apply positionally to each sub-array
@@ -264,45 +160,72 @@ class StructType:
                 return [self._apply_positional(item) for item in data]
             return self._apply_positional(data)
 
-    def _apply_homogeneous(self, item: Any, type_code: str) -> Any:
+    def _apply_homogeneous(self, item: Any, field_type: FieldValue) -> Any:
         """Apply homogeneous type recursively."""
-        # Struct references should be hydrated as a single value, even if the payload is a list
-        if type_code.startswith(STRUCT_PREFIX):
-            return self._hydrate_value(item, type_code)
+        # Check for struct reference or inline struct first
+        if isinstance(field_type, str) and field_type.startswith(STRUCT_PREFIX):
+            return self._hydrate_field(item, field_type)
+        if isinstance(field_type, (dict, list)):
+            # Inline struct
+            return self._hydrate_field(item, field_type)
+        # For scalar types, recurse into nested lists
         if isinstance(item, list):
-            return [self._apply_homogeneous(i, type_code) for i in item]
-        return self._hydrate_value(item, type_code)
+            return [self._apply_homogeneous(i, field_type) for i in item]
+        return self._hydrate_field(item, field_type)
 
     def _apply_positional(self, data: list[Any]) -> list[Any]:
         """Apply positional schema to a single list."""
-        # Type narrowing: this method is only called when schema is a list
         assert isinstance(self.schema, list)
         result = []
         for i, item in enumerate(data):
             if i < len(self.schema):
-                field_def = self.schema[i]
-                type_code = get_field_type(field_def)
-                result.append(self._hydrate_value(item, type_code))
+                field_type = self.schema[i]
+                result.append(self._hydrate_field(item, field_type))
             else:
                 result.append(item)
         return result
 
-    def _hydrate_value(self, value: Any, type_code: str) -> Any:
-        """Hydrate a single value using type code."""
-        # Check if it's a struct reference (recursive)
-        if type_code.startswith(STRUCT_PREFIX):
-            struct_type = self._registry.get(type_code)
-            if struct_type and isinstance(struct_type, StructType):
-                return struct_type._apply_schema(value)
+    def _hydrate_field(self, value: Any, field_type: FieldValue) -> Any:
+        """Hydrate a single value using field type.
+
+        Args:
+            value: The value to hydrate
+            field_type: Type specification:
+                - None or "": passthrough
+                - str: type code or @STRUCT reference
+                - dict: inline nested struct schema
+                - list: inline nested list schema
+        """
+        # None or "" = passthrough (no conversion)
+        if field_type is None or field_type == "":
             return value
 
-        # Regular type
-        type_cls = self._registry.get(type_code)
-        if type_cls:
-            type_instance = _get_type_instance(type_cls)
-            if not isinstance(value, str):
-                value = str(value)
-            return type_instance.parse(value)
+        # Inline nested dict struct
+        if isinstance(field_type, dict):
+            inline_struct = StructType("_inline", field_type, self._registry)
+            return inline_struct._apply_schema(value)
+
+        # Inline nested list struct
+        if isinstance(field_type, list):
+            inline_struct = StructType("_inline", field_type, self._registry)
+            return inline_struct._apply_schema(value)
+
+        # String type code
+        if isinstance(field_type, str):
+            # Struct reference (@CODE)
+            if field_type.startswith(STRUCT_PREFIX):
+                struct_type = self._registry.get(field_type)
+                if struct_type and isinstance(struct_type, StructType):
+                    return struct_type._apply_schema(value)
+                return value
+
+            # Regular type
+            type_cls = self._registry.get(field_type)
+            if type_cls:
+                type_instance = _get_type_instance(type_cls)
+                if not isinstance(value, str):
+                    value = str(value)
+                return type_instance.parse(value)
 
         return value
 
@@ -318,20 +241,13 @@ def _get_type_instance(
     return type_or_instance()
 
 
-# For backwards compatibility, alias _StructType
-_StructType = StructType
-
 __all__ = [
     "STRUCT_PREFIX",
     "StructType",
-    "_StructType",
-    "_parse_string_schema",
-    # Struct v2 types
-    "FieldDef",
+    # Metadata types
+    "FieldMetadata",
     "FieldUI",
     "FieldValidate",
     "FieldValue",
-    "get_field_type",
-    "get_field_ui",
-    "get_field_validate",
+    "MetadataDict",
 ]

@@ -1,7 +1,7 @@
 """
 JSON Schema / OpenAPI utilities for TYTX Protocol.
 
-Provides bidirectional conversion between TYTX struct definitions (v2 format)
+Provides bidirectional conversion between TYTX struct definitions
 and JSON Schema / OpenAPI schemas.
 
 Functions:
@@ -20,7 +20,7 @@ Type Mapping (JSON Schema → TYTX):
     array + items                   → #X or #@STRUCT
     object + properties             → @STRUCT (nested)
 
-TYTX v2 Field Format:
+Field Format (inline FieldDef for self-contained schemas):
     Simple field (no constraints):
         "name": "T"
 
@@ -30,6 +30,10 @@ TYTX v2 Field Format:
             "validate": {"min": 1, "max": 100, "required": true},
             "ui": {"label": "Name", "placeholder": "..."}
         }
+
+NOTE: For registry-based operations with separate schema/metadata, use:
+- registry.struct_from_model() → returns (schema, metadata) tuple
+- registry.register_struct(code, schema, metadata) → stores separately
 
 Constraint Mapping (JSON Schema → TYTX validate):
     JSON Schema         TYTX validate key
@@ -49,7 +53,7 @@ UI Mapping (JSON Schema → TYTX ui):
 Usage:
     from genro_tytx import struct_from_jsonschema, struct_to_jsonschema
 
-    # JSON Schema → TYTX (v2 format)
+    # JSON Schema → TYTX (inline FieldDef format)
     schema = {
         "type": "object",
         "properties": {
@@ -171,7 +175,7 @@ def _jsonschema_type_to_tytx(
         is_required: Whether this field is required
 
     Returns:
-        Simple type code string or FieldDef dict.
+        Simple type code string or inline FieldDef dict.
     """
     # Handle $ref
     if "$ref" in prop_schema:
@@ -179,9 +183,7 @@ def _jsonschema_type_to_tytx(
         ref_name = prop_schema["$ref"].split("/")[-1]
         # Process the referenced schema as a nested struct
         if resolved.get("type") == "object" and "properties" in resolved:
-            nested_struct = _convert_object_schema(
-                resolved, ref_name, root_schema, nested_structs
-            )
+            nested_struct = _convert_object_schema(resolved, ref_name, root_schema, nested_structs)
             nested_structs[ref_name] = nested_struct
             ref_type = f"@{ref_name}"
             if is_required:
@@ -252,9 +254,7 @@ def _jsonschema_type_to_tytx(
     # Fallback: try without format
     key_no_format: tuple[str, str | None] = (schema_type or "", None)
     if key_no_format in _JSONSCHEMA_TO_TYTX:
-        return _build_field_def(
-            prop_schema, _JSONSCHEMA_TO_TYTX[key_no_format], is_required
-        )
+        return _build_field_def(prop_schema, _JSONSCHEMA_TO_TYTX[key_no_format], is_required)
 
     # Default to string
     return _build_field_def(prop_schema, "T", is_required)
@@ -274,7 +274,7 @@ def _build_field_def(
         is_required: Whether the field is required
 
     Returns:
-        Simple type code string if no constraints, or FieldDef dict.
+        Simple type code string if no constraints, or inline FieldDef dict.
     """
     validate: dict[str, Any] = {}
     ui: dict[str, Any] = {}
@@ -317,7 +317,7 @@ def _build_field_def(
     if "description" in prop_schema:
         ui["hint"] = prop_schema["description"]
 
-    # Return simple type or FieldDef
+    # Return simple type or inline FieldDef
     if validate or ui:
         field_def: dict[str, Any] = {"type": base_type}
         if validate:
@@ -345,7 +345,7 @@ def _convert_object_schema(
         nested_structs: Dict to collect nested struct definitions
 
     Returns:
-        TYTX struct definition dict in v2 format.
+        TYTX struct definition dict (inline FieldDef format).
     """
     properties = schema.get("properties", {})
     required_fields = set(schema.get("required", []))
@@ -386,7 +386,7 @@ def struct_from_jsonschema(
         register_nested: If True, register nested structs in registry
 
     Returns:
-        TYTX v2 struct definition dict.
+        TYTX struct definition dict (inline FieldDef format).
 
     Raises:
         ValueError: If schema is not an object type.
@@ -435,7 +435,7 @@ def _tytx_field_to_jsonschema(
     Convert TYTX v2 field definition to JSON Schema property definition.
 
     Args:
-        field: TYTX field (simple type code or FieldDef dict)
+        field: TYTX field (simple type code or inline FieldDef dict)
         definitions: Dict to collect $ref definitions
         registry: Optional TypeRegistry to look up struct definitions
         required_fields: Set to collect required field names
@@ -444,7 +444,7 @@ def _tytx_field_to_jsonschema(
     Returns:
         JSON Schema property definition.
     """
-    # Handle v2 FieldDef object
+    # Handle inline FieldDef dict
     if isinstance(field, dict):
         type_code = field.get("type", "T")
         validate = field.get("validate", {})
@@ -539,7 +539,7 @@ def _struct_to_schema_object(
     Convert TYTX v2 struct to JSON Schema object definition.
 
     Args:
-        struct: TYTX struct definition (v2 format with FieldDef objects)
+        struct: TYTX struct definition (dict with inline FieldDef, list, or string)
         definitions: Dict to collect $ref definitions
         registry: Optional TypeRegistry to look up nested structs
 
@@ -567,9 +567,7 @@ def _struct_to_schema_object(
             item_schema = _tytx_field_to_jsonschema(struct[0], definitions, registry)
             return {"type": "array", "items": item_schema}
         # Positional (tuple-like)
-        items_list = [
-            _tytx_field_to_jsonschema(t, definitions, registry) for t in struct
-        ]
+        items_list = [_tytx_field_to_jsonschema(t, definitions, registry) for t in struct]
         return {
             "type": "array",
             "items": items_list,
@@ -592,8 +590,7 @@ def _struct_to_schema_object(
             return {"type": "object", "properties": properties}
         # Anonymous fields (e.g., "T,L,N")
         items_list = [
-            _tytx_field_to_jsonschema(t.strip(), definitions, registry)
-            for t in struct.split(",")
+            _tytx_field_to_jsonschema(t.strip(), definitions, registry) for t in struct.split(",")
         ]
         return {
             "type": "array",
@@ -619,11 +616,11 @@ def struct_to_jsonschema(
     - List structs → array (positional or homogeneous)
     - String structs → object or array based on format
     - Nested @STRUCT references → $ref
-    - FieldDef validate section → JSON Schema constraints
-    - FieldDef ui section → title/description
+    - Inline FieldDef validate section → JSON Schema constraints
+    - Inline FieldDef ui section → title/description
 
     Args:
-        struct: TYTX v2 struct definition (dict with FieldDef, list, or string)
+        struct: TYTX struct definition (dict with inline FieldDef, list, or string)
         name: Optional name for the root schema
         registry: Optional TypeRegistry to look up nested struct definitions
         include_definitions: If True, include definitions for nested structs

@@ -82,14 +82,12 @@ from .middleware.wsgi import TytxWSGIMiddleware
 from .registry import TypeRegistry, registry
 from .schema_utils import struct_from_jsonschema, struct_to_jsonschema
 from .struct import (
-    FieldDef,
+    FieldMetadata,
     FieldUI,
     FieldValidate,
     FieldValue,
+    MetadataDict,
     StructType,
-    get_field_type,
-    get_field_ui,
-    get_field_validate,
 )
 from .utils import (
     model_to_schema,
@@ -156,14 +154,12 @@ __all__ = [
     "JsonSchema",
     "SchemaRegistry",
     "schema_registry",
-    # Struct v2 field types
-    "FieldDef",
+    # Struct field metadata types
+    "FieldMetadata",
     "FieldUI",
     "FieldValidate",
     "FieldValue",
-    "get_field_type",
-    "get_field_ui",
-    "get_field_validate",
+    "MetadataDict",
     # XTYTX envelope
     "XtytxResult",
     "process_envelope",
