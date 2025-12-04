@@ -1225,6 +1225,63 @@ describe('struct schemas', () => {
     });
   });
 
+  describe('applyDictSchema edge cases', () => {
+    it('returns data unchanged when data is null', () => {
+      // Tests line 637-638: data is null
+      registry.register_struct('DICT_SCHEMA', { x: 'L' });
+      try {
+        const result = registry.fromText('null::@DICT_SCHEMA');
+        expect(result).toBe(null);
+      } finally {
+        registry.unregister_struct('DICT_SCHEMA');
+      }
+    });
+
+    it('returns data unchanged when data is array with dict schema', () => {
+      // Tests line 637: Array.isArray(data) with dict schema
+      registry.register_struct('DICT_SCHEMA2', { x: 'L' });
+      try {
+        const result = registry.fromText('[1, 2, 3]::@DICT_SCHEMA2');
+        expect(result).toEqual([1, 2, 3]);
+      } finally {
+        registry.unregister_struct('DICT_SCHEMA2');
+      }
+    });
+
+    it('returns data unchanged when data is primitive with dict schema', () => {
+      // Tests line 637: typeof data !== 'object'
+      registry.register_struct('DICT_SCHEMA3', { x: 'L' });
+      try {
+        const result = registry.fromText('"string"::@DICT_SCHEMA3');
+        expect(result).toBe('string');
+      } finally {
+        registry.unregister_struct('DICT_SCHEMA3');
+      }
+    });
+  });
+
+  describe('getStructType with localStructs', () => {
+    it('handles localStructs with object schema (non-string)', () => {
+      // Tests lines 573-588: localStructs with object schema
+      const reg = new TypeRegistry();
+      const localStructs = {
+        LOCAL: { name: 'T', value: 'L' }
+      };
+      const result = reg.fromText('{"name": "test", "value": "42"}::@LOCAL', undefined, localStructs);
+      expect(result).toEqual({ name: 'test', value: 42 });
+    });
+
+    it('handles localStructs with array schema', () => {
+      // Tests lines 573-578: localStructs with array schema
+      const reg = new TypeRegistry();
+      const localStructs = {
+        LOCAL_ARR: ['L', 'T']
+      };
+      const result = reg.fromText('["42", "hello"]::@LOCAL_ARR', undefined, localStructs);
+      expect(result).toEqual([42, 'hello']);
+    });
+  });
+
   describe('additional coverage tests', () => {
     it('applyPositional covers data longer than schema', () => {
       // Positional schema shorter than data - extra elements pass through

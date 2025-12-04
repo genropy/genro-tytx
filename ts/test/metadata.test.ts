@@ -58,12 +58,67 @@ describe('parseMetadata', () => {
     expect(parseMetadata('reg:"a\\\\b"')).toEqual({ reg: 'a\\b' });
   });
 
+  it('handles whitespace after colon', () => {
+    // Tests lines 120-122: skip whitespace after colon before value
+    expect(parseMetadata('len:   5')).toEqual({ len: '5' });
+  });
+
+  it('handles unknown escape sequence in quoted string', () => {
+    // Tests lines 141-144: backslash followed by char that is not " or \
+    // In this case, only the backslash is added (nextChar is 'n', not special)
+    expect(parseMetadata('lbl:"a\\nb"')).toEqual({ lbl: 'a\\nb' });
+  });
+
   it('throws on missing colon', () => {
     expect(() => parseMetadata('len5')).toThrow(MetadataParseError);
   });
 
+  it('throws on empty key (starts with non-letter)', () => {
+    // Tests lines 104-106: empty key
+    expect(() => parseMetadata(':5')).toThrow(/Expected key/);
+  });
+
+  it('handles whitespace between key and colon', () => {
+    // Tests lines 108-111: skip whitespace after key before colon
+    expect(parseMetadata('len :5')).toEqual({ len: '5' });
+  });
+
   it('throws on unterminated quoted string', () => {
     expect(() => parseMetadata('lbl:"unterminated')).toThrow(MetadataParseError);
+  });
+
+  it('handles whitespace after value before comma', () => {
+    // Tests lines 167-169: whitespace skipping after value
+    expect(parseMetadata('len:5   ,max:10')).toEqual({ len: '5', max: '10' });
+  });
+
+  it('handles value with trailing whitespace', () => {
+    // Tests the whitespace skip loop
+    expect(parseMetadata('len:5   ')).toEqual({ len: '5' });
+  });
+
+  it('handles null/undefined input', () => {
+    expect(parseMetadata(null as never)).toEqual({});
+    expect(parseMetadata(undefined as never)).toEqual({});
+  });
+
+  it('stops parsing at unexpected character after whitespace', () => {
+    // Tests line 175-178: break when trimmed[pos] is not comma or ]
+    // After value and whitespace, if there's an unexpected char, parser breaks
+    // Here we have "len:5  x" - after parsing "5" and skipping "  ", it sees "x"
+    // which is not comma or ], so it breaks
+    expect(parseMetadata('len:5  x')).toEqual({ len: '5  x' });
+  });
+
+  it('handles quoted value followed by whitespace and character', () => {
+    // After quoted value, skip whitespace, then break on unexpected char
+    expect(parseMetadata('lbl:"test"  x')).toEqual({ lbl: 'test' });
+  });
+
+  it('parses value ending at comma', () => {
+    // Tests line 158: value parsing stops at comma
+    const result = parseMetadata('len:5,max:10');
+    expect(result).toEqual({ len: '5', max: '10' });
   });
 });
 
@@ -89,6 +144,16 @@ describe('formatMetadata', () => {
 
   it('returns empty string for empty dict', () => {
     expect(formatMetadata({})).toBe('');
+  });
+
+  it('returns empty string for null/undefined', () => {
+    expect(formatMetadata(null as never)).toBe('');
+    expect(formatMetadata(undefined as never)).toBe('');
+  });
+
+  it('handles value with pipe but not enum key', () => {
+    // Tests needsQuotes: value.includes('|') should not quote
+    expect(formatMetadata({ custom: 'A|B' })).toBe('custom:A|B');
   });
 
   it('escapes quotes in value', () => {
