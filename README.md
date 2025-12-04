@@ -11,6 +11,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Tests](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml/badge.svg)](https://github.com/genropy/genro-tytx/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/genropy/genro-tytx/graph/badge.svg)](https://codecov.io/gh/genropy/genro-tytx)
 [![Documentation](https://readthedocs.org/projects/genro-tytx/badge/?version=latest)](https://genro-tytx.readthedocs.io/en/latest/)
 [![LLM Docs](https://img.shields.io/badge/llms.txt-available-blue)](https://genro-tytx.readthedocs.io/en/latest/llms.txt)
 
