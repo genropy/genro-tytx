@@ -17,14 +17,15 @@ export type TypeCode =
   | 'DHZ'  // DateTime (timezone-aware, canonical)
   | 'DH'   // DateTime (naive, deprecated)
   | 'H'    // Time
-  | 'JS';  // JSON
+  | 'JS'   // JSON
+  | 'NN';  // None/Null
 
 /**
  * Primary type codes (canonical forms).
  * DHZ = timezone-aware datetime (canonical)
  * DH = naive datetime (deprecated)
  */
-export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DHZ' | 'DH' | 'H' | 'JS';
+export type PrimaryTypeCode = 'L' | 'R' | 'N' | 'B' | 'T' | 'D' | 'DHZ' | 'DH' | 'H' | 'JS' | 'NN';
 
 /**
  * TYTX value types that can be serialized.
@@ -147,11 +148,17 @@ export type FieldValue = string | FieldDef;
 
 /**
  * Schema type for struct registration.
- * - string[]: positional types ['T', 'L', 'N'] or homogeneous ['N']
- * - Record<string, string>: keyed types {name: 'T', balance: 'N'}
- * - string: ordered types "x:R,y:R" (named → object) or "R,R" (anonymous → array)
- * - FieldValue[]: positional types with extended definitions
- * - Record<string, FieldValue>: keyed types with extended definitions
+ *
+ * Accepts JSON string (preferred) or object/array:
+ * - string: JSON string '{"name": "T", "age": "L"}' or '["T", "L"]'
+ *   Field order is preserved from the JSON string.
+ * - FieldValue[]: list schema (legacy)
+ * - Record<string, FieldValue>: dict schema (legacy)
+ *
+ * Type codes:
+ * - "": passthrough (no conversion, JSON-native types)
+ * - "T", "L", "N", etc.: TYTX type codes
+ * - "@CODE": reference to another struct
  */
 export type StructSchema = FieldValue[] | Record<string, FieldValue> | string;
 

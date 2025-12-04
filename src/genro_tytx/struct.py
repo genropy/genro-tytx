@@ -19,6 +19,20 @@ This module provides:
 - StructType: Schema-based data structures for type hydration
 - Field metadata types (FieldMetadata, FieldValidate, FieldUI)
 
+Schema Format (JSON string only):
+    register_struct accepts ONLY valid JSON strings. The JSON container
+    determines output type:
+    - '{"name": "T", "age": "L"}' → produces dict
+    - '["T", "L"]' → produces list
+
+    Field order is preserved from the JSON string.
+
+Type Codes:
+    - "" (empty string): passthrough (no conversion, JSON-native types)
+    - "T", "L", "N", etc.: TYTX type codes
+    - "@CODE": reference to another struct
+    - Nested object: inline struct (e.g., {"city": "T"})
+
 Schema is pure type information only. Metadata (validation, UI hints) is
 stored separately and accessed via TypeRegistry.get_struct_metadata().
 
@@ -84,12 +98,12 @@ class StructType:
     """
     Wrapper for struct schema types registered via register_struct.
 
-    Supports two schema formats:
-    - list: positional types ["T", "L", "N"] or homogeneous ["N"]
-    - dict: keyed types {"name": "T", "balance": "N"}
+    Schema is a JSON string that determines output type:
+    - '{"name": "T", "age": "L"}' → produces dict (field order preserved)
+    - '["T", "L"]' → produces list
 
     Type codes:
-    - None or "": passthrough (no conversion, keep JSON-native value)
+    - "": passthrough (no conversion, keep JSON-native value)
     - str: TYTX type code ("T", "N", "D", etc.)
     - str starting with "@": reference to another struct
     - dict: inline nested struct
@@ -100,19 +114,64 @@ class StructType:
     name: str
     python_type: None
     schema: list[FieldValue] | dict[str, FieldValue]
+    schema_json: str  # Original JSON string
+    field_order: list[str] | None  # Field order for dict schemas
     _registry: Any  # TypeRegistry - avoid circular import
 
     def __init__(
         self,
         code: str,
-        schema: list[FieldValue] | dict[str, FieldValue],
+        schema: str | list[FieldValue] | dict[str, FieldValue],
         registry: Any,  # TypeRegistry
     ) -> None:
         self.code = f"{STRUCT_PREFIX}{code}"
         self.name = f"struct_{code.lower()}"
         self._registry = registry
         self.python_type = None
-        self.schema = schema
+
+        # Parse schema - accept JSON string or legacy dict/list
+        if isinstance(schema, str):
+            self.schema_json = schema
+            self.schema, self.field_order = self._parse_json_schema(schema)
+        else:
+            # Legacy: dict or list passed directly (for backward compatibility)
+            import json
+
+            self.schema = schema
+            self.schema_json = json.dumps(schema, separators=(",", ":"))
+            self.field_order = list(schema.keys()) if isinstance(schema, dict) else None
+
+    def _parse_json_schema(
+        self, json_str: str
+    ) -> tuple[list[FieldValue] | dict[str, FieldValue], list[str] | None]:
+        """
+        Parse JSON schema string preserving field order.
+
+        Args:
+            json_str: Valid JSON string like '{"name": "T", "age": "L"}' or '["T", "L"]'
+
+        Returns:
+            Tuple of (parsed schema, field_order list or None for arrays)
+
+        Raises:
+            ValueError: If not valid JSON
+        """
+        import json
+        from collections import OrderedDict
+
+        # Use object_pairs_hook to preserve insertion order
+        try:
+            parsed = json.loads(json_str, object_pairs_hook=OrderedDict)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON schema: {e}") from e
+
+        if isinstance(parsed, list):
+            return parsed, None
+
+        # Convert OrderedDict to regular dict (Python 3.7+ preserves order)
+        # but keep track of field order explicitly
+        field_order = list(parsed.keys())
+        return dict(parsed), field_order
 
     def parse(self, value: str) -> Any:
         """Parse JSON string using schema."""

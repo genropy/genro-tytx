@@ -140,7 +140,7 @@ class TypeRegistry:
     def register_struct(
         self,
         code: str,
-        schema: dict[str, Any] | list[Any],
+        schema: str | dict[str, Any] | list[Any],
         metadata: MetadataDict | None = None,
     ) -> None:
         """
@@ -148,25 +148,29 @@ class TypeRegistry:
 
         Args:
             code: Struct code (will be prefixed with @)
-            schema: Schema definition as dict or list (pure types only):
-                - dict: {"name": "T", "age": "L"} → produces dict
-                - list: ["T", "L", "N"] → produces list
+            schema: Schema definition as JSON string (PREFERRED) or dict/list:
+                JSON string (recommended):
+                    '{"name": "T", "age": "L"}' → produces dict
+                    '["T", "L", "N"]' → produces list
+                Legacy dict/list also accepted for backward compatibility.
+
                 Type codes:
-                - None or "": passthrough (no conversion, JSON-native types)
+                - "": passthrough (no conversion, JSON-native types)
                 - "@CODE": reference to another struct
-                - Nested dict/list: inline nested struct
+                - Nested object: inline nested struct
+
             metadata: Optional field metadata (validation, UI hints).
                 Maps field names to FieldMetadata dicts:
                 {"name": {"validate": {"min": 1}, "ui": {"label": "Name"}}}
 
         Examples:
-            # Dict output (pure schema)
-            register_struct('CUSTOMER', {"name": "T", "balance": "N"})
+            # Dict output (JSON string - recommended)
+            register_struct('CUSTOMER', '{"name": "T", "balance": "N"}')
 
             # With metadata
             register_struct(
                 'CUSTOMER',
-                schema={"name": "", "balance": "N"},
+                schema='{"name": "", "balance": "N"}',
                 metadata={
                     "name": {"validate": {"min": 1, "max": 200}, "ui": {"label": "Customer Name"}},
                     "balance": {"validate": {"min": 0}}
@@ -174,28 +178,54 @@ class TypeRegistry:
             )
 
             # List output
-            register_struct('POINT', ["R", "R"])
+            register_struct('POINT', '["R", "R"]')
 
             # Homogeneous list (single type for all elements)
-            register_struct('PRICES', ["N"])
+            register_struct('PRICES', '["N"]')
 
-            # Passthrough for JSON-native types (None or "")
-            register_struct('MIXED', {"name": None, "active": "", "balance": "N"})
+            # Passthrough for JSON-native types ("")
+            register_struct('MIXED', '{"name": "", "active": "", "balance": "N"}')
 
             # Nested struct reference
-            register_struct('ORDER', {"customer": "@CUSTOMER", "total": "N"})
+            register_struct('ORDER', '{"customer": "@CUSTOMER", "total": "N"}')
 
             # Inline nested struct
-            register_struct('ORDER', {"customer": {"name": "T"}, "total": "N"})
+            register_struct('ORDER', '{"customer": {"name": "T"}, "total": "N"}')
         """
-        self._structs[code] = schema
-        struct_type = _StructType(code, schema, self)
+        # Parse schema if it's a JSON string
+        parsed_schema = self._parse_schema_json(schema) if isinstance(schema, str) else schema
+
+        self._structs[code] = parsed_schema
+        struct_type = _StructType(code, schema, self)  # Pass original (str or dict/list)
         self._codes[struct_type.code] = struct_type
         self._types[struct_type.name] = struct_type
 
         # Process and store metadata if provided
         if metadata:
             self._register_struct_metadata(code, metadata)
+
+    def _parse_schema_json(self, schema: str) -> dict[str, Any] | list[Any]:
+        """
+        Parse JSON schema string.
+
+        Args:
+            schema: Valid JSON string
+
+        Returns:
+            Parsed dict or list
+
+        Raises:
+            ValueError: If not valid JSON
+        """
+        try:
+            parsed = json.loads(schema)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON schema: {e}") from e
+
+        if not isinstance(parsed, (dict, list)):
+            raise ValueError(f"Schema must be JSON object or array, got {type(parsed).__name__}")
+
+        return parsed
 
     def _register_struct_metadata(self, code: str, metadata: MetadataDict) -> None:
         """

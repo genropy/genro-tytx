@@ -719,10 +719,11 @@ describe('struct schemas', () => {
       registry.unregister_struct('TEST_LIST');
     });
 
-    it('registers string schema', () => {
-      registry.register_struct('TEST_STR', 'x:R,y:R');
+    it('registers JSON string schema', () => {
+      // New format: JSON string schema
+      registry.register_struct('TEST_STR', '{"x": "R", "y": "R"}');
       const schema = registry.get_struct('TEST_STR');
-      expect(schema).toBe('x:R,y:R');
+      expect(schema).toEqual({ x: 'R', y: 'R' });
       registry.unregister_struct('TEST_STR');
     });
 
@@ -822,19 +823,20 @@ describe('struct schemas', () => {
     });
   });
 
-  describe('string schema', () => {
-    it('named fields produce dict output', () => {
-      registry.register_struct('POINT', 'x:R,y:R');
+  describe('JSON string schema', () => {
+    it('JSON dict schema produces dict output', () => {
+      // New format: JSON string schema (D1: only valid JSON accepted)
+      registry.register_struct('POINT', '{"x": "R", "y": "R"}');
       try {
-        const result = registry.fromText('["3.7", "7.3"]::@POINT');
+        const result = registry.fromText('{"x": "3.7", "y": "7.3"}::@POINT');
         expect(result).toEqual({ x: 3.7, y: 7.3 });
       } finally {
         registry.unregister_struct('POINT');
       }
     });
 
-    it('anonymous fields produce list output', () => {
-      registry.register_struct('COORDS', 'R,R');
+    it('JSON array schema produces list output', () => {
+      registry.register_struct('COORDS', '["R", "R"]');
       try {
         const result = registry.fromText('["3.7", "7.3"]::@COORDS');
         expect(result).toEqual([3.7, 7.3]);
@@ -843,10 +845,10 @@ describe('struct schemas', () => {
       }
     });
 
-    it('preserves field order', () => {
-      registry.register_struct('CSV_ROW', 'name:T,qty:L,price:N');
+    it('preserves field order from JSON', () => {
+      registry.register_struct('CSV_ROW', '{"name": "T", "qty": "L", "price": "N"}');
       try {
-        const result = registry.fromText('["Widget", "10", "99.99"]::@CSV_ROW') as Record<string, unknown>;
+        const result = registry.fromText('{"name": "Widget", "qty": "10", "price": "99.99"}::@CSV_ROW') as Record<string, unknown>;
         expect(result.name).toBe('Widget');
         expect(result.qty).toBe(10);
         expect((result.price as { toString(): string }).toString()).toBe('99.99');
@@ -856,22 +858,17 @@ describe('struct schemas', () => {
       }
     });
 
-    it('handles spaces in definition', () => {
-      registry.register_struct('POINT2', 'x : R , y : R');
-      try {
-        const result = registry.fromText('["1.0", "2.0"]::@POINT2');
-        expect(result).toEqual({ x: 1.0, y: 2.0 });
-      } finally {
-        registry.unregister_struct('POINT2');
-      }
+    it('invalid JSON throws error', () => {
+      // Old format "x:R,y:R" is no longer valid
+      expect(() => registry.register_struct('INVALID', 'x:R,y:R')).toThrow('Invalid JSON schema');
     });
   });
 
   describe('array of structs (#@)', () => {
-    it('batch mode with named string schema', () => {
-      registry.register_struct('ROW', 'name:T,qty:L,price:N');
+    it('batch mode with JSON dict schema', () => {
+      registry.register_struct('ROW', '{"name": "T", "qty": "L", "price": "N"}');
       try {
-        const result = registry.fromText('[["A", "1", "10"], ["B", "2", "20"]]::#@ROW') as Record<string, unknown>[];
+        const result = registry.fromText('[{"name": "A", "qty": "1", "price": "10"}, {"name": "B", "qty": "2", "price": "20"}]::#@ROW') as Record<string, unknown>[];
         expect(result.length).toBe(2);
         expect(result[0].name).toBe('A');
         expect(result[0].qty).toBe(1);
@@ -884,8 +881,8 @@ describe('struct schemas', () => {
       }
     });
 
-    it('batch mode with anonymous string schema', () => {
-      registry.register_struct('PAIR', 'R,R');
+    it('batch mode with JSON array schema', () => {
+      registry.register_struct('PAIR', '["R", "R"]');
       try {
         const result = registry.fromText('[["1.5", "2.5"], ["3.5", "4.5"]]::#@PAIR');
         expect(result).toEqual([[1.5, 2.5], [3.5, 4.5]]);
@@ -894,7 +891,7 @@ describe('struct schemas', () => {
       }
     });
 
-    it('batch mode with dict schema', () => {
+    it('batch mode with object schema (legacy)', () => {
       registry.register_struct('ITEM', { name: 'T', value: 'L' });
       try {
         const result = registry.fromText('[{"name": "A", "value": "1"}, {"name": "B", "value": "2"}]::#@ITEM') as Record<string, unknown>[];

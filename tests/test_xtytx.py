@@ -289,14 +289,15 @@ class TestXtytxSchemaFormats:
         finally:
             registry.unregister_struct("XLIST")
 
-    def test_string_schema_in_gstruct(self):
-        """String schema format works in gstruct."""
-        payload = 'XTYTX://{"gstruct": {"XSTR": "x:R,y:R"}, "lstruct": {}, "data": ""}'
+    def test_json_string_schema_in_gstruct(self):
+        """JSON string schema format works in gstruct (new format)."""
+        # New format: JSON string schema (D1: only valid JSON accepted)
+        payload = 'XTYTX://{"gstruct": {"XPOINT": "{\\"x\\": \\"R\\", \\"y\\": \\"R\\"}"}, "lstruct": {}, "data": ""}'
         try:
             from_json(payload)
-            assert registry.get_struct("XSTR") == "x:R,y:R"
+            assert registry.get_struct("XPOINT") == {"x": "R", "y": "R"}
         finally:
-            registry.unregister_struct("XSTR")
+            registry.unregister_struct("XPOINT")
 
     def test_homogeneous_list_schema(self):
         """Homogeneous list schema (single element) works."""

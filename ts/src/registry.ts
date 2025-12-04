@@ -59,22 +59,18 @@ export interface ExtensionType<T = unknown> {
 export type { StructSchema } from './types.js';
 
 /**
- * Parsed string schema field.
- */
-interface StringSchemaField {
-  name: string;
-  typeCode: string;
-}
-
-/**
  * Struct type for schema-based hydration.
+ *
+ * Schema can be:
+ * - JSON string (preferred): '{"name": "T"}' or '["T", "L"]'
+ * - Object/array (legacy): {name: "T"} or ["T", "L"]
  */
 interface StructType {
   code: string;
   name: string;
-  schema: StructSchema;
-  stringFields: StringSchemaField[] | null;
-  stringHasNames: boolean;
+  schema: FieldValue[] | Record<string, FieldValue>;
+  schemaJson: string;
+  fieldOrder: string[] | null;  // For dict schemas, preserves key order from JSON
 }
 
 /**
@@ -255,6 +251,19 @@ const JsonType: DataType<object> = {
 };
 
 /**
+ * None/Null type - explicit null values.
+ * Type code NN represents None/null values. Content before :: is ignored.
+ * Matches Python NoneType behavior.
+ */
+const NoneType: DataType<null> = {
+  code: 'NN',
+  name: 'none',
+  parse: (_value: string) => null,
+  serialize: (_value: null) => '',
+  isType: (value: unknown): value is null => value === null,
+};
+
+/**
  * Type registry class.
  */
 export class TypeRegistry {
@@ -279,6 +288,7 @@ export class TypeRegistry {
       NaiveDateTimeType, // DH - deprecated
       TimeType,
       JsonType,
+      NoneType,
     ];
 
     for (const type of builtins) {
@@ -373,54 +383,66 @@ export class TypeRegistry {
    * Register a struct schema for schema-based hydration.
    *
    * @param code - Struct code (will be prefixed with @)
-   * @param schema - Type schema:
-   *   - string[]: positional ['T', 'L', 'N'] or homogeneous ['N']
-   *   - Record<string, string>: keyed {name: 'T', balance: 'N'}
-   *   - string: ordered "x:R,y:R" (named → object) or "R,R" (anonymous → array)
+   * @param schema - Type schema (JSON string preferred):
+   *   - string: JSON '{"name": "T", "age": "L"}' or '["T", "L"]'
+   *   - FieldValue[]: list schema (legacy)
+   *   - Record<string, FieldValue>: dict schema (legacy)
    */
   register_struct(code: string, schema: StructSchema): void {
-    let stringFields: StringSchemaField[] | null = null;
-    let stringHasNames = false;
+    let parsedSchema: FieldValue[] | Record<string, FieldValue>;
+    let schemaJson: string;
+    let fieldOrder: string[] | null = null;
 
-    // Parse string schema
+    // Parse JSON string schema or use object/array directly
     if (typeof schema === 'string') {
-      const parsed = this.parseStringSchema(schema);
-      stringFields = parsed.fields;
-      stringHasNames = parsed.hasNames;
+      const parsed = this.parseJsonSchema(schema);
+      parsedSchema = parsed.schema;
+      schemaJson = schema;
+      fieldOrder = parsed.fieldOrder;
+    } else {
+      parsedSchema = schema;
+      schemaJson = JSON.stringify(schema);
+      if (!Array.isArray(schema)) {
+        fieldOrder = Object.keys(schema);
+      }
     }
 
     const structType: StructType = {
       code: STRUCT_PREFIX + code,
       name: `struct_${code.toLowerCase()}`,
-      schema,
-      stringFields,
-      stringHasNames,
+      schema: parsedSchema,
+      schemaJson,
+      fieldOrder,
     };
 
     this.structs.set(code, structType);
   }
 
   /**
-   * Parse a string schema definition.
+   * Parse a JSON schema string, preserving field order.
    */
-  private parseStringSchema(schema: string): { fields: StringSchemaField[]; hasNames: boolean } {
-    const fields: StringSchemaField[] = [];
-    let hasNames = false;
-
-    for (const part of schema.split(',')) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
-
-      if (trimmed.includes(':')) {
-        const [name, typeCode] = trimmed.split(':').map((s) => s.trim());
-        fields.push({ name, typeCode });
-        hasNames = true;
-      } else {
-        fields.push({ name: '', typeCode: trimmed });
-      }
+  private parseJsonSchema(jsonStr: string): {
+    schema: FieldValue[] | Record<string, FieldValue>;
+    fieldOrder: string[] | null;
+  } {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      throw new Error(`Invalid JSON schema: ${e}`);
     }
 
-    return { fields, hasNames };
+    if (Array.isArray(parsed)) {
+      return { schema: parsed as FieldValue[], fieldOrder: null };
+    }
+
+    if (typeof parsed === 'object' && parsed !== null) {
+      // Object.keys preserves insertion order from JSON.parse
+      const fieldOrder = Object.keys(parsed);
+      return { schema: parsed as Record<string, FieldValue>, fieldOrder };
+    }
+
+    throw new Error(`Schema must be JSON object or array, got ${typeof parsed}`);
   }
 
   /**
@@ -539,21 +561,29 @@ export class TypeRegistry {
     // Check localStructs first (higher precedence)
     if (localStructs && code in localStructs) {
       const schema = localStructs[code];
-      let stringFields: StringSchemaField[] | null = null;
-      let stringHasNames = false;
+      let parsedSchema: FieldValue[] | Record<string, FieldValue>;
+      let schemaJson: string;
+      let fieldOrder: string[] | null = null;
 
       if (typeof schema === 'string') {
-        const parsed = this.parseStringSchema(schema);
-        stringFields = parsed.fields;
-        stringHasNames = parsed.hasNames;
+        const parsed = this.parseJsonSchema(schema);
+        parsedSchema = parsed.schema;
+        schemaJson = schema;
+        fieldOrder = parsed.fieldOrder;
+      } else {
+        parsedSchema = schema;
+        schemaJson = JSON.stringify(schema);
+        if (!Array.isArray(schema)) {
+          fieldOrder = Object.keys(schema);
+        }
       }
 
       return {
         code: STRUCT_PREFIX + code,
         name: `struct_${code.toLowerCase()}`,
-        schema,
-        stringFields,
-        stringHasNames,
+        schema: parsedSchema,
+        schemaJson,
+        fieldOrder,
       };
     }
 
@@ -589,10 +619,6 @@ export class TypeRegistry {
    * Apply schema to hydrate data.
    */
   private applySchema(data: unknown, structType: StructType): unknown {
-    // String schema: use parsed fields
-    if (structType.stringFields !== null) {
-      return this.applyStringSchema(data, structType);
-    }
     // Dict schema (object)
     if (!Array.isArray(structType.schema) && typeof structType.schema === 'object') {
       return this.applyDictSchema(data, structType.schema);
@@ -602,46 +628,6 @@ export class TypeRegistry {
       return this.applyListSchema(data, structType.schema);
     }
     return data;
-  }
-
-  /**
-   * Apply string schema to data (array input).
-   */
-  private applyStringSchema(data: unknown, structType: StructType): unknown {
-    if (!Array.isArray(data)) {
-      return data;
-    }
-    return this.applyStringSchemaToSingleRecord(data, structType);
-  }
-
-  /**
-   * Apply string schema to a single array record.
-   */
-  private applyStringSchemaToSingleRecord(
-    data: unknown[],
-    structType: StructType,
-  ): Record<string, unknown> | unknown[] {
-    const fields = structType.stringFields!;
-    const resultList: unknown[] = [];
-
-    for (let i = 0; i < fields.length; i++) {
-      const field = fields[i];
-      if (i < data.length) {
-        resultList.push(this.hydrateValue(data[i], field.typeCode));
-      } else {
-        resultList.push(null);
-      }
-    }
-
-    // If schema has names, return object; otherwise return array
-    if (structType.stringHasNames) {
-      const result: Record<string, unknown> = {};
-      for (let i = 0; i < fields.length; i++) {
-        result[fields[i].name] = resultList[i];
-      }
-      return result;
-    }
-    return resultList;
   }
 
   /**
@@ -821,6 +807,9 @@ export class TypeRegistry {
    * Get type code for a leaf value.
    */
   private getTypeCodeForValue(value: unknown): string | null {
+    // Handle null/undefined first
+    if (value === null || value === undefined) return 'NN';
+
     if (value instanceof Date) {
       if (TimeType.isType(value)) return 'H';
       if (DateType.isType(value)) return 'D';
@@ -834,7 +823,7 @@ export class TypeRegistry {
     if (typeof value === 'string') return null;
 
     // Check custom types (registered via register_class)
-    if (typeof value === 'object' && value !== null && value.constructor) {
+    if (typeof value === 'object' && value.constructor) {
       const extType = this.constructors.get(value.constructor as new (...args: unknown[]) => unknown);
       if (extType) {
         return extType.code;
@@ -937,4 +926,4 @@ export function __setBigLoader(loader: (() => unknown) | null): void {
 /**
  * Re-export built-in types for custom type creation.
  */
-export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, NaiveDateTimeType, TimeType, JsonType };
+export { IntType, FloatType, DecimalType, BoolType, StrType, DateType, DateTimeType, NaiveDateTimeType, TimeType, JsonType, NoneType };
