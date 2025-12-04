@@ -13,22 +13,26 @@
 # limitations under the License.
 
 """
-Utility functions for TYTX schema generation (v2 format).
+Utility functions for TYTX schema generation (standalone).
 
-This module provides helpers for:
-- Pydantic model → TYTX v2 struct conversion (extracts Field() constraints)
-- TYTX struct → Pydantic model generation
+This module provides standalone helpers that work without the registry:
+- Pydantic model → TYTX struct conversion (returns inline FieldDef format)
+- TYTX struct → Pydantic model generation (accepts inline FieldDef format)
 - Python type → TYTX code mapping
 
-TYTX v2 Field Format:
-    Simple field (no constraints):
+NOTE: For registry-based operations with separate schema/metadata, use:
+- registry.struct_from_model() → returns (schema, metadata) tuple
+- registry.model_from_struct() → uses registered metadata
+
+This module uses inline FieldDef format for self-contained schemas:
+    Simple field:
         "name": "T"
 
-    Field with constraints (extracted from Pydantic Field()):
+    Field with constraints:
         "name": {
             "type": "T",
-            "validate": {"min": 1, "max": 100, "required": true},
-            "ui": {"label": "Name", "hint": "Enter name"}
+            "validate": {"min": 1, "max": 100},
+            "ui": {"label": "Name"}
         }
 """
 
@@ -196,7 +200,7 @@ def model_to_schema(
         _registered: Internal set to track already registered models
 
     Returns:
-        Dict schema mapping field names to TYTX type codes or FieldDef objects
+        Dict schema mapping field names to TYTX type codes or inline FieldDef dicts
 
     Raises:
         ImportError: If pydantic is not installed
@@ -252,14 +256,14 @@ def model_to_schema(
 
 def _extract_field_constraints(field_info: Any, type_code: str) -> str | dict[str, Any]:
     """
-    Extract Pydantic Field() constraints into TYTX v2 FieldDef format.
+    Extract Pydantic Field() constraints into inline FieldDef format.
 
     Args:
         field_info: Pydantic FieldInfo object
         type_code: Base TYTX type code
 
     Returns:
-        Simple type code if no constraints, or FieldDef dict with validate/ui.
+        Simple type code if no constraints, or inline FieldDef dict.
     """
     validate: dict[str, Any] = {}
     ui: dict[str, Any] = {}
@@ -311,7 +315,7 @@ def _extract_field_constraints(field_info: Any, type_code: str) -> str | dict[st
     if field_info.description:
         ui["hint"] = field_info.description
 
-    # Build FieldDef or return simple type
+    # Build inline FieldDef or return simple type
     if validate or ui:
         field_def: dict[str, Any] = {"type": type_code}
         if validate:
@@ -332,11 +336,11 @@ def schema_to_model(
     """
     Generate a Pydantic model from a TYTX v2 struct schema.
 
-    Converts FieldDef validate/ui sections into Pydantic Field() constraints.
+    Converts inline FieldDef validate/ui sections into Pydantic Field() constraints.
 
     Args:
         code: Struct code (used as model class name)
-        schema: TYTX v2 dict schema (type codes or FieldDef objects)
+        schema: TYTX dict schema (type codes or inline FieldDef dicts)
         struct_registry: Optional dict of known structs for nested references
 
     Returns:
@@ -367,7 +371,7 @@ def schema_to_model(
     field_definitions: dict[str, tuple[type, Any]] = {}
 
     for field_name, field_def in schema.items():
-        # Parse v2 FieldDef
+        # Parse inline FieldDef
         if isinstance(field_def, dict):
             type_code = field_def.get("type", "T")
             validate = field_def.get("validate", {})
@@ -420,12 +424,12 @@ def schema_to_model(
             field_kwargs["description"] = ui["hint"]
 
         # Create field definition
+        # Note: field_kwargs always has at least "default" if not is_required (see line 395-396)
         if field_kwargs:
             field_definitions[field_name] = (python_type, Field(**field_kwargs))
-        elif is_required:
-            field_definitions[field_name] = (python_type, ...)
         else:
-            field_definitions[field_name] = (python_type, None)
+            # Only reached when is_required=True and no other constraints
+            field_definitions[field_name] = (python_type, ...)
 
     # Create model dynamically
     model_name = code.title().replace("_", "")
