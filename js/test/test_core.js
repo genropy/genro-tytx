@@ -401,8 +401,9 @@ describe('edge cases', () => {
     });
 
     test('null and undefined handling', () => {
-        assert.strictEqual(as_typed_text(null), 'null');
-        assert.strictEqual(as_typed_text(undefined), 'undefined');
+        // null and undefined are now typed as NN (NoneType)
+        assert.strictEqual(as_typed_text(null), '::NN');
+        assert.strictEqual(as_typed_text(undefined), '::NN');
     });
 
     test('boolean aliases', () => {
@@ -1865,14 +1866,14 @@ describe('registry extended coverage', () => {
         }
     });
 
-    test('as_typed_text with null returns string representation', () => {
+    test('as_typed_text with null returns NN type', () => {
         const result = registry.as_typed_text(null);
-        assert.strictEqual(result, 'null');
+        assert.strictEqual(result, '::NN');
     });
 
-    test('as_typed_text with undefined returns string representation', () => {
+    test('as_typed_text with undefined returns NN type', () => {
         const result = registry.as_typed_text(undefined);
-        assert.strictEqual(result, 'undefined');
+        assert.strictEqual(result, '::NN');
     });
 
     test('from_text with invalid type code returns original', () => {
@@ -1954,5 +1955,157 @@ describe('TytxModel extended coverage', () => {
         assert.strictEqual(model.name, 'test');
         assert.strictEqual(model.active, true);
         assert.strictEqual(Number(model.price), 99.99);
+    });
+});
+
+
+// =============================================================================
+// NoneType Tests
+// =============================================================================
+
+describe('NoneType', () => {
+    test('from_text parses ::NN to null', () => {
+        const result = from_text('anything::NN');
+        assert.strictEqual(result, null);
+    });
+
+    test('from_text parses empty::NN to null', () => {
+        const result = from_text('::NN');
+        assert.strictEqual(result, null);
+    });
+
+    test('from_text parses with type name', () => {
+        const result = from_text('value::none');
+        assert.strictEqual(result, null);
+    });
+
+    test('as_typed_text serializes null with NN', () => {
+        const result = as_typed_text(null);
+        assert.strictEqual(result, '::NN');
+    });
+
+    test('as_typed_text serializes undefined with NN', () => {
+        const result = as_typed_text(undefined);
+        assert.strictEqual(result, '::NN');
+    });
+
+    test('registry recognizes NN type', () => {
+        const type = registry.get('NN');
+        assert.ok(type !== null);
+        assert.strictEqual(type.code, 'NN');
+        assert.strictEqual(type.name, 'none');
+    });
+
+    test('registry recognizes none type by name', () => {
+        const type = registry.get('none');
+        assert.ok(type !== null);
+        assert.strictEqual(type.code, 'NN');
+    });
+});
+
+// =============================================================================
+// Struct Metadata Tests
+// =============================================================================
+
+describe('struct metadata', () => {
+    test('register_struct with metadata stores metadata', () => {
+        const schema = { name: 'T', balance: 'N' };
+        const metadata = {
+            name: { validate: { min: 1, max: 100 }, ui: { label: 'Name' } },
+            balance: { validate: { min: 0 } }
+        };
+        registry.register_struct('META_TEST', schema, metadata);
+        
+        try {
+            // Verify schema is stored
+            const storedSchema = registry.get_struct('META_TEST');
+            assert.deepStrictEqual(storedSchema, schema);
+            
+            // Verify metadata is stored
+            const allMeta = registry.get_struct_metadata('META_TEST');
+            assert.ok(allMeta !== null);
+            assert.deepStrictEqual(allMeta.name.validate, { min: 1, max: 100 });
+            assert.deepStrictEqual(allMeta.name.ui, { label: 'Name' });
+            assert.deepStrictEqual(allMeta.balance.validate, { min: 0 });
+        } finally {
+            registry.unregister_struct('META_TEST');
+        }
+    });
+
+    test('get_struct_metadata returns field-specific metadata', () => {
+        const schema = { name: 'T', age: 'L' };
+        const metadata = {
+            name: { validate: { required: true } },
+            age: { validate: { min: 0, max: 150 } }
+        };
+        registry.register_struct('META_FIELD', schema, metadata);
+        
+        try {
+            const nameMeta = registry.get_struct_metadata('META_FIELD', 'name');
+            assert.deepStrictEqual(nameMeta, { validate: { required: true } });
+            
+            const ageMeta = registry.get_struct_metadata('META_FIELD', 'age');
+            assert.deepStrictEqual(ageMeta, { validate: { min: 0, max: 150 } });
+            
+            // Unknown field returns null
+            const unknownMeta = registry.get_struct_metadata('META_FIELD', 'unknown');
+            assert.strictEqual(unknownMeta, null);
+        } finally {
+            registry.unregister_struct('META_FIELD');
+        }
+    });
+
+    test('get_struct_metadata returns null for unknown struct', () => {
+        const result = registry.get_struct_metadata('NONEXISTENT');
+        assert.strictEqual(result, null);
+    });
+
+    test('register_struct without metadata works', () => {
+        registry.register_struct('NO_META', { x: 'L' });
+        
+        try {
+            const schema = registry.get_struct('NO_META');
+            assert.deepStrictEqual(schema, { x: 'L' });
+            
+            const meta = registry.get_struct_metadata('NO_META');
+            assert.strictEqual(meta, null);
+        } finally {
+            registry.unregister_struct('NO_META');
+        }
+    });
+
+    test('metadata deduplication works', () => {
+        // Two fields with identical metadata should share the same content
+        const schema = { field1: 'T', field2: 'T' };
+        const sharedValidation = { validate: { min: 1, max: 50 } };
+        const metadata = {
+            field1: sharedValidation,
+            field2: sharedValidation
+        };
+        registry.register_struct('DEDUP_TEST', schema, metadata);
+        
+        try {
+            const meta1 = registry.get_struct_metadata('DEDUP_TEST', 'field1');
+            const meta2 = registry.get_struct_metadata('DEDUP_TEST', 'field2');
+            
+            // Both should have the same content
+            assert.deepStrictEqual(meta1, meta2);
+            assert.deepStrictEqual(meta1, sharedValidation);
+        } finally {
+            registry.unregister_struct('DEDUP_TEST');
+        }
+    });
+
+    test('unregister_struct removes metadata', () => {
+        registry.register_struct('UNREG_META', { x: 'L' }, { x: { validate: { min: 0 } } });
+        
+        // Verify metadata exists
+        assert.ok(registry.get_struct_metadata('UNREG_META') !== null);
+        
+        // Unregister
+        registry.unregister_struct('UNREG_META');
+        
+        // Verify metadata is removed
+        assert.strictEqual(registry.get_struct_metadata('UNREG_META'), null);
     });
 });

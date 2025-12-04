@@ -144,6 +144,10 @@ class TypeRegistry {
         this._constructors = new Map();
         /** @type {Map<string, StructType>} */
         this._structs = new Map();
+        /** @type {Map<string, Map<string, string>>} Struct metadata: code -> field_name -> hash */
+        this._structMetadata = new Map();
+        /** @type {Map<string, Object>} Metadata content: hash -> metadata (deduplicated) */
+        this._metadataContent = new Map();
     }
 
     /**
@@ -237,9 +241,12 @@ class TypeRegistry {
     /**
      * Register a struct schema.
      * @param {string} name - Struct name (without @ prefix)
-     * @param {Array|Object|string} schema - Schema definition
+     * @param {Array|Object|string} schema - Schema definition (pure types only)
+     * @param {Object|null} [metadata] - Optional field metadata (validation, UI hints)
+     *        Maps field names to FieldMetadata objects:
+     *        {"name": {"validate": {"min": 1}, "ui": {"label": "Name"}}}
      */
-    register_struct(name, schema) {
+    register_struct(name, schema, metadata = null) {
         const code = STRUCT_PREFIX + name;
         let stringFields = null;
         let stringHasNames = false;
@@ -260,6 +267,99 @@ class TypeRegistry {
 
         this._structs.set(name, struct_type);
         this._codes.set(code, struct_type);
+
+        // Process and store metadata if provided
+        if (metadata) {
+            this._registerStructMetadata(name, metadata);
+        }
+    }
+
+    /**
+     * Register metadata for a struct, with hash-based deduplication.
+     * @param {string} code - Struct code (without @ prefix)
+     * @param {Object} metadata - Dict mapping field names to FieldMetadata
+     * @private
+     */
+    _registerStructMetadata(code, metadata) {
+        const fieldHashes = new Map();
+
+        for (const [fieldName, fieldMeta] of Object.entries(metadata)) {
+            if (!fieldMeta || Object.keys(fieldMeta).length === 0) {
+                continue;
+            }
+            // Compute hash of metadata content
+            const metaHash = this._computeMetadataHash(fieldMeta);
+            fieldHashes.set(fieldName, metaHash);
+            // Store content if not already present (deduplication)
+            if (!this._metadataContent.has(metaHash)) {
+                this._metadataContent.set(metaHash, fieldMeta);
+            }
+        }
+
+        if (fieldHashes.size > 0) {
+            this._structMetadata.set(code, fieldHashes);
+        }
+    }
+
+    /**
+     * Compute a stable hash for metadata content.
+     * @param {Object} metadata - FieldMetadata object
+     * @returns {string} Short hash string (first 8 chars)
+     * @private
+     */
+    _computeMetadataHash(metadata) {
+        // Deep sort keys for stable serialization
+        const sortedStringify = (obj) => {
+            if (obj === null || typeof obj !== 'object') {
+                return JSON.stringify(obj);
+            }
+            if (Array.isArray(obj)) {
+                return '[' + obj.map(sortedStringify).join(',') + ']';
+            }
+            const keys = Object.keys(obj).sort();
+            return '{' + keys.map(k => JSON.stringify(k) + ':' + sortedStringify(obj[k])).join(',') + '}';
+        };
+        const serialized = sortedStringify(metadata);
+        // Simple hash function (djb2)
+        let hash = 5381;
+        for (let i = 0; i < serialized.length; i++) {
+            hash = ((hash << 5) + hash) + serialized.charCodeAt(i);
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash).toString(16).padStart(8, '0').slice(0, 8);
+    }
+
+    /**
+     * Get metadata for a struct or specific field.
+     * @param {string} code - Struct code (without @ prefix)
+     * @param {string|null} [fieldName] - Optional field name. If null, returns all field metadata.
+     * @returns {Object|null} FieldMetadata for the field, or dict of all fields, or null if not found
+     */
+    get_struct_metadata(code, fieldName = null) {
+        if (!this._structMetadata.has(code)) {
+            return null;
+        }
+
+        const fieldHashes = this._structMetadata.get(code);
+
+        if (fieldName !== null) {
+            // Return specific field metadata
+            const metaHash = fieldHashes.get(fieldName);
+            if (!metaHash) {
+                return null;
+            }
+            return this._metadataContent.get(metaHash) || null;
+        }
+
+        // Return all field metadata
+        const result = {};
+        for (const [fname, metaHash] of fieldHashes) {
+            const content = this._metadataContent.get(metaHash);
+            if (content) {
+                result[fname] = content;
+            }
+        }
+        return result;
     }
 
     /**
@@ -295,6 +395,7 @@ class TypeRegistry {
         const code = STRUCT_PREFIX + name;
         this._structs.delete(name);
         this._codes.delete(code);
+        this._structMetadata.delete(name);
     }
 
     /**
@@ -321,7 +422,7 @@ class TypeRegistry {
      */
     _get_type_code_for_value(value) {
         if (value === null || value === undefined) {
-            return null;
+            return 'NN';
         }
         if (typeof value === 'boolean') {
             return 'B';

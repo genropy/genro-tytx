@@ -345,6 +345,29 @@ const TimeType = {
 };
 
 /**
+ * None/Null type - explicit null values.
+ * NN = None/Null
+ *
+ * Type code NN represents None/null values. Content before :: is ignored.
+ * Matches Python NoneType behavior.
+ */
+const NoneType = {
+    name: 'none',
+    code: 'NN',
+    js_type: 'null',
+
+    parse(value) {
+        // Always returns null, ignoring input
+        return null;
+    },
+
+    serialize(value) {
+        // Serialize null as empty string
+        return '';
+    }
+};
+
+/**
  * Register all built-in types.
  */
 function register_builtins() {
@@ -358,6 +381,7 @@ function register_builtins() {
     registry.register(DateTimeType);
     registry.register(NaiveDateTimeType);  // DH - deprecated
     registry.register(TimeType);
+    registry.register(NoneType);
 }
 
 // Auto-register on module load
@@ -374,6 +398,7 @@ module.exports = {
     DateTimeType,
     NaiveDateTimeType,
     TimeType,
+    NoneType,
     register_builtins,
     // Decimal library info
     DecimalLib,
