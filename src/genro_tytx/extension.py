@@ -15,7 +15,7 @@
 """
 Extension types for TYTX.
 
-This module provides _ExtensionType for custom user-defined types
+This module provides ExtensionType for custom user-defined types
 registered via register_class().
 
 Extension types use the ~ prefix (e.g., ::~UUID, ::~INV).
@@ -84,14 +84,10 @@ class ExtensionType:
         return self._serialize(value)
 
 
-# For backwards compatibility
-_ExtensionType = ExtensionType
-
 __all__ = [
     "CUSTOM_PREFIX",
     "ExtensionType",
     "X_PREFIX",
     "Y_PREFIX",
     "Z_PREFIX",
-    "_ExtensionType",
 ]
