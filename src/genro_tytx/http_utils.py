@@ -115,9 +115,7 @@ def _prepare_body(
     return registry.as_typed_text(body).encode("utf-8")
 
 
-def _hydrate_response(
-    content_type: str | None, raw: bytes, expect: str | None = None
-) -> Any:
+def _hydrate_response(content_type: str | None, raw: bytes, expect: str | None = None) -> Any:
     """
     Hydrate a response payload using TYTX utilities.
     """
@@ -166,9 +164,7 @@ def fetch_typed(
     """
     req = Request(url, data=data, headers=dict(headers or {}), method=method)
     with urlopen(req, timeout=timeout) as resp:
-        content_type = (
-            resp.headers.get("Content-Type") if hasattr(resp.headers, "get") else None
-        )
+        content_type = resp.headers.get("Content-Type") if hasattr(resp.headers, "get") else None
         raw = resp.read()
     return _hydrate_response(content_type, raw, expect)
 

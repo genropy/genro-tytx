@@ -55,9 +55,7 @@ def _to_xml(data: dict[str, Any], root_tag: str | None, typed: bool) -> str:
     """Internal XML builder."""
     if root_tag is None:
         if len(data) != 1:
-            raise ValueError(
-                "Data must have exactly one root key if root_tag is not provided"
-            )
+            raise ValueError("Data must have exactly one root key if root_tag is not provided")
         root_tag = list(data.keys())[0]
         content = data[root_tag]
     else:
@@ -71,14 +69,8 @@ def _build_element(tag: str, content: Any, typed: bool) -> ET.Element:
     """Build an XML element from dict content."""
     elem = ET.Element(tag)
 
-    if (
-        not isinstance(content, dict)
-        or "attrs" not in content
-        or "value" not in content
-    ):
-        raise ValueError(
-            f"Content must have 'attrs' and 'value' keys, got: {type(content)}"
-        )
+    if not isinstance(content, dict) or "attrs" not in content or "value" not in content:
+        raise ValueError(f"Content must have 'attrs' and 'value' keys, got: {type(content)}")
 
     # Set attributes
     for attr_name, attr_value in content["attrs"].items():
