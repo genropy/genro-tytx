@@ -338,7 +338,7 @@ class TestModelFromStructNested:
 
 
 class TestModelFromStructConstraints:
-    """Tests for constraint/metadata extraction (v2 format)."""
+    """Tests for constraint/metadata extraction - schema and metadata separate."""
 
     def teardown_method(self) -> None:
         """Clean up registered structs after each test."""
@@ -347,7 +347,11 @@ class TestModelFromStructConstraints:
 
     def test_string_min_length(self) -> None:
         """Test min_length constraint on string."""
-        registry.register_struct("MINLEN", {"name": {"type": "T", "validate": {"min": 1}}})
+        registry.register_struct(
+            "MINLEN",
+            schema={"name": "T"},
+            metadata={"name": {"validate": {"min": 1}}},
+        )
 
         Model = registry.model_from_struct("MINLEN")
 
@@ -360,7 +364,11 @@ class TestModelFromStructConstraints:
 
     def test_string_max_length(self) -> None:
         """Test max_length constraint on string."""
-        registry.register_struct("MAXLEN", {"code": {"type": "T", "validate": {"max": 10}}})
+        registry.register_struct(
+            "MAXLEN",
+            schema={"code": "T"},
+            metadata={"code": {"validate": {"max": 10}}},
+        )
 
         Model = registry.model_from_struct("MAXLEN")
 
@@ -372,7 +380,9 @@ class TestModelFromStructConstraints:
     def test_string_pattern(self) -> None:
         """Test pattern constraint on string."""
         registry.register_struct(
-            "PATTERN", {"email": {"type": "T", "validate": {"pattern": r"^[^@]+@[^@]+$"}}}
+            "PATTERN",
+            schema={"email": "T"},
+            metadata={"email": {"validate": {"pattern": r"^[^@]+@[^@]+$"}}},
         )
 
         Model = registry.model_from_struct("PATTERN")
@@ -387,7 +397,11 @@ class TestModelFromStructConstraints:
 
     def test_numeric_ge(self) -> None:
         """Test ge constraint on numeric field."""
-        registry.register_struct("GE", {"age": {"type": "L", "validate": {"min": 0}}})
+        registry.register_struct(
+            "GE",
+            schema={"age": "L"},
+            metadata={"age": {"validate": {"min": 0}}},
+        )
 
         Model = registry.model_from_struct("GE")
 
@@ -401,7 +415,11 @@ class TestModelFromStructConstraints:
 
     def test_numeric_le(self) -> None:
         """Test le constraint on numeric field."""
-        registry.register_struct("LE", {"score": {"type": "L", "validate": {"max": 100}}})
+        registry.register_struct(
+            "LE",
+            schema={"score": "L"},
+            metadata={"score": {"validate": {"max": 100}}},
+        )
 
         Model = registry.model_from_struct("LE")
 
@@ -417,7 +435,8 @@ class TestModelFromStructConstraints:
         """Test title (label) and description (hint) metadata."""
         registry.register_struct(
             "META",
-            {"name": {"type": "T", "ui": {"label": "Full Name", "hint": "Enter your full name"}}},
+            schema={"name": "T"},
+            metadata={"name": {"ui": {"label": "Full Name", "hint": "Enter your full name"}}},
         )
 
         Model = registry.model_from_struct("META")
@@ -429,7 +448,9 @@ class TestModelFromStructConstraints:
     def test_default_value_string(self) -> None:
         """Test default value for string field."""
         registry.register_struct(
-            "DEFSTR", {"status": {"type": "T", "validate": {"default": "active"}}}
+            "DEFSTR",
+            schema={"status": "T"},
+            metadata={"status": {"validate": {"default": "active"}}},
         )
 
         Model = registry.model_from_struct("DEFSTR")
@@ -440,7 +461,11 @@ class TestModelFromStructConstraints:
 
     def test_default_value_int(self) -> None:
         """Test default value for integer field."""
-        registry.register_struct("DEFINT", {"count": {"type": "L", "validate": {"default": 0}}})
+        registry.register_struct(
+            "DEFINT",
+            schema={"count": "L"},
+            metadata={"count": {"validate": {"default": 0}}},
+        )
 
         Model = registry.model_from_struct("DEFINT")
 
@@ -451,7 +476,8 @@ class TestModelFromStructConstraints:
         """Test enum metadata becomes Literal type."""
         registry.register_struct(
             "ENUM",
-            {"status": {"type": "T", "validate": {"enum": ["active", "inactive", "pending"]}}},
+            schema={"status": "T"},
+            metadata={"status": {"validate": {"enum": ["active", "inactive", "pending"]}}},
         )
 
         Model = registry.model_from_struct("ENUM")
@@ -467,12 +493,8 @@ class TestModelFromStructConstraints:
         """Test enum with default value."""
         registry.register_struct(
             "ENUMDEF",
-            {
-                "status": {
-                    "type": "T",
-                    "validate": {"enum": ["active", "inactive"], "default": "active"},
-                }
-            },
+            schema={"status": "T"},
+            metadata={"status": {"validate": {"enum": ["active", "inactive"], "default": "active"}}},
         )
 
         Model = registry.model_from_struct("ENUMDEF")
@@ -492,9 +514,9 @@ class TestModelFromStructConstraints:
         """Test multiple constraints on same field."""
         registry.register_struct(
             "COMBO",
-            {
+            schema={"name": "T"},
+            metadata={
                 "name": {
-                    "type": "T",
                     "validate": {"min": 1, "max": 100},
                     "ui": {"label": "Customer Name"},
                 }
@@ -528,9 +550,9 @@ class TestModelFromStructRoundTrip:
             age: int
             balance: Decimal
 
-        # Pydantic → TYTX
-        schema = registry.struct_from_model(Original)
-        registry.register_struct("ROUNDTRIP", schema)
+        # Pydantic → TYTX (now returns tuple)
+        schema, metadata = registry.struct_from_model(Original)
+        registry.register_struct("ROUNDTRIP", schema, metadata)
 
         # TYTX → Pydantic
         Generated = registry.model_from_struct("ROUNDTRIP")
@@ -555,9 +577,9 @@ class TestModelFromStructRoundTrip:
             name: str = Field(min_length=1, max_length=50, title="Name")
             age: int = Field(ge=0, le=150)
 
-        # Pydantic → TYTX
-        schema = registry.struct_from_model(Original)
-        registry.register_struct("CONSTRAINED", schema)
+        # Pydantic → TYTX (now returns tuple)
+        schema, metadata = registry.struct_from_model(Original)
+        registry.register_struct("CONSTRAINED", schema, metadata)
 
         # TYTX → Pydantic
         Generated = registry.model_from_struct("CONSTRAINED")
@@ -588,15 +610,11 @@ class TestModelFromStructRealWorld:
         """Test customer-like model."""
         registry.register_struct(
             "CUSTOMER",
-            {
-                "id": "L",
-                "name": {"type": "T", "validate": {"min": 1, "max": 100}},
-                "email": "T",
-                "status": {
-                    "type": "T",
-                    "validate": {"enum": ["active", "inactive", "suspended"], "default": "active"},
-                },
-                "balance": {"type": "N", "validate": {"min": 0}},
+            schema={"id": "L", "name": "T", "email": "T", "status": "T", "balance": "N"},
+            metadata={
+                "name": {"validate": {"min": 1, "max": 100}},
+                "status": {"validate": {"enum": ["active", "inactive", "suspended"], "default": "active"}},
+                "balance": {"validate": {"min": 0}},
             },
         )
 
@@ -619,20 +637,15 @@ class TestModelFromStructRealWorld:
         """Test invoice with nested line items."""
         registry.register_struct(
             "LINEITEM",
-            {
-                "description": "T",
-                "quantity": {"type": "L", "validate": {"min": 1}},
-                "unit_price": {"type": "N", "validate": {"min": 0}},
+            schema={"description": "T", "quantity": "L", "unit_price": "N"},
+            metadata={
+                "quantity": {"validate": {"min": 1}},
+                "unit_price": {"validate": {"min": 0}},
             },
         )
         registry.register_struct(
             "INVOICE",
-            {
-                "number": "T",
-                "date": "D",
-                "items": "#@LINEITEM",
-                "total": "N",
-            },
+            schema={"number": "T", "date": "D", "items": "#@LINEITEM", "total": "N"},
         )
 
         Invoice = registry.model_from_struct("INVOICE")

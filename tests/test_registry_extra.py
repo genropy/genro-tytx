@@ -201,25 +201,108 @@ class TestArrayTypeHandling:
 
     def test_from_text_array_of_structs(self):
         """#@STRUCT syntax for batch processing."""
-        registry.register_struct("ITEM", "name:T,qty:L")
+        # Schema is now dict or list - use list for positional batch processing
+        registry.register_struct("ITEM", ["T", "L"])
         try:
             result = registry.from_text('[["A", "1"], ["B", "2"]]::#@ITEM')
             assert len(result) == 2
-            assert result[0]["name"] == "A"
-            assert result[0]["qty"] == 1
+            # With list schema, result is list of lists
+            assert result[0] == ["A", 1]
+            assert result[1] == ["B", 2]
         finally:
             registry.unregister_struct("ITEM")
 
 
-class TestStringSchemaToDict:
-    """Tests for _string_schema_to_dict edge cases."""
+# TestStringSchemaToDict removed - string schema format no longer supported
+# Struct schemas must now be dict or list
 
-    def test_anonymous_fields_get_names(self):
-        """Anonymous fields in string schema get field_N names."""
-        registry.register_struct("ANON", "T,L,N")
+
+class TestMetadataEdgeCases:
+    """Tests for metadata registration edge cases."""
+
+    def test_register_struct_with_empty_field_metadata(self):
+        """Empty field metadata dict is skipped (line 217)."""
+        registry.register_struct(
+            "WITH_EMPTY",
+            schema={"name": "T", "age": "L"},
+            metadata={
+                "name": {"validate": {"min": 1}},
+                "age": {},  # Empty metadata - should be skipped
+            },
+        )
         try:
-            schema = registry.get_struct("ANON")
-            # String schema is stored as-is
-            assert schema == "T,L,N"
+            # Only name should have metadata
+            meta = registry.get_struct_metadata("WITH_EMPTY")
+            assert meta is not None
+            assert "name" in meta
+            # age metadata was empty, so either not present or empty
+            assert "age" not in meta or not meta.get("age")
         finally:
-            registry.unregister_struct("ANON")
+            registry.unregister_struct("WITH_EMPTY")
+
+    def test_get_struct_metadata_unknown_struct(self):
+        """get_struct_metadata returns None for unknown struct."""
+        result = registry.get_struct_metadata("UNKNOWN_XYZ")
+        assert result is None
+
+    def test_get_struct_metadata_unknown_field(self):
+        """get_struct_metadata returns None for unknown field."""
+        registry.register_struct(
+            "META_TEST",
+            schema={"name": "T"},
+            metadata={"name": {"validate": {"min": 1}}},
+        )
+        try:
+            result = registry.get_struct_metadata("META_TEST", "unknown_field")
+            assert result is None
+        finally:
+            registry.unregister_struct("META_TEST")
+
+
+class TestPythonTypeEdgeCases:
+    """Tests for _python_type_to_tytx_code edge cases in registry."""
+
+    def test_union_all_none_registry(self):
+        """Union with all None types returns T (lines 583-587)."""
+        from typing import Union
+
+        from pydantic import BaseModel
+
+        class ModelWithNoneUnion(BaseModel):
+            # This is an edge case - Union[None, None]
+            value: Union[None, None] = None
+
+        schema, metadata = registry.struct_from_model(ModelWithNoneUnion)
+        # Should handle gracefully
+        assert schema is not None
+
+    def test_list_without_type_arg(self):
+        """Bare list type returns #T (line 596)."""
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class ModelWithBareList(BaseModel):
+            items: List = []
+
+        schema, metadata = registry.struct_from_model(ModelWithBareList)
+        # Bare list defaults to #T
+        assert schema["items"] == "#T"
+
+    def test_forward_ref_in_model(self):
+        """ForwardRef in model is handled (lines 644-653)."""
+        import typing
+
+        from pydantic import BaseModel
+
+        # Create a model with ForwardRef
+        class Container(BaseModel):
+            # Forward reference as string
+            items: list["Item"] = []
+
+        class Item(BaseModel):
+            name: str
+
+        schema, metadata = registry.struct_from_model(Container)
+        # Should reference @ITEM
+        assert "@ITEM" in schema["items"] or "#@ITEM" in schema["items"]

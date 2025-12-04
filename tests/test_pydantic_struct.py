@@ -220,13 +220,15 @@ class TestRegisterStructFromModel:
         registry.register_struct_from_model("CIRCULARNODE", _CircularNode)
 
         schema = registry.get_struct("CIRCULARNODE")
-        # Note: default=[] produces a FieldDef with validate.default
+        # Schema contains pure type codes
         assert schema is not None
         assert schema["value"] == "T"
-        # children has default value, so it's a FieldDef
-        children = schema["children"]
-        assert children["type"] == "#@_CIRCULARNODE"
-        assert children["validate"]["default"] == []
+        assert schema["children"] == "#@_CIRCULARNODE"
+
+        # Metadata contains default value (separate from schema)
+        metadata = registry.get_struct_metadata("CIRCULARNODE", "children")
+        assert metadata is not None
+        assert metadata["validate"]["default"] == []
 
     def test_invalid_model_class(self) -> None:
         """Test that non-Pydantic class raises TypeError."""
@@ -288,17 +290,19 @@ class TestStructFromModel:
             registry.unregister_struct(code)
 
     def test_struct_from_model_basic(self) -> None:
-        """Test struct_from_model returns schema without registering."""
+        """Test struct_from_model returns (schema, metadata) tuple without registering."""
         from pydantic import BaseModel
 
         class Simple(BaseModel):
             name: str
             age: int
 
-        schema = registry.struct_from_model(Simple)
+        schema, metadata = registry.struct_from_model(Simple)
 
-        # Should return schema dict
+        # Should return pure schema dict
         assert schema == {"name": "T", "age": "L"}
+        # No constraints = empty metadata
+        assert metadata == {}
 
         # Should NOT be registered
         assert registry.get_struct("SIMPLE") is None
@@ -313,19 +317,19 @@ class TestStructFromModel:
             name: str
             price: Decimal
 
-        # Step 1: Generate schema
-        schema = registry.struct_from_model(Product)
+        # Step 1: Generate schema and metadata
+        schema, metadata = registry.struct_from_model(Product)
         assert schema == {"name": "T", "price": "N"}
 
         # Step 2: Register with custom code
-        registry.register_struct("PROD", schema)
+        registry.register_struct("PROD", schema, metadata)
 
         # Now it's registered
         assert registry.get_struct("PROD") == {"name": "T", "price": "N"}
 
 
 class TestFieldConstraints:
-    """Tests for Pydantic Field constraint extraction (v2 format)."""
+    """Tests for Pydantic Field constraint extraction - metadata is separate from schema."""
 
     def teardown_method(self) -> None:
         """Clean up registered structs after each test."""
@@ -339,10 +343,9 @@ class TestFieldConstraints:
         class WithMinLen(BaseModel):
             name: str = Field(min_length=1)
 
-        schema = registry.struct_from_model(WithMinLen)
-        assert schema["name"]["type"] == "T"
-        assert schema["name"]["validate"]["min"] == 1
-        assert schema["name"]["validate"]["required"] is True
+        schema, metadata = registry.struct_from_model(WithMinLen)
+        assert schema["name"] == "T"
+        assert metadata["name"]["validate"]["min"] == 1
 
     def test_string_max_length(self) -> None:
         """Test max_length constraint on string field."""
@@ -351,9 +354,9 @@ class TestFieldConstraints:
         class WithMaxLen(BaseModel):
             code: str = Field(max_length=10)
 
-        schema = registry.struct_from_model(WithMaxLen)
-        assert schema["code"]["type"] == "T"
-        assert schema["code"]["validate"]["max"] == 10
+        schema, metadata = registry.struct_from_model(WithMaxLen)
+        assert schema["code"] == "T"
+        assert metadata["code"]["validate"]["max"] == 10
 
     def test_string_min_max_length(self) -> None:
         """Test combined min/max length constraints."""
@@ -362,10 +365,10 @@ class TestFieldConstraints:
         class WithBothLen(BaseModel):
             name: str = Field(min_length=2, max_length=50)
 
-        schema = registry.struct_from_model(WithBothLen)
-        assert schema["name"]["type"] == "T"
-        assert schema["name"]["validate"]["min"] == 2
-        assert schema["name"]["validate"]["max"] == 50
+        schema, metadata = registry.struct_from_model(WithBothLen)
+        assert schema["name"] == "T"
+        assert metadata["name"]["validate"]["min"] == 2
+        assert metadata["name"]["validate"]["max"] == 50
 
     def test_string_pattern(self) -> None:
         """Test pattern constraint on string field."""
@@ -374,9 +377,9 @@ class TestFieldConstraints:
         class WithPattern(BaseModel):
             email: str = Field(pattern=r"^[^@]+@[^@]+$")
 
-        schema = registry.struct_from_model(WithPattern)
-        assert schema["email"]["type"] == "T"
-        assert schema["email"]["validate"]["pattern"] == r"^[^@]+@[^@]+$"
+        schema, metadata = registry.struct_from_model(WithPattern)
+        assert schema["email"] == "T"
+        assert metadata["email"]["validate"]["pattern"] == r"^[^@]+@[^@]+$"
 
     def test_numeric_ge(self) -> None:
         """Test ge (>=) constraint on numeric field."""
@@ -385,9 +388,9 @@ class TestFieldConstraints:
         class WithGe(BaseModel):
             age: int = Field(ge=0)
 
-        schema = registry.struct_from_model(WithGe)
-        assert schema["age"]["type"] == "L"
-        assert schema["age"]["validate"]["min"] == 0
+        schema, metadata = registry.struct_from_model(WithGe)
+        assert schema["age"] == "L"
+        assert metadata["age"]["validate"]["min"] == 0
 
     def test_numeric_le(self) -> None:
         """Test le (<=) constraint on numeric field."""
@@ -396,9 +399,9 @@ class TestFieldConstraints:
         class WithLe(BaseModel):
             score: int = Field(le=100)
 
-        schema = registry.struct_from_model(WithLe)
-        assert schema["score"]["type"] == "L"
-        assert schema["score"]["validate"]["max"] == 100
+        schema, metadata = registry.struct_from_model(WithLe)
+        assert schema["score"] == "L"
+        assert metadata["score"]["validate"]["max"] == 100
 
     def test_numeric_gt(self) -> None:
         """Test gt (>) constraint - should be min+1."""
@@ -407,9 +410,9 @@ class TestFieldConstraints:
         class WithGt(BaseModel):
             quantity: int = Field(gt=0)  # > 0 means >= 1
 
-        schema = registry.struct_from_model(WithGt)
-        assert schema["quantity"]["type"] == "L"
-        assert schema["quantity"]["validate"]["min"] == 1
+        schema, metadata = registry.struct_from_model(WithGt)
+        assert schema["quantity"] == "L"
+        assert metadata["quantity"]["validate"]["min"] == 1
 
     def test_numeric_lt(self) -> None:
         """Test lt (<) constraint - should be max-1."""
@@ -418,9 +421,9 @@ class TestFieldConstraints:
         class WithLt(BaseModel):
             count: int = Field(lt=100)  # < 100 means <= 99
 
-        schema = registry.struct_from_model(WithLt)
-        assert schema["count"]["type"] == "L"
-        assert schema["count"]["validate"]["max"] == 99
+        schema, metadata = registry.struct_from_model(WithLt)
+        assert schema["count"] == "L"
+        assert metadata["count"]["validate"]["max"] == 99
 
     def test_decimal_constraints(self) -> None:
         """Test constraints on Decimal field."""
@@ -431,10 +434,10 @@ class TestFieldConstraints:
         class WithDecimal(BaseModel):
             price: Decimal = Field(ge=0, le=9999.99)
 
-        schema = registry.struct_from_model(WithDecimal)
-        assert schema["price"]["type"] == "N"
-        assert schema["price"]["validate"]["min"] == 0
-        assert schema["price"]["validate"]["max"] == 9999.99
+        schema, metadata = registry.struct_from_model(WithDecimal)
+        assert schema["price"] == "N"
+        assert metadata["price"]["validate"]["min"] == 0
+        assert metadata["price"]["validate"]["max"] == 9999.99
 
     def test_title_as_label(self) -> None:
         """Test title becomes ui.label metadata."""
@@ -443,9 +446,9 @@ class TestFieldConstraints:
         class WithTitle(BaseModel):
             name: str = Field(title="Customer Name")
 
-        schema = registry.struct_from_model(WithTitle)
-        assert schema["name"]["type"] == "T"
-        assert schema["name"]["ui"]["label"] == "Customer Name"
+        schema, metadata = registry.struct_from_model(WithTitle)
+        assert schema["name"] == "T"
+        assert metadata["name"]["ui"]["label"] == "Customer Name"
 
     def test_description_as_hint(self) -> None:
         """Test description becomes ui.hint metadata."""
@@ -454,9 +457,9 @@ class TestFieldConstraints:
         class WithDesc(BaseModel):
             email: str = Field(description="Enter your email address")
 
-        schema = registry.struct_from_model(WithDesc)
-        assert schema["email"]["type"] == "T"
-        assert schema["email"]["ui"]["hint"] == "Enter your email address"
+        schema, metadata = registry.struct_from_model(WithDesc)
+        assert schema["email"] == "T"
+        assert metadata["email"]["ui"]["hint"] == "Enter your email address"
 
     def test_default_value(self) -> None:
         """Test default value is captured."""
@@ -465,9 +468,9 @@ class TestFieldConstraints:
         class WithDefault(BaseModel):
             status: str = Field(default="active")
 
-        schema = registry.struct_from_model(WithDefault)
-        assert schema["status"]["type"] == "T"
-        assert schema["status"]["validate"]["default"] == "active"
+        schema, metadata = registry.struct_from_model(WithDefault)
+        assert schema["status"] == "T"
+        assert metadata["status"]["validate"]["default"] == "active"
 
     def test_combined_constraints(self) -> None:
         """Test multiple constraints on same field."""
@@ -481,17 +484,17 @@ class TestFieldConstraints:
                 description="Customer's full name",
             )
 
-        schema = registry.struct_from_model(Customer)
-        name_def = schema["name"]
-        assert name_def["type"] == "T"
-        assert name_def["validate"]["min"] == 1
-        assert name_def["validate"]["max"] == 100
-        assert name_def["ui"]["label"] == "Full Name"
-        assert name_def["ui"]["hint"] == "Customer's full name"
+        schema, metadata = registry.struct_from_model(Customer)
+        assert schema["name"] == "T"
+        name_meta = metadata["name"]
+        assert name_meta["validate"]["min"] == 1
+        assert name_meta["validate"]["max"] == 100
+        assert name_meta["ui"]["label"] == "Full Name"
+        assert name_meta["ui"]["hint"] == "Customer's full name"
 
 
 class TestLiteralEnum:
-    """Tests for Literal type -> enum metadata (v2 format)."""
+    """Tests for Literal type -> enum metadata."""
 
     def teardown_method(self) -> None:
         """Clean up registered structs after each test."""
@@ -507,8 +510,9 @@ class TestLiteralEnum:
         class WithStatus(BaseModel):
             status: Literal["active", "inactive", "pending"]
 
-        schema = registry.struct_from_model(WithStatus)
-        assert schema["status"]["validate"]["enum"] == ["active", "inactive", "pending"]
+        schema, metadata = registry.struct_from_model(WithStatus)
+        assert schema["status"] == "T"
+        assert metadata["status"]["validate"]["enum"] == ["active", "inactive", "pending"]
 
     def test_literal_int(self) -> None:
         """Test Literal with integer values."""
@@ -519,8 +523,9 @@ class TestLiteralEnum:
         class WithPriority(BaseModel):
             priority: Literal[1, 2, 3]
 
-        schema = registry.struct_from_model(WithPriority)
-        assert schema["priority"]["validate"]["enum"] == [1, 2, 3]
+        schema, metadata = registry.struct_from_model(WithPriority)
+        assert schema["priority"] == "L"
+        assert metadata["priority"]["validate"]["enum"] == [1, 2, 3]
 
     def test_literal_mixed(self) -> None:
         """Test Literal with mixed types."""
@@ -531,8 +536,9 @@ class TestLiteralEnum:
         class WithMixed(BaseModel):
             value: Literal["auto", 0, 100]
 
-        schema = registry.struct_from_model(WithMixed)
-        assert schema["value"]["validate"]["enum"] == ["auto", 0, 100]
+        schema, metadata = registry.struct_from_model(WithMixed)
+        # Mixed literal -> defaults to T (first value is string)
+        assert metadata["value"]["validate"]["enum"] == ["auto", 0, 100]
 
     def test_literal_with_other_constraints(self) -> None:
         """Test Literal combined with other Field constraints."""
@@ -543,9 +549,9 @@ class TestLiteralEnum:
         class WithLiteralAndTitle(BaseModel):
             status: Literal["A", "B", "C"] = Field(title="Status Code")
 
-        schema = registry.struct_from_model(WithLiteralAndTitle)
-        assert schema["status"]["validate"]["enum"] == ["A", "B", "C"]
-        assert schema["status"]["ui"]["label"] == "Status Code"
+        schema, metadata = registry.struct_from_model(WithLiteralAndTitle)
+        assert metadata["status"]["validate"]["enum"] == ["A", "B", "C"]
+        assert metadata["status"]["ui"]["label"] == "Status Code"
 
 
 class TestRealWorldExamples:

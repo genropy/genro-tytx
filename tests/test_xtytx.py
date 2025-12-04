@@ -124,13 +124,14 @@ class TestXtytxPrecedence:
     def test_lstruct_overrides_gstruct_during_decode(self):
         """lstruct takes precedence over gstruct during decoding."""
         # Both define XPOINT, lstruct version should win during decode
-        payload = """XTYTX://{"gstruct": {"XPOINT": "x:L,y:L"}, "lstruct": {"XPOINT": "x:R,y:R,z:R"}, "data": "TYTX://{\\"p\\": \\"[1.5, 2.5, 3.5]::@XPOINT\\"}"}"""
+        # Using list schema format (positional)
+        payload = 'XTYTX://{"gstruct": {"XPOINT": ["L", "L"]}, "lstruct": {"XPOINT": ["R", "R", "R"]}, "data": "TYTX://{\\"p\\": \\"[1.5, 2.5, 3.5]::@XPOINT\\"}"}'
         try:
             result = from_json(payload)
-            # lstruct version (R,R,R with z) should be used
-            assert result.data == {"p": {"x": 1.5, "y": 2.5, "z": 3.5}}
+            # lstruct version (R,R,R) should be used - result is a list
+            assert result.data == {"p": [1.5, 2.5, 3.5]}
             # But gstruct version should persist in registry
-            assert registry.get_struct("XPOINT") == "x:L,y:L"
+            assert registry.get_struct("XPOINT") == ["L", "L"]
         finally:
             registry.unregister_struct("XPOINT")
 
@@ -177,9 +178,8 @@ class TestXtytxDataDecoding:
 
     def test_data_complex_nested(self):
         """Complex nested data with multiple struct types."""
-        # XADDR uses string schema (array input -> dict output)
-        # XPERSON uses string schema too (array input -> dict output)
-        payload = """XTYTX://{"gstruct": {"XADDR": "city:T,zip:L"}, "lstruct": {"XPERSON": "name:T,age:L"}, "data": "TYTX://{\\"person\\": \\"[\\\\\\"John\\\\\\", \\\\\\"30\\\\\\"]::@XPERSON\\", \\"address\\": \\"[\\\\\\"Rome\\\\\\", \\\\\\"12345\\\\\\"]::@XADDR\\"}"}"""
+        # XADDR uses dict schema, XPERSON uses dict schema
+        payload = 'XTYTX://{"gstruct": {"XADDR": {"city": "T", "zip": "L"}}, "lstruct": {"XPERSON": {"name": "T", "age": "L"}}, "data": "TYTX://{\\"person\\": \\"{\\\\\\"name\\\\\\": \\\\\\"John\\\\\\", \\\\\\"age\\\\\\": \\\\\\"30\\\\\\"}::@XPERSON\\", \\"address\\": \\"{\\\\\\"city\\\\\\": \\\\\\"Rome\\\\\\", \\\\\\"zip\\\\\\": \\\\\\"12345\\\\\\"}::@XADDR\\"}"}'
         try:
             result = from_json(payload)
             assert result.data == {
@@ -187,7 +187,7 @@ class TestXtytxDataDecoding:
                 "address": {"city": "Rome", "zip": 12345},
             }
             # XADDR should persist, XPERSON should not
-            assert registry.get_struct("XADDR") == "city:T,zip:L"
+            assert registry.get_struct("XADDR") == {"city": "T", "zip": "L"}
             assert registry.get_struct("XPERSON") is None
         finally:
             registry.unregister_struct("XADDR")

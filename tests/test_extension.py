@@ -10,7 +10,6 @@ from genro_tytx.extension import (
     Y_PREFIX,
     Z_PREFIX,
     ExtensionType,
-    _ExtensionType,
 )
 
 
@@ -147,20 +146,3 @@ class TestConstants:
         assert Z_PREFIX == "Z_"
 
 
-class TestBackwardsCompatibility:
-    """Tests for backwards compatibility."""
-
-    def test_extension_type_alias(self):
-        """_ExtensionType is an alias for ExtensionType."""
-        assert _ExtensionType is ExtensionType
-
-    def test_extension_type_alias_works(self):
-        """_ExtensionType can be used to create instances."""
-        ext = _ExtensionType(
-            code="OLD",
-            cls=str,
-            serialize=str,
-            parse=str,
-        )
-        assert ext.code == "~OLD"
-        assert isinstance(ext, ExtensionType)
