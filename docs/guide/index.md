@@ -14,4 +14,5 @@ pydantic
 javascript
 registry
 http_helpers
+cross-language-testing
 ```
