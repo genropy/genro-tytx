@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("msgpack")
 
-from genro_tytx_base import to_msgpack, from_msgpack
+from genro_tytx import to_msgpack, from_msgpack
 
 
 class TestMsgpackEncode:

@@ -10,8 +10,8 @@
  *     toTypedJson(data)     → 'TYTX://{"price":"100.50::N"}::JS'
  *     fromJson(str)         → {price: Decimal("100.50")}
  *
- * @module genro-tytx-base
- * @version 0.1.0
+ * @module genro-tytx
+ * @version 0.7.0
  * @license Apache-2.0
  * @copyright Softwell S.r.l. 2025
  */
@@ -63,4 +63,4 @@ export {
 } from './decode';
 
 /** Library version */
-export const VERSION = '0.1.0';
+export const VERSION = '0.7.0';

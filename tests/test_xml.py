@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx_base import to_xml, from_xml
+from genro_tytx import to_xml, from_xml
 
 
 class TestXmlEncode:

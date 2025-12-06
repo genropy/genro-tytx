@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "genro-tytx-base"
-version = "0.1.0"
+name = "genro-tytx"
+version = "0.7.0"
 description = "TYTX Base - Typed text protocol for scalar types (JSON/XML/MessagePack)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -37,19 +37,19 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/genropy/genro-tytx-base"
-Repository = "https://github.com/genropy/genro-tytx-base"
-Documentation = "https://github.com/genropy/genro-tytx-base#readme"
+Homepage = "https://github.com/genropy/genro-tytx"
+Repository = "https://github.com/genropy/genro-tytx"
+Documentation = "https://github.com/genropy/genro-tytx#readme"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/genro_tytx_base"]
+packages = ["src/genro_tytx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.coverage.run]
-source = ["src/genro_tytx_base"]
+source = ["src/genro_tytx"]
 branch = true
 
 [tool.coverage.report]

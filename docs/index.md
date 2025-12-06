@@ -31,7 +31,7 @@ After parsing: `price` → `Decimal("100.50")`, `date` → `date(2025, 1, 15)`.
 ```python
 from datetime import date
 from decimal import Decimal
-from genro_tytx_base import to_typed_text, from_text, to_typed_json, from_json
+from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
 # Encode (text format - suffix only)
 data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}

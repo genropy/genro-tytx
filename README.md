@@ -1,4 +1,4 @@
-# genro-tytx-base
+# genro-tytx
 
 **TYTX Base** - Typed Text Protocol for Scalar Types
 
@@ -7,12 +7,12 @@ Minimal implementation of the TYTX protocol supporting scalar types over JSON, X
 ## Installation
 
 ```bash
-pip install genro-tytx-base
+pip install genro-tytx
 
 # With optional dependencies
-pip install genro-tytx-base[fast]      # orjson for faster JSON
-pip install genro-tytx-base[msgpack]   # MessagePack support
-pip install genro-tytx-base[all]       # All optional dependencies
+pip install genro-tytx[fast]      # orjson for faster JSON
+pip install genro-tytx[msgpack]   # MessagePack support
+pip install genro-tytx[all]       # All optional dependencies
 ```
 
 ## Quick Start
@@ -20,7 +20,7 @@ pip install genro-tytx-base[all]       # All optional dependencies
 ```python
 from datetime import date
 from decimal import Decimal
-from genro_tytx_base import to_typed_text, from_text, to_typed_json, from_json
+from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
 # Encode (text format - suffix only)
 data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
@@ -79,7 +79,7 @@ result = from_json(json_str)
 
 ```python
 from decimal import Decimal
-from genro_tytx_base import to_typed_text, from_text, to_typed_json, from_json
+from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
 # Text format (suffix only)
 encoded = to_typed_text({"price": Decimal("100.50")})
@@ -95,7 +95,7 @@ decoded = from_json(encoded)
 ### XML
 
 ```python
-from genro_tytx_base import to_xml, from_xml
+from genro_tytx import to_xml, from_xml
 
 encoded = to_xml({"price": Decimal("100.50")})
 # '<root><price _type="N">100.50</price></root>'
@@ -106,7 +106,7 @@ decoded = from_xml(encoded)
 ### MessagePack
 
 ```python
-from genro_tytx_base import to_msgpack, from_msgpack
+from genro_tytx import to_msgpack, from_msgpack
 
 packed = to_msgpack({"price": Decimal("100.50")})
 unpacked = from_msgpack(packed)
@@ -115,7 +115,7 @@ unpacked = from_msgpack(packed)
 ## HTTP Utilities
 
 ```python
-from genro_tytx_base import encode_body, decode_body, make_headers
+from genro_tytx import encode_body, decode_body, make_headers
 
 # Create request
 headers = make_headers("json")

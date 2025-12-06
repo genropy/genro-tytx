@@ -78,7 +78,7 @@ function hydrateRecursive(obj: unknown): unknown {
  *
  * @example
  * ```typescript
- * import { fromText } from 'genro-tytx-base';
+ * import { fromText } from 'genro-tytx';
  *
  * const result = fromText('{"price":"100.50::N"}::JS');
  * // { price: Big("100.50") }
@@ -111,7 +111,7 @@ export function fromText<T = unknown>(data: string): T {
  *
  * @example
  * ```typescript
- * import { fromJson } from 'genro-tytx-base';
+ * import { fromJson } from 'genro-tytx';
  *
  * const result = fromJson('TYTX://{"price":"100.50::N"}::JS');
  * // { price: Big("100.50") }

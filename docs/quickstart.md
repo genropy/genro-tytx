@@ -20,7 +20,7 @@ TYTX uses `value::type_code` syntax to encode type information in strings:
 ```python
 from datetime import date, datetime, time
 from decimal import Decimal
-from genro_tytx_base import to_typed_text, to_typed_json
+from genro_tytx import to_typed_text, to_typed_json
 
 data = {
     "price": Decimal("99.99"),
@@ -41,7 +41,7 @@ to_typed_json(data)
 ### Decode TYTX JSON to Python
 
 ```python
-from genro_tytx_base import from_text, from_json
+from genro_tytx import from_text, from_json
 
 # Decode text format
 result = from_text('{"price": "99.99::N", "date": "2025-01-15::D"}::JS')
@@ -59,7 +59,7 @@ TYTX Base encodes types in XML using `_type` attribute:
 ```python
 from decimal import Decimal
 from datetime import date
-from genro_tytx_base import to_xml, from_xml
+from genro_tytx import to_xml, from_xml
 
 # Encode to XML
 data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
@@ -77,7 +77,7 @@ TYTX Base uses ExtType(42) for binary serialization:
 
 ```python
 from decimal import Decimal
-from genro_tytx_base import to_msgpack, from_msgpack
+from genro_tytx import to_msgpack, from_msgpack
 
 data = {"price": Decimal("99.99")}
 
@@ -89,14 +89,14 @@ result = from_msgpack(packed)
 # {"price": Decimal("99.99")}
 ```
 
-> **Note**: Requires `pip install genro-tytx-base[msgpack]`
+> **Note**: Requires `pip install genro-tytx[msgpack]`
 
 ## HTTP Utilities
 
 For web applications:
 
 ```python
-from genro_tytx_base import encode_body, decode_body, make_headers
+from genro_tytx import encode_body, decode_body, make_headers
 
 # Create request
 headers = make_headers("json")  # {"Content-Type": "application/json"}
@@ -153,7 +153,7 @@ TYTX Base handles nested dicts and lists:
 ```python
 from decimal import Decimal
 from datetime import date
-from genro_tytx_base import to_typed_text, from_text
+from genro_tytx import to_typed_text, from_text
 
 invoice = {
     "invoice": {

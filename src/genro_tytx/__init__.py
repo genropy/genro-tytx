@@ -8,7 +8,7 @@ Minimal implementation supporting:
 - HTTP utilities
 
 Usage:
-    from genro_tytx_base import to_typed_text, from_text
+    from genro_tytx import to_typed_text, from_text
 
     # Encode
     data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
@@ -44,7 +44,7 @@ from .http import (
     make_headers,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.7.0"
 
 __all__ = [
     # JSON (core)

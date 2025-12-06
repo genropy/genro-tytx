@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Project information -----------------------------------------------------
-project = "genro-tytx-base"
+project = "genro-tytx"
 copyright = "2025, Softwell S.r.l."
 author = "Genropy Team"
 release = "0.1.0"

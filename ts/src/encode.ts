@@ -106,7 +106,7 @@ function serializeRecursive(value: unknown): SerializeResult {
  *
  * @example
  * ```typescript
- * import { toTypedText } from 'genro-tytx-base';
+ * import { toTypedText } from 'genro-tytx';
  * import Big from 'big.js';
  *
  * const data = { price: new Big('100.50') };
@@ -129,7 +129,7 @@ export function toTypedText(value: unknown): string {
  *
  * @example
  * ```typescript
- * import { toTypedJson } from 'genro-tytx-base';
+ * import { toTypedJson } from 'genro-tytx';
  * import Big from 'big.js';
  *
  * const data = { price: new Big('100.50') };

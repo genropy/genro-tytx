@@ -1,6 +1,6 @@
 {
-  "name": "genro-tytx-base",
-  "version": "0.1.0",
+  "name": "genro-tytx",
+  "version": "0.7.0",
   "description": "TYTX Base - Minimal typed text protocol for scalar types",
   "main": "src/index.js",
   "exports": {
@@ -29,12 +29,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/genropy/genro-tytx-base.git"
+    "url": "git+https://github.com/genropy/genro-tytx.git"
   },
   "bugs": {
-    "url": "https://github.com/genropy/genro-tytx-base/issues"
+    "url": "https://github.com/genropy/genro-tytx/issues"
   },
-  "homepage": "https://github.com/genropy/genro-tytx-base#readme",
+  "homepage": "https://github.com/genropy/genro-tytx#readme",
   "engines": {
     "node": ">=18.0.0"
   },

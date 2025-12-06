@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx_base import to_typed_text, from_text, to_typed_json, from_json
+from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
 
 class TestEncode:

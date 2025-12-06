@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx_base import (
+from genro_tytx import (
     get_content_type,
     encode_body,
     decode_body,
