@@ -1,0 +1,26 @@
+#!/bin/bash
+# commit-msg hook - Block commits with Claude attribution
+#
+# Install: cp hooks/commit-msg .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
+
+COMMIT_MSG_FILE=$1
+
+if grep -q "Generated with \[Claude Code\]" "$COMMIT_MSG_FILE"; then
+    echo "❌ ERROR: Commit message contains 'Generated with [Claude Code]'"
+    echo ""
+    echo "This project does NOT allow Claude Code attribution in commits."
+    echo "Please remove the Claude attribution line from your commit message."
+    echo ""
+    exit 1
+fi
+
+if grep -q "Co-Authored-By: Claude" "$COMMIT_MSG_FILE"; then
+    echo "❌ ERROR: Commit message contains 'Co-Authored-By: Claude'"
+    echo ""
+    echo "This project does NOT allow Claude as co-author."
+    echo "Please remove the 'Co-Authored-By: Claude' line from your commit message."
+    echo ""
+    exit 1
+fi
+
+exit 0

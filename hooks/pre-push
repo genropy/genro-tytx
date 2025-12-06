@@ -1,0 +1,58 @@
+#!/bin/bash
+# pre-push hook - Run tests before pushing
+#
+# Install: cp hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Usage:
+#   git push              # Standard push (runs pytest)
+#   SKIP_TESTS=1 git push # Skip tests (use with caution)
+#   RUN_ACT=1 git push    # Run ACT validation (GitHub Actions locally)
+
+set -e
+
+# Allow skipping tests with SKIP_TESTS=1
+if [ "$SKIP_TESTS" = "1" ]; then
+    echo "⚠️  SKIP_TESTS=1: Skipping pre-push tests"
+    exit 0
+fi
+
+echo "Running pre-push checks..."
+
+# Run pytest
+echo "  [1/1] Running pytest..."
+if ! pytest tests/ -q; then
+    echo "  ❌ FAILED: pytest found test failures"
+    echo "  Run 'pytest tests/' to see details"
+    echo ""
+    echo "  To skip tests (use with caution):"
+    echo "    SKIP_TESTS=1 git push"
+    exit 1
+fi
+echo "  ✅ PASSED: pytest"
+
+# Optional ACT validation
+if [ "$RUN_ACT" = "1" ]; then
+    echo ""
+    echo "  [ACT] Running GitHub Actions validation..."
+
+    # Detect architecture
+    ARCH=$(uname -m)
+
+    if [ "$ARCH" = "arm64" ]; then
+        # ARM Mac: run only ubuntu-latest
+        echo "  [ACT] ARM architecture detected, running ubuntu-latest only..."
+        if ! act push -j test --matrix os:ubuntu-latest --container-architecture linux/amd64; then
+            echo "  ❌ FAILED: ACT validation failed"
+            exit 1
+        fi
+    else
+        # x86_64: run all
+        if ! act push; then
+            echo "  ❌ FAILED: ACT validation failed"
+            exit 1
+        fi
+    fi
+    echo "  ✅ PASSED: ACT"
+fi
+
+echo "✅ All pre-push checks passed!"
