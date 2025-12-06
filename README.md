@@ -25,7 +25,7 @@ from genro_tytx_base import to_tytx, from_tytx
 # Encode
 data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 json_str = to_tytx(data)
-# '{"price": "100.50::D", "date": "2025-01-15::d"}::JS'
+# '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
 
 # Decode
 result = from_tytx(json_str)
@@ -38,19 +38,21 @@ result = from_tytx(json_str)
 
 | Type | Suffix | Example |
 |------|--------|---------|
-| Decimal | `D` | `"100.50::D"` |
-| date | `d` | `"2025-01-15::d"` |
-| datetime | `DH` | `"2025-01-15T10:30:00Z::DH"` |
-| time | `t` | `"10:30:00::t"` |
+| Decimal | `N` | `"100.50::N"` |
+| date | `D` | `"2025-01-15::D"` |
+| datetime | `DHZ` | `"2025-01-15T10:30:00Z::DHZ"` |
+| time | `H` | `"10:30:00::H"` |
+
+> **Note**: `DH` is deprecated but still accepted for backward compatibility.
 
 ### XML (all types, everything is string)
 
 | Type | Suffix | Example |
 |------|--------|---------|
-| Decimal | `D` | `<price _type="D">100.50</price>` |
-| date | `d` | `<d _type="d">2025-01-15</d>` |
-| datetime | `DH` | `<dt _type="DH">2025-01-15T10:30:00Z</dt>` |
-| time | `t` | `<t _type="t">10:30:00</t>` |
+| Decimal | `N` | `<price _type="N">100.50</price>` |
+| date | `D` | `<d _type="D">2025-01-15</d>` |
+| datetime | `DHZ` | `<dt _type="DHZ">2025-01-15T10:30:00Z</dt>` |
+| time | `H` | `<t _type="H">10:30:00</t>` |
 | bool | `B` | `<flag _type="B">1</flag>` |
 | int | `I` | `<count _type="I">42</count>` |
 
@@ -71,7 +73,7 @@ decoded = from_tytx(encoded)
 from genro_tytx_base import to_xml, from_xml
 
 encoded = to_xml({"price": Decimal("100.50")})
-# '<root><price _type="D">100.50</price></root>'
+# '<root><price _type="N">100.50</price></root>'
 
 decoded = from_xml(encoded)
 ```

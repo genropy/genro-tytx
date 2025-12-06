@@ -13,7 +13,7 @@ Usage:
     # Encode
     data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
     json_str = to_tytx(data)
-    # '{"price": "100.50::D", "date": "2025-01-15::d"}::JS'
+    # '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
 
     # Decode
     result = from_tytx(json_str)

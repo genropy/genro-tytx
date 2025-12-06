@@ -53,8 +53,8 @@ class TestEncode:
             "name": "test",
         })
         assert "::JS" in result
-        assert '"100.50::D"' in result
-        assert '"2025-01-15::d"' in result
+        assert '"100.50::N"' in result
+        assert '"2025-01-15::D"' in result
 
     def test_nested_structure(self):
         result = to_tytx({
@@ -77,20 +77,26 @@ class TestDecode:
     """Tests for from_tytx decoding."""
 
     def test_decimal(self):
-        result = from_tytx('{"price": "100.50::D"}::JS')
+        result = from_tytx('{"price": "100.50::N"}::JS')
         assert result == {"price": Decimal("100.50")}
 
     def test_date(self):
-        result = from_tytx('{"d": "2025-01-15::d"}::JS')
+        result = from_tytx('{"d": "2025-01-15::D"}::JS')
         assert result == {"d": date(2025, 1, 15)}
 
     def test_datetime(self):
+        result = from_tytx('{"dt": "2025-01-15T10:30:00Z::DHZ"}::JS')
+        assert result["dt"].year == 2025
+        assert result["dt"].hour == 10
+
+    def test_datetime_deprecated_dh(self):
+        """DH is deprecated but still accepted for backward compatibility."""
         result = from_tytx('{"dt": "2025-01-15T10:30:00Z::DH"}::JS')
         assert result["dt"].year == 2025
         assert result["dt"].hour == 10
 
     def test_time(self):
-        result = from_tytx('{"t": "10:30:00::t"}::JS')
+        result = from_tytx('{"t": "10:30:00::H"}::JS')
         assert result == {"t": time(10, 30, 0)}
 
     def test_bool(self):
@@ -99,15 +105,15 @@ class TestDecode:
 
     def test_no_marker(self):
         """Without TYTX marker, no hydration."""
-        result = from_tytx('{"price": "100.50::D"}')
-        assert result == {"price": "100.50::D"}
+        result = from_tytx('{"price": "100.50::N"}')
+        assert result == {"price": "100.50::N"}
 
     def test_nested(self):
-        result = from_tytx('{"a": {"b": "100::D"}}::JS')
+        result = from_tytx('{"a": {"b": "100::N"}}::JS')
         assert result == {"a": {"b": Decimal("100")}}
 
     def test_list(self):
-        result = from_tytx('["1.0::D", "2.0::D"]::JS')
+        result = from_tytx('["1.0::N", "2.0::N"]::JS')
         assert result == [Decimal("1.0"), Decimal("2.0")]
 
 

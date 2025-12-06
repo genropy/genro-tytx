@@ -56,17 +56,17 @@ class TestDecodeBody:
     """Tests for decode_body."""
 
     def test_json_by_content_type(self):
-        body = '{"price": "100.50::D"}::JS'
+        body = '{"price": "100.50::N"}::JS'
         result = decode_body(body, content_type="application/json")
         assert result == {"price": Decimal("100.50")}
 
     def test_xml_by_content_type(self):
-        body = '<root><price _type="D">100.50</price></root>'
+        body = '<root><price _type="N">100.50</price></root>'
         result = decode_body(body, content_type="application/xml")
         assert result == {"price": Decimal("100.50")}
 
     def test_explicit_format(self):
-        body = '{"price": "100.50::D"}::JS'
+        body = '{"price": "100.50::N"}::JS'
         result = decode_body(body, format="json")
         assert result == {"price": Decimal("100.50")}
 

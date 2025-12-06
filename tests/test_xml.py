@@ -14,12 +14,12 @@ class TestXmlEncode:
 
     def test_decimal(self):
         result = to_xml({"price": Decimal("100.50")})
-        assert '_type="D"' in result
+        assert '_type="N"' in result
         assert ">100.50<" in result
 
     def test_date(self):
         result = to_xml({"d": date(2025, 1, 15)})
-        assert '_type="d"' in result
+        assert '_type="D"' in result
         assert ">2025-01-15<" in result
 
     def test_nested(self):
@@ -29,7 +29,7 @@ class TestXmlEncode:
             }
         })
         assert "<invoice>" in result
-        assert '<total _type="D">999.99</total>' in result
+        assert '<total _type="N">999.99</total>' in result
 
     def test_list(self):
         result = to_xml({"items": [1, 2, 3]})
@@ -41,18 +41,18 @@ class TestXmlDecode:
     """Tests for from_xml decoding."""
 
     def test_decimal(self):
-        result = from_xml('<root><price _type="D">100.50</price></root>')
+        result = from_xml('<root><price _type="N">100.50</price></root>')
         assert result == {"price": Decimal("100.50")}
 
     def test_date(self):
-        result = from_xml('<root><d _type="d">2025-01-15</d></root>')
+        result = from_xml('<root><d _type="D">2025-01-15</d></root>')
         assert result == {"d": date(2025, 1, 15)}
 
     def test_nested(self):
         result = from_xml('''
             <root>
                 <invoice>
-                    <total _type="D">999.99</total>
+                    <total _type="N">999.99</total>
                 </invoice>
             </root>
         ''')
