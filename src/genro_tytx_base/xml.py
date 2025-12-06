@@ -3,8 +3,8 @@
 TYTX XML Encoding/Decoding.
 
 XML format uses attributes for typed values:
-    <price _type="D">100.50</price>
-    <date _type="d">2025-01-15</date>
+    <price _type="N">100.50</price>
+    <date _type="D">2025-01-15</date>
 """
 
 from __future__ import annotations

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .encode import to_tytx
-from .decode import from_tytx
+from .encode import to_typed_text
+from .decode import from_text
 
 # TYTX ExtType code
 TYTX_EXT_CODE = 42
@@ -35,14 +35,14 @@ def _check_msgpack():
 def _default_encoder(obj: Any) -> msgpack.ExtType:
     """Default encoder for msgpack - wraps non-native types in TYTX."""
     # Serialize the object to TYTX JSON and wrap in ExtType
-    tytx_str = to_tytx(obj)
+    tytx_str = to_typed_text(obj)
     return msgpack.ExtType(TYTX_EXT_CODE, tytx_str.encode("utf-8"))
 
 
 def _ext_hook(code: int, data: bytes) -> Any:
     """Ext hook for msgpack - unwraps TYTX ExtType."""
     if code == TYTX_EXT_CODE:
-        return from_tytx(data.decode("utf-8"))
+        return from_text(data.decode("utf-8"))
     return msgpack.ExtType(code, data)
 
 

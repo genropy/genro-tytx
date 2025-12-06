@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .encode import to_tytx
-from .decode import from_tytx
+from .encode import to_typed_text
+from .decode import from_text
 from .xml import to_xml, from_xml
 from .msgpack import to_msgpack, from_msgpack
 
@@ -55,7 +55,7 @@ def encode_body(value: Any, format: str = "json") -> str | bytes:
         Encoded body (str for JSON/XML, bytes for msgpack)
     """
     if format == "json":
-        return to_tytx(value)
+        return to_typed_text(value)
     if format == "xml":
         return to_xml(value)
     if format == "msgpack":
@@ -93,7 +93,7 @@ def decode_body(
     if format == "json":
         if isinstance(data, bytes):
             data = data.decode("utf-8")
-        return from_tytx(data)
+        return from_text(data)
 
     if format == "xml":
         if isinstance(data, bytes):

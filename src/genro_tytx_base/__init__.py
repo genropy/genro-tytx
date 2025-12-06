@@ -8,15 +8,15 @@ Minimal implementation supporting:
 - HTTP utilities
 
 Usage:
-    from genro_tytx_base import to_tytx, from_tytx
+    from genro_tytx_base import to_typed_text, from_text
 
     # Encode
     data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
-    json_str = to_tytx(data)
+    json_str = to_typed_text(data)
     # '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
 
     # Decode
-    result = from_tytx(json_str)
+    result = from_text(json_str)
     # {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 """
 
@@ -27,8 +27,8 @@ from .registry import (
     get_suffix,
     get_type,
 )
-from .encode import to_tytx, serialize_value
-from .decode import from_tytx, hydrate_value
+from .encode import to_typed_text, to_typed_json
+from .decode import from_text, from_json
 from .xml import to_xml, from_xml
 from .msgpack import to_msgpack, from_msgpack
 from .http import (
@@ -48,10 +48,10 @@ __version__ = "0.1.0"
 
 __all__ = [
     # JSON (core)
-    "to_tytx",
-    "from_tytx",
-    "serialize_value",
-    "hydrate_value",
+    "to_typed_text",
+    "to_typed_json",
+    "from_text",
+    "from_json",
     # XML
     "to_xml",
     "from_xml",

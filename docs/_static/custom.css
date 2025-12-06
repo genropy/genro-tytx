@@ -1,0 +1,83 @@
+/* Custom CSS for ReadTheDocs theme - genro-tytx-base */
+
+/* Make content area adaptive width (full width) */
+.wy-nav-content {
+    max-width: none !important;
+}
+
+/* ============================================
+   SIDEBAR: Fixed header (logo + search) + Scrollable TOC
+   ============================================ */
+
+/* Main sidebar container - use flexbox layout */
+.wy-side-scroll {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Fixed header section (logo + search) */
+.wy-side-nav-search {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+}
+
+/* Scrollable TOC section */
+.wy-menu-vertical {
+    flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Ensure proper scrolling on the menu container */
+nav.wy-nav-side {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    overflow: hidden;
+}
+
+/* Alternative approach for older RTD theme versions */
+.wy-nav-side {
+    display: flex;
+    flex-direction: column;
+}
+
+.wy-nav-side .wy-side-scroll {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Important for flex children scrolling */
+}
+
+/* Make the menu wrapper scrollable */
+.wy-side-scroll > .wy-menu {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Keep search input visible */
+.wy-side-nav-search input[type="text"] {
+    width: 100%;
+}
+
+/* Logo sizing in sidebar - compact */
+.wy-side-nav-search img {
+    max-height: 120px;
+    width: auto;
+    margin: 5px 0 25px 0;
+}
+
+/* Reduce padding in sidebar header */
+.wy-side-nav-search {
+    padding: 8px 0;
+}
+
+.wy-side-nav-search > a {
+    margin: 0;
+    padding: 0;
+}

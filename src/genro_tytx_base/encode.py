@@ -20,9 +20,9 @@ except ImportError:
     HAS_ORJSON = False
 
 
-def serialize_value(value: Any) -> tuple[str, str] | None:
+def _serialize_value(value: Any) -> tuple[str, str] | None:
     """
-    Serialize a value to TYTX format.
+    Serialize a value to TYTX format (internal).
 
     Returns (serialized_value, suffix) or None if type not registered.
     """
@@ -43,7 +43,7 @@ class _TYTXEncoder(json.JSONEncoder):
         self.has_special = False
 
     def default(self, obj: Any) -> str:
-        result = serialize_value(obj)
+        result = _serialize_value(obj)
         if result is not None:
             self.has_special = True
             value, suffix = result
@@ -60,7 +60,7 @@ class _OrjsonDefault:
         self.has_special = False
 
     def __call__(self, obj: Any) -> str:
-        result = serialize_value(obj)
+        result = _serialize_value(obj)
         if result is not None:
             self.has_special = True
             value, suffix = result
@@ -68,7 +68,7 @@ class _OrjsonDefault:
         raise TypeError(f"Object of type {type(obj).__name__} is not TYTX serializable")
 
 
-def to_tytx(value: Any, *, use_orjson: bool | None = None) -> str:
+def to_typed_text(value: Any, *, use_orjson: bool | None = None) -> str:
     """
     Encode a Python value to TYTX JSON string.
 
@@ -80,8 +80,8 @@ def to_tytx(value: Any, *, use_orjson: bool | None = None) -> str:
         JSON string, with ::JS suffix if typed values present
 
     Example:
-        >>> to_tytx({"price": Decimal("100.50")})
-        '{"price": "100.50::D"}::JS'
+        >>> to_typed_text({"price": Decimal("100.50")})
+        '{"price": "100.50::N"}::JS'
     """
     if use_orjson is None:
         use_orjson = HAS_ORJSON
@@ -103,3 +103,41 @@ def to_tytx(value: Any, *, use_orjson: bool | None = None) -> str:
         if encoder.has_special:
             return f"{result}::JS"
         return result
+
+
+def to_typed_json(value: Any, *, use_orjson: bool | None = None) -> str:
+    """
+    Encode a Python value to TYTX JSON string with protocol prefix.
+
+    Uses TYTX:// prefix for protocol identification per spec.
+
+    Args:
+        value: Python object to encode
+        use_orjson: Force orjson (True), stdlib json (False), or auto (None)
+
+    Returns:
+        JSON string with TYTX:// prefix and ::JS suffix if typed values present
+
+    Example:
+        >>> to_typed_json({"price": Decimal("100.50")})
+        'TYTX://{"price": "100.50::N"}::JS'
+    """
+    if use_orjson is None:
+        use_orjson = HAS_ORJSON
+
+    if use_orjson and HAS_ORJSON:
+        default_fn = _OrjsonDefault()
+        result = orjson.dumps(
+            value,
+            default=default_fn,
+            option=orjson.OPT_PASSTHROUGH_DATETIME,
+        ).decode("utf-8")
+        if default_fn.has_special:
+            return f"TYTX://{result}::JS"
+        return f"TYTX://{result}"
+    else:
+        encoder = _TYTXEncoder()
+        result = encoder.encode(value)
+        if encoder.has_special:
+            return f"TYTX://{result}::JS"
+        return f"TYTX://{result}"

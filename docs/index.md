@@ -1,21 +1,32 @@
-# genro-tytx-base
+# TYTX Base - Typed Text Protocol
 
-**TYTX Base** - Typed Text Protocol for Scalar Types
+**Minimal implementation of TYTX protocol for scalar types over JSON, XML, and MessagePack.**
 
-Minimal implementation of the TYTX protocol supporting scalar types over JSON, XML, and MessagePack.
+---
 
-## Installation
+## Overview
 
-```bash
-pip install genro-tytx-base
+JSON only knows: string, number, boolean, null. What about `Decimal`, `Date`, `DateTime`?
 
-# With optional dependencies
-pip install genro-tytx-base[fast]      # orjson for faster JSON
-pip install genro-tytx-base[msgpack]   # MessagePack support
-pip install genro-tytx-base[all]       # All optional dependencies
+```json
+{"price": 100.50, "date": "2025-01-15"}
 ```
 
-## Quick Start
+Is `price` a float (imprecise) or a Decimal (exact for money)? Is `date` a string or a Date?
+
+**TYTX solves this** by encoding type information directly in values:
+
+```json
+{"price": "100.50::N", "date": "2025-01-15::D"}
+```
+
+After parsing: `price` → `Decimal("100.50")`, `date` → `date(2025, 1, 15)`.
+
+**No ambiguity. No surprises. Type safety across the wire.**
+
+---
+
+## Quick Example
 
 ```python
 from datetime import date
@@ -40,7 +51,9 @@ result = from_json(json_str)
 # {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 ```
 
-### API Functions
+---
+
+## API Functions
 
 | Function | Format | Description |
 |----------|--------|-------------|
@@ -48,6 +61,8 @@ result = from_json(json_str)
 | `from_text` | `...::JS` | Decode text format |
 | `to_typed_json` | `TYTX://...::JS` | Encode with protocol prefix and suffix |
 | `from_json` | `TYTX://...::JS` | Decode JSON format (prefix optional) |
+
+---
 
 ## Supported Types
 
@@ -73,57 +88,39 @@ result = from_json(json_str)
 | bool | `B` | `<flag _type="B">1</flag>` |
 | int | `I` | `<count _type="I">42</count>` |
 
-## Formats
+---
 
-### JSON
+## Documentation
 
-```python
-from decimal import Decimal
-from genro_tytx_base import to_typed_text, from_text, to_typed_json, from_json
+```{toctree}
+:maxdepth: 2
+:caption: Getting Started
 
-# Text format (suffix only)
-encoded = to_typed_text({"price": Decimal("100.50")})
-# '{"price": "100.50::N"}::JS'
-decoded = from_text(encoded)
-
-# JSON format (with TYTX:// protocol prefix)
-encoded = to_typed_json({"price": Decimal("100.50")})
-# 'TYTX://{"price": "100.50::N"}::JS'
-decoded = from_json(encoded)
+Overview <self>
+installation
+quickstart
 ```
 
-### XML
+---
 
-```python
-from genro_tytx_base import to_xml, from_xml
+## TYTX Base vs TYTX
 
-encoded = to_xml({"price": Decimal("100.50")})
-# '<root><price _type="N">100.50</price></root>'
+| Feature | TYTX Base | TYTX |
+|---------|:---------:|:----:|
+| Scalar types (N, D, DHZ, H, B, L, R, T, I) | ✅ | ✅ |
+| JSON / XML / MessagePack | ✅ | ✅ |
+| HTTP utilities | ✅ | ✅ |
+| Typed arrays (`#`) | ❌ | ✅ |
+| Custom types (`~`) | ❌ | ✅ |
+| Struct schemas (`@`) | ❌ | ✅ |
+| XTYTX envelope | ❌ | ✅ |
+| Pydantic integration | ❌ | ✅ |
 
-decoded = from_xml(encoded)
-```
+**Use TYTX Base** when you only need scalar types and want a minimal footprint.
 
-### MessagePack
+**Use TYTX** when you need advanced features like typed arrays, custom types, or struct schemas.
 
-```python
-from genro_tytx_base import to_msgpack, from_msgpack
-
-packed = to_msgpack({"price": Decimal("100.50")})
-unpacked = from_msgpack(packed)
-```
-
-## HTTP Utilities
-
-```python
-from genro_tytx_base import encode_body, decode_body, make_headers
-
-# Create request
-headers = make_headers("json")
-body = encode_body(data, format="json")
-
-# Parse response
-result = decode_body(response_body, content_type=response.headers["Content-Type"])
-```
+---
 
 ## License
 
