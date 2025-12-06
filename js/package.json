@@ -1,0 +1,53 @@
+{
+  "name": "genro-tytx-base",
+  "version": "0.1.0",
+  "description": "TYTX Base - Minimal typed text protocol for scalar types",
+  "main": "src/index.js",
+  "exports": {
+    ".": {
+      "require": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test test/test_core.js",
+    "test:nocov": "node --test test/test_core.js"
+  },
+  "keywords": [
+    "typed",
+    "serialization",
+    "protocol",
+    "json",
+    "xml",
+    "genro",
+    "tytx",
+    "decimal"
+  ],
+  "author": "Genropy Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/genropy/genro-tytx-base.git"
+  },
+  "bugs": {
+    "url": "https://github.com/genropy/genro-tytx-base/issues"
+  },
+  "homepage": "https://github.com/genropy/genro-tytx-base#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "big.js": ">=6.0.0",
+    "decimal.js": ">=10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "big.js": {
+      "optional": true
+    },
+    "decimal.js": {
+      "optional": true
+    }
+  }
+}
