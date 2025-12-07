@@ -107,7 +107,7 @@ quickstart
 
 | Feature | TYTX Base | TYTX |
 |---------|:---------:|:----:|
-| Scalar types (N, D, DHZ, H, B, L, R, T, I) | ✅ | ✅ |
+| Scalar types (N, D, DHZ, H, B, L, R, T) | ✅ | ✅ |
 | JSON / XML / MessagePack | ✅ | ✅ |
 | HTTP utilities | ✅ | ✅ |
 | Typed arrays (`#`) | ❌ | ✅ |

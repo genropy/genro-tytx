@@ -11,7 +11,7 @@
 import { DecimalLib, decimalLibName } from './registry';
 
 /** Type codes supported by TYTX protocol */
-export type TypeCode = 'N' | 'D' | 'DHZ' | 'DH' | 'H' | 'L' | 'R' | 'B' | 'T' | 'I';
+export type TypeCode = 'N' | 'D' | 'DHZ' | 'DH' | 'H' | 'L' | 'R' | 'B' | 'T';
 
 /** Represents a Decimal value (from big.js or decimal.js) */
 export interface DecimalValue {
