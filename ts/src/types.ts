@@ -158,7 +158,11 @@ export const DateType: TypeDefinition<Date> = {
     }
 };
 
-/** DateTime type (DHZ) - full datetime with timezone (UTC) */
+/**
+ * DateTime type (DHZ) - full datetime with timezone (UTC)
+ * Serializes with millisecond precision per spec 6.3.
+ * Always outputs .sssZ format (e.g., 2025-01-15T10:30:00.000Z)
+ */
 export const DateTimeType: TypeDefinition<Date> = {
     code: 'DHZ',
     name: 'datetime',
@@ -166,7 +170,8 @@ export const DateTimeType: TypeDefinition<Date> = {
         return value instanceof Date && !isDateOnly(value) && !isTimeOnly(value);
     },
     serialize: (value: Date): string => {
-        return value.toISOString().replace('.000Z', 'Z');
+        // Use toISOString() for millisecond precision (always includes .sss)
+        return value.toISOString();
     },
     parse: (raw: string): Date => {
         return new Date(raw);

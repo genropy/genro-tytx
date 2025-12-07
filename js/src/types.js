@@ -118,6 +118,7 @@ const DateType = {
 /**
  * DateTime type (DHZ = Date Hour Zulu)
  * Serializes with millisecond precision per spec 6.3.
+ * Always outputs .sssZ format (e.g., 2025-01-15T10:30:00.000Z)
  */
 const DateTimeType = {
     code: 'DHZ',
@@ -125,10 +126,8 @@ const DateTimeType = {
         return new Date(value);
     },
     serialize(value) {
-        // Use toISOString() for millisecond precision
-        // Omit .000 when milliseconds are zero for cleaner output
-        const iso = value.toISOString();
-        return iso.replace('.000Z', 'Z');
+        // Use toISOString() for millisecond precision (always includes .sss)
+        return value.toISOString();
     }
 };
 
