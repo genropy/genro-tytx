@@ -74,9 +74,16 @@ def _is_xml_wrapper(d: dict) -> bool:
 
 
 def _unwrap_xml_value(v: Any) -> Any:
-    """Recursively unwrap XML attrs/value structures to plain values."""
+    """Recursively unwrap XML attrs/value structures, preserving attrs for comparison."""
     if _is_xml_wrapper(v):
-        return _unwrap_xml_value(v["value"])
+        # Recursively unwrap attrs and value
+        unwrapped_attrs = {k: _unwrap_xml_value(val) for k, val in v["attrs"].items()}
+        unwrapped_value = _unwrap_xml_value(v["value"])
+        # If attrs is non-empty, preserve the wrapper structure
+        if unwrapped_attrs:
+            return {"attrs": unwrapped_attrs, "value": unwrapped_value}
+        # If attrs is empty, simplify to just the value
+        return unwrapped_value
     if isinstance(v, dict):
         return {k: _unwrap_xml_value(val) for k, val in v.items()}
     if isinstance(v, list):

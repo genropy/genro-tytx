@@ -156,3 +156,67 @@ class TestTytxEquivalent:
         """None values."""
         assert tytx_equivalent(None, None) is True
         assert tytx_equivalent(None, 0) is False
+
+    def test_xml_attrs_differ(self):
+        """Different XML attrs should NOT be equivalent."""
+        a = {"item": {"attrs": {"id": 1}, "value": "test"}}
+        b = {"item": {"attrs": {"id": 2}, "value": "test"}}
+        assert tytx_equivalent(a, b) is False
+
+    def test_xml_attrs_same(self):
+        """Same XML attrs should be equivalent."""
+        a = {"item": {"attrs": {"id": 1}, "value": "test"}}
+        b = {"item": {"attrs": {"id": 1}, "value": "test"}}
+        assert tytx_equivalent(a, b) is True
+
+    def test_xml_attrs_empty_both(self):
+        """Empty attrs on both sides should be equivalent."""
+        a = {"item": {"attrs": {}, "value": "test"}}
+        b = {"item": {"attrs": {}, "value": "test"}}
+        assert tytx_equivalent(a, b) is True
+
+    def test_xml_attrs_one_empty_one_not(self):
+        """One with attrs, one without should NOT be equivalent."""
+        a = {"item": {"attrs": {"id": 1}, "value": "test"}}
+        b = {"item": {"attrs": {}, "value": "test"}}
+        assert tytx_equivalent(a, b) is False
+
+    def test_xml_nested_attrs(self):
+        """Nested XML structure with attrs."""
+        a = {
+            "order": {
+                "attrs": {"id": 123},
+                "value": {
+                    "item": {"attrs": {"name": "Widget"}, "value": None}
+                }
+            }
+        }
+        b = {
+            "order": {
+                "attrs": {"id": 123},
+                "value": {
+                    "item": {"attrs": {"name": "Widget"}, "value": None}
+                }
+            }
+        }
+        assert tytx_equivalent(a, b) is True
+
+    def test_xml_nested_attrs_differ(self):
+        """Nested XML structure with different attrs."""
+        a = {
+            "order": {
+                "attrs": {"id": 123},
+                "value": {
+                    "item": {"attrs": {"name": "Widget"}, "value": None}
+                }
+            }
+        }
+        b = {
+            "order": {
+                "attrs": {"id": 456},  # Different id
+                "value": {
+                    "item": {"attrs": {"name": "Widget"}, "value": None}
+                }
+            }
+        }
+        assert tytx_equivalent(a, b) is False
