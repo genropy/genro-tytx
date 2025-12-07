@@ -81,12 +81,12 @@ result = from_json(json_str)
 
 | Type | Suffix | Example |
 |------|--------|---------|
-| Decimal | `N` | `<price _type="N">100.50</price>` |
-| date | `D` | `<d _type="D">2025-01-15</d>` |
-| datetime | `DHZ` | `<dt _type="DHZ">2025-01-15T10:30:00Z</dt>` |
-| time | `H` | `<t _type="H">10:30:00</t>` |
-| bool | `B` | `<flag _type="B">1</flag>` |
-| int | `I` | `<count _type="I">42</count>` |
+| Decimal | `N` | `<price>100.50::N</price>` |
+| date | `D` | `<d>2025-01-15::D</d>` |
+| datetime | `DHZ` | `<dt>2025-01-15T10:30:00.000Z::DHZ</dt>` |
+| time | `H` | `<t>10:30:00::H</t>` |
+| bool | `B` | `<flag>1::B</flag>` |
+| int | `L` | `<count>42::L</count>` |
 
 ---
 

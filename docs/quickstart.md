@@ -54,21 +54,28 @@ result = from_json('TYTX://{"price": "99.99::N", "date": "2025-01-15::D"}::JS')
 
 ## XML Usage
 
-TYTX Base encodes types in XML using `_type` attribute:
+TYTX Base encodes types in XML using inline `::SUFFIX` syntax (same as JSON):
 
 ```python
 from decimal import Decimal
 from datetime import date
 from genro_tytx import to_xml, from_xml
 
-# Encode to XML
-data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+# Encode to XML (requires attrs/value structure)
+data = {
+    "order": {
+        "attrs": {"id": 123},
+        "value": {
+            "price": {"attrs": {}, "value": Decimal("99.99")},
+            "date": {"attrs": {}, "value": date(2025, 1, 15)}
+        }
+    }
+}
 xml = to_xml(data)
-# '<root><price _type="N">99.99</price><date _type="D">2025-01-15</date></root>'
+# '<order id="123::L"><price>99.99::N</price><date>2025-01-15::D</date></order>'
 
 # Decode from XML
 result = from_xml(xml)
-# {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
 ```
 
 ## MessagePack Usage
@@ -137,16 +144,16 @@ These are decoded but never encoded (they are native JSON types in Python):
 
 ### XML (all types)
 
-In XML, all values are strings, so all types are encoded:
+In XML, all values are strings, so all types are encoded with inline suffixes:
 
 | Code | Python Type | Example |
 |------|-------------|---------|
-| `N` | `Decimal` | `<price _type="N">100.50</price>` |
-| `D` | `date` | `<d _type="D">2025-01-15</d>` |
-| `DHZ` | `datetime` | `<dt _type="DHZ">2025-01-15T10:30:00Z</dt>` |
-| `H` | `time` | `<t _type="H">10:30:00</t>` |
-| `B` | `bool` | `<flag _type="B">1</flag>` |
-| `I` | `int` | `<count _type="I">42</count>` |
+| `N` | `Decimal` | `<price>100.50::N</price>` |
+| `D` | `date` | `<d>2025-01-15::D</d>` |
+| `DHZ` | `datetime` | `<dt>2025-01-15T10:30:00.000Z::DHZ</dt>` |
+| `H` | `time` | `<t>10:30:00::H</t>` |
+| `B` | `bool` | `<flag>1::B</flag>` |
+| `L` | `int` | `<count>42::L</count>` |
 
 ## Nested Structures
 

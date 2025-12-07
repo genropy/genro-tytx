@@ -12,23 +12,30 @@ from datetime import datetime, timezone
 from typing import Any
 
 
+def _truncate_to_millis(dt: datetime) -> datetime:
+    """Truncate microseconds to milliseconds (TYTX precision)."""
+    millis = dt.microsecond // 1000 * 1000
+    return dt.replace(microsecond=millis)
+
+
 def datetime_equivalent(a: datetime, b: datetime) -> bool:
     """
     Check if two datetimes represent the same instant in time.
 
-    TYTX serializes all datetimes as UTC (DHZ). On deserialization,
-    naive datetimes become aware (UTC). This function handles
-    the semantic equivalence:
+    TYTX serializes all datetimes as UTC (DHZ) with millisecond precision.
+    On deserialization, naive datetimes become aware (UTC). This function
+    handles the semantic equivalence:
 
     - naive vs aware UTC → equivalent if same wall-clock time
     - aware vs aware → equivalent if same instant (timezone-aware comparison)
+    - microseconds truncated to milliseconds (TYTX precision limit)
 
     Args:
         a: First datetime
         b: Second datetime
 
     Returns:
-        True if both represent the same instant in time
+        True if both represent the same instant in time (within ms precision)
 
     Example:
         >>> naive = datetime(2025, 1, 15, 10, 30)
@@ -36,6 +43,10 @@ def datetime_equivalent(a: datetime, b: datetime) -> bool:
         >>> datetime_equivalent(naive, aware)
         True
     """
+    # Truncate to milliseconds (TYTX precision)
+    a = _truncate_to_millis(a)
+    b = _truncate_to_millis(b)
+
     # Both naive: direct comparison
     if a.tzinfo is None and b.tzinfo is None:
         return a == b
@@ -53,12 +64,33 @@ def datetime_equivalent(a: datetime, b: datetime) -> bool:
     return a == b
 
 
+def _is_xml_wrapper(d: dict) -> bool:
+    """Check if dict is an XML attrs/value wrapper."""
+    return (
+        isinstance(d, dict)
+        and set(d.keys()) == {"attrs", "value"}
+        and isinstance(d.get("attrs"), dict)
+    )
+
+
+def _unwrap_xml_value(v: Any) -> Any:
+    """Recursively unwrap XML attrs/value structures to plain values."""
+    if _is_xml_wrapper(v):
+        return _unwrap_xml_value(v["value"])
+    if isinstance(v, dict):
+        return {k: _unwrap_xml_value(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_unwrap_xml_value(item) for item in v]
+    return v
+
+
 def tytx_equivalent(a: Any, b: Any) -> bool:
     """
     Check if two values are semantically equivalent after TYTX roundtrip.
 
     Handles special cases:
     - datetime: naive vs aware UTC equivalence
+    - XML attrs/value wrappers: unwraps and compares values
     - dict/list: recursive comparison
     - other types: standard equality
 
@@ -75,6 +107,10 @@ def tytx_equivalent(a: Any, b: Any) -> bool:
         >>> tytx_equivalent(original, decoded)
         True
     """
+    # Unwrap XML attrs/value structures if present
+    a = _unwrap_xml_value(a)
+    b = _unwrap_xml_value(b)
+
     # datetime special case FIRST (before generic equality)
     # because datetime with different timezones representing same instant
     # would fail a == b but should be considered equivalent

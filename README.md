@@ -22,10 +22,14 @@ from datetime import date
 from decimal import Decimal
 from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
-# Encode (text format - suffix only)
+# Encode dict (text format - with ::JS suffix)
 data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 text_str = to_typed_text(data)
 # '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
+
+# Encode scalar (no ::JS suffix)
+scalar_str = to_typed_text(date(2025, 1, 15))
+# '"2025-01-15::D"'
 
 # Decode
 result = from_text(text_str)
@@ -44,10 +48,10 @@ result = from_json(json_str)
 
 | Function | Format | Description |
 |----------|--------|-------------|
-| `to_typed_text` | `...::JS` | Encode with suffix marker only |
-| `from_text` | `...::JS` | Decode text format |
-| `to_typed_json` | `TYTX://...::JS` | Encode with protocol prefix and suffix |
-| `from_json` | `TYTX://...::JS` | Decode JSON format (prefix optional) |
+| `to_typed_text` | `...::JS` or `"value::T"` | Encode dict/list with `::JS` suffix, scalar with type suffix only |
+| `from_text` | `...::JS` or `"value::T"` | Decode text format |
+| `to_typed_json` | `TYTX://...::JS` or `TYTX://"value::T"` | Encode with protocol prefix |
+| `from_json` | `TYTX://...` | Decode JSON format (prefix optional) |
 
 ## Supported Types
 
@@ -66,12 +70,12 @@ result = from_json(json_str)
 
 | Type | Suffix | Example |
 |------|--------|---------|
-| Decimal | `N` | `<price _type="N">100.50</price>` |
-| date | `D` | `<d _type="D">2025-01-15</d>` |
-| datetime | `DHZ` | `<dt _type="DHZ">2025-01-15T10:30:00Z</dt>` |
-| time | `H` | `<t _type="H">10:30:00</t>` |
-| bool | `B` | `<flag _type="B">1</flag>` |
-| int | `I` | `<count _type="I">42</count>` |
+| Decimal | `N` | `<price>100.50::N</price>` |
+| date | `D` | `<d>2025-01-15::D</d>` |
+| datetime | `DHZ` | `<dt>2025-01-15T10:30:00.000Z::DHZ</dt>` |
+| time | `H` | `<t>10:30:00::H</t>` |
+| bool | `B` | `<flag>1::B</flag>` |
+| int | `L` | `<count>42::L</count>` |
 
 ## Formats
 
@@ -95,10 +99,17 @@ decoded = from_json(encoded)
 ### XML
 
 ```python
+from decimal import Decimal
 from genro_tytx import to_xml, from_xml
 
-encoded = to_xml({"price": Decimal("100.50")})
-# '<root><price _type="N">100.50</price></root>'
+data = {
+    "order": {
+        "attrs": {"id": 123},
+        "value": {"price": {"attrs": {}, "value": Decimal("100.50")}}
+    }
+}
+encoded = to_xml(data)
+# '<order id="123::L"><price>100.50::N</price></order>'
 
 decoded = from_xml(encoded)
 ```

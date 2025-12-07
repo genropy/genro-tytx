@@ -15,6 +15,7 @@ from .registry import SUFFIX_TO_TYPE
 # Check for orjson availability
 try:
     import orjson
+
     HAS_ORJSON = True
 except ImportError:
     HAS_ORJSON = False
@@ -39,7 +40,7 @@ def _hydrate_value(value: str) -> Any:
     # Find last :: to get suffix
     idx = value.rfind("::")
     raw_value = value[:idx]
-    suffix = value[idx + 2:]
+    suffix = value[idx + 2 :]
 
     entry = SUFFIX_TO_TYPE.get(suffix)
     if entry is None:
@@ -67,11 +68,22 @@ def _hydrate_recursive(value: Any) -> Any:
 
 
 def _has_type_suffix(data: str) -> bool:
-    """Check if string ends with a valid type suffix (::XXX)."""
+    """Check if string ends with a valid type suffix (::XXX).
+
+    Handles both raw JSON (ends with ::JS) and quoted scalars (ends with ::X").
+    """
+    # Handle quoted JSON scalar: "value::X"
+    if data.endswith('"'):
+        idx = data.rfind("::")
+        if idx == -1:
+            return False
+        suffix = data[idx + 2 : -1]  # Strip trailing quote
+        return suffix in SUFFIX_TO_TYPE
+    # Handle struct marker: {...}::JS or [...]::JS
     idx = data.rfind("::")
     if idx == -1:
         return False
-    suffix = data[idx + 2:]
+    suffix = data[idx + 2 :]
     return suffix in SUFFIX_TO_TYPE or suffix == "JS"
 
 
@@ -107,7 +119,7 @@ def from_text(data: str, *, use_orjson: bool | None = None) -> Any:
 
     # Check for ::JS marker (struct)
     if data.endswith(TYTX_MARKER):
-        data = data[:-len(TYTX_MARKER)]
+        data = data[: -len(TYTX_MARKER)]
         if use_orjson and HAS_ORJSON:
             parsed = orjson.loads(data)
         else:
@@ -148,7 +160,7 @@ def from_json(data: str, *, use_orjson: bool | None = None) -> Any:
 
     # Strip TYTX:// prefix if present
     if data.startswith(TYTX_PREFIX):
-        data = data[len(TYTX_PREFIX):]
+        data = data[len(TYTX_PREFIX) :]
 
     # Delegate to from_text
     return from_text(data, use_orjson=use_orjson)

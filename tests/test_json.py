@@ -4,7 +4,6 @@
 from datetime import date, datetime, time
 from decimal import Decimal
 
-import pytest
 
 from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
@@ -60,25 +59,29 @@ class TestEncode:
         assert '"test"' in result
 
     def test_mixed_types(self):
-        result = to_typed_text({
-            "price": Decimal("100.50"),
-            "date": date(2025, 1, 15),
-            "name": "test",
-        })
+        result = to_typed_text(
+            {
+                "price": Decimal("100.50"),
+                "date": date(2025, 1, 15),
+                "name": "test",
+            }
+        )
         assert "::JS" in result
         assert '"100.50::N"' in result
         assert '"2025-01-15::D"' in result
 
     def test_nested_structure(self):
-        result = to_typed_text({
-            "invoice": {
-                "total": Decimal("999.99"),
-                "items": [
-                    {"price": Decimal("100.00")},
-                    {"price": Decimal("200.00")},
-                ],
+        result = to_typed_text(
+            {
+                "invoice": {
+                    "total": Decimal("999.99"),
+                    "items": [
+                        {"price": Decimal("100.00")},
+                        {"price": Decimal("200.00")},
+                    ],
+                }
             }
-        })
+        )
         assert "::JS" in result
 
     def test_list_with_typed(self):
@@ -205,6 +208,7 @@ class TestEdgeCases:
     def test_datetime_with_timezone(self):
         """Datetime with UTC timezone."""
         from datetime import timezone
+
         original = {"dt": datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)}
         encoded = to_typed_text(original)
         assert '"2025-01-15T10:30:00.000Z::DHZ"' in encoded
@@ -214,7 +218,6 @@ class TestEdgeCases:
 
     def test_datetime_milliseconds_roundtrip(self):
         """Datetime with milliseconds roundtrip."""
-        from datetime import timezone
         original = {"dt": datetime(2025, 1, 15, 10, 30, 45, 123000)}
         encoded = to_typed_text(original)
         decoded = from_text(encoded)
@@ -226,7 +229,6 @@ class TestEdgeCases:
 
     def test_datetime_microseconds_precision_loss(self):
         """Datetime microseconds truncated to milliseconds in roundtrip."""
-        from datetime import timezone
         original = {"dt": datetime(2025, 1, 15, 10, 30, 45, 123456)}
         encoded = to_typed_text(original)
         decoded = from_text(encoded)
@@ -270,6 +272,58 @@ class TestRoundTrip:
         encoded = to_typed_text(original)
         decoded = from_text(encoded)
         assert decoded == original
+
+
+class TestStdlibJson:
+    """Tests forcing stdlib json (use_orjson=False)."""
+
+    def test_encode_with_stdlib(self):
+        """Encode using stdlib json."""
+        result = to_typed_text({"price": Decimal("100.50")}, use_orjson=False)
+        assert "::JS" in result
+        assert '"100.50::N"' in result
+
+    def test_encode_native_with_stdlib(self):
+        """Encode native types using stdlib json."""
+        result = to_typed_text({"name": "test", "count": 42}, use_orjson=False)
+        assert "::JS" not in result
+
+    def test_decode_with_stdlib(self):
+        """Decode using stdlib json."""
+        result = from_text('{"price": "100.50::N"}::JS', use_orjson=False)
+        assert result == {"price": Decimal("100.50")}
+
+    def test_decode_plain_with_stdlib(self):
+        """Decode plain JSON using stdlib json."""
+        result = from_text('{"name": "test"}', use_orjson=False)
+        assert result == {"name": "test"}
+
+    def test_to_typed_json_with_stdlib(self):
+        """to_typed_json using stdlib json."""
+        result = to_typed_json({"price": Decimal("100.50")}, use_orjson=False)
+        assert result.startswith("TYTX://")
+        assert "::JS" in result
+
+    def test_to_typed_json_native_with_stdlib(self):
+        """to_typed_json with native types using stdlib json."""
+        result = to_typed_json({"name": "test"}, use_orjson=False)
+        assert result.startswith("TYTX://")
+        assert "::JS" not in result
+
+    def test_scalar_encode_date(self):
+        """Scalar typed value encoding."""
+        result = to_typed_text(date(2025, 1, 15))
+        assert result == '"2025-01-15::D"'
+
+    def test_scalar_encode_decimal(self):
+        """Scalar Decimal encoding."""
+        result = to_typed_text(Decimal("100.50"))
+        assert result == '"100.50::N"'
+
+    def test_to_typed_json_scalar(self):
+        """Scalar with TYTX:// prefix."""
+        result = to_typed_json(date(2025, 1, 15))
+        assert result == 'TYTX://"2025-01-15::D"'
 
 
 class TestTypedJson:
