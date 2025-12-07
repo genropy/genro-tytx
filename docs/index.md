@@ -57,10 +57,10 @@ result = from_json(json_str)
 
 | Function | Format | Description |
 |----------|--------|-------------|
-| `to_typed_text` | `...::JS` | Encode with suffix marker only |
-| `from_text` | `...::JS` | Decode text format |
-| `to_typed_json` | `TYTX://...::JS` | Encode with protocol prefix and suffix |
-| `from_json` | `TYTX://...::JS` | Decode JSON format (prefix optional) |
+| `to_typed_text` | `...::JS` or `"value::T"` | Encode dict/list with `::JS` suffix, scalar with type suffix only |
+| `from_text` | `...::JS` or `"value::T"` | Decode text format |
+| `to_typed_json` | `TYTX://...::JS` or `TYTX://"value::T"` | Encode with protocol prefix |
+| `from_json` | `TYTX://...` | Decode JSON format (prefix optional) |
 
 ---
 
