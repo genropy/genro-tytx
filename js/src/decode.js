@@ -104,6 +104,9 @@ function hasTypeSuffix(data) {
  * // Date(2025, 0, 15)
  */
 function fromText(data) {
+    // Strip whitespace (handles trailing newlines, etc.)
+    data = data.trim();
+
     // Check if data has any type suffix
     if (!hasTypeSuffix(data)) {
         // Plain JSON, no TYTX

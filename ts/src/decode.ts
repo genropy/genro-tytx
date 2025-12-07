@@ -110,6 +110,9 @@ function hydrateRecursive(obj: unknown): unknown {
  * ```
  */
 export function fromText<T = unknown>(data: string): T {
+    // Strip whitespace (handles trailing newlines, etc.)
+    data = data.trim();
+
     // Check if data has any type suffix
     if (!hasTypeSuffix(data)) {
         // Plain JSON, no TYTX
