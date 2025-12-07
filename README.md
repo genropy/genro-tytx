@@ -136,6 +136,27 @@ body = encode_body(data, format="json")
 result = decode_body(response_body, content_type=response.headers["Content-Type"])
 ```
 
+## Transparent Type Handling (End-to-End)
+
+TYTX enables **transparent type handling** across the entire HTTP stack:
+
+```text
+Browser                     Server                      Handler
+───────                     ──────                      ───────
+tytx_fetch({           →    Middleware decode      →    Native types
+  date: Date,               (query, headers,            date(), Decimal()
+  price: Decimal            cookies, body)                    ↓
+})                                ↓                     return {total: Decimal}
+      ↑                     Middleware encode      ←          │
+      └─────────────────────────────────────────────────────────┘
+```
+
+- **Browser**: `tytx_fetch` encodes query, headers, cookies, body
+- **Server**: Middleware decodes/encodes automatically
+- **Handler**: Works only with native types (Date, Decimal, etc.)
+
+📖 **Full documentation**: [docs/http-integration.md](docs/http-integration.md)
+
 ## License
 
 Apache License 2.0 - Copyright 2025 Softwell S.r.l.
