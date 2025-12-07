@@ -101,6 +101,7 @@ const DateType = {
 
 /**
  * DateTime type (DHZ = Date Hour Zulu)
+ * Serializes with millisecond precision per spec 6.3.
  */
 const DateTimeType = {
     code: 'DHZ',
@@ -108,13 +109,10 @@ const DateTimeType = {
         return new Date(value);
     },
     serialize(value) {
-        const year = value.getUTCFullYear();
-        const month = String(value.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(value.getUTCDate()).padStart(2, '0');
-        const hours = String(value.getUTCHours()).padStart(2, '0');
-        const minutes = String(value.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(value.getUTCSeconds()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`;
+        // Use toISOString() for millisecond precision
+        // Omit .000 when milliseconds are zero for cleaner output
+        const iso = value.toISOString();
+        return iso.replace('.000Z', 'Z');
     }
 };
 
@@ -139,6 +137,7 @@ const NaiveDateTimeType = {
 
 /**
  * Time type (H = Hour)
+ * Serializes with millisecond precision per spec 6.4.
  */
 const TimeType = {
     code: 'H',
@@ -149,7 +148,11 @@ const TimeType = {
         const hours = String(value.getUTCHours()).padStart(2, '0');
         const minutes = String(value.getUTCMinutes()).padStart(2, '0');
         const seconds = String(value.getUTCSeconds()).padStart(2, '0');
-        return `${hours}:${minutes}:${seconds}`;
+        const millis = value.getUTCMilliseconds();
+        if (millis === 0) {
+            return `${hours}:${minutes}:${seconds}`;
+        }
+        return `${hours}:${minutes}:${seconds}.${String(millis).padStart(3, '0')}`;
     }
 };
 
