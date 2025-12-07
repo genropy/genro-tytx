@@ -11,20 +11,49 @@
 
 /**
  * Decimal library detection.
+ * Supports TYTX_DECIMAL_LIB env var to force a specific library:
+ *   - 'big.js' or 'big' → force big.js
+ *   - 'decimal.js' or 'decimal' → force decimal.js
+ *   - 'number' or 'none' → force native number (no decimal library)
  * @private
  */
 let _DecimalLib = null;
 let _decimalLibName = 'number';
 
-try {
-    _DecimalLib = require('big.js');
-    _decimalLibName = 'big.js';
-} catch {
+const forceLib = process.env.TYTX_DECIMAL_LIB;
+
+if (forceLib === 'number' || forceLib === 'none') {
+    // Force native number - no decimal library
+    _DecimalLib = null;
+    _decimalLibName = 'number';
+} else if (forceLib === 'big.js' || forceLib === 'big') {
+    // Force big.js
+    try {
+        _DecimalLib = require('big.js');
+        _decimalLibName = 'big.js';
+    } catch {
+        console.warn('TYTX_DECIMAL_LIB=big.js but big.js not installed');
+    }
+} else if (forceLib === 'decimal.js' || forceLib === 'decimal') {
+    // Force decimal.js
     try {
         _DecimalLib = require('decimal.js');
         _decimalLibName = 'decimal.js';
     } catch {
-        // No decimal library
+        console.warn('TYTX_DECIMAL_LIB=decimal.js but decimal.js not installed');
+    }
+} else {
+    // Auto-detect: prefer big.js, fallback to decimal.js
+    try {
+        _DecimalLib = require('big.js');
+        _decimalLibName = 'big.js';
+    } catch {
+        try {
+            _DecimalLib = require('decimal.js');
+            _decimalLibName = 'decimal.js';
+        } catch {
+            // No decimal library
+        }
     }
 }
 

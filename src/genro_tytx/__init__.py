@@ -43,6 +43,7 @@ from .http import (
     decode_body,
     make_headers,
 )
+from .compare import datetime_equivalent, tytx_equivalent
 
 __version__ = "0.7.0"
 
@@ -75,6 +76,9 @@ __all__ = [
     "register_type",
     "get_suffix",
     "get_type",
+    # Comparison utilities
+    "datetime_equivalent",
+    "tytx_equivalent",
     # Version
     "__version__",
 ]

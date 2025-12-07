@@ -13,7 +13,9 @@
   ],
   "scripts": {
     "test": "node --test test/test_core.js",
-    "test:nocov": "node --test test/test_core.js"
+    "test:big": "TYTX_DECIMAL_LIB=big.js node --test test/test_core.js",
+    "test:decimal": "TYTX_DECIMAL_LIB=decimal.js node --test test/test_core.js",
+    "test:all": "npm run test:big && npm run test:decimal"
   },
   "keywords": [
     "typed",
@@ -49,5 +51,9 @@
     "decimal.js": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "big.js": "^7.0.1",
+    "decimal.js": "^10.6.0"
   }
 }

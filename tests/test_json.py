@@ -25,7 +25,20 @@ class TestEncode:
     def test_datetime_naive(self):
         result = to_typed_text({"dt": datetime(2025, 1, 15, 10, 30, 0)})
         assert "::JS" in result
-        assert '"2025-01-15T10:30:00Z::DHZ"' in result
+        assert '"2025-01-15T10:30:00.000Z::DHZ"' in result
+
+    def test_datetime_with_milliseconds(self):
+        """Datetime with milliseconds preserved."""
+        result = to_typed_text({"dt": datetime(2025, 1, 15, 10, 30, 45, 123000)})
+        assert "::JS" in result
+        assert '"2025-01-15T10:30:45.123Z::DHZ"' in result
+
+    def test_datetime_microseconds_truncated(self):
+        """Datetime microseconds truncated to milliseconds."""
+        result = to_typed_text({"dt": datetime(2025, 1, 15, 10, 30, 45, 123456)})
+        assert "::JS" in result
+        # 123456 microseconds = 123.456 milliseconds → 123 milliseconds
+        assert '"2025-01-15T10:30:45.123Z::DHZ"' in result
 
     def test_time(self):
         result = to_typed_text({"t": time(10, 30, 0)})
@@ -164,6 +177,21 @@ class TestEdgeCases:
         result = from_text('{"value": ""}::JS')
         assert result == {"value": ""}
 
+    def test_trailing_whitespace(self):
+        """Trailing whitespace is stripped before parsing."""
+        result = from_text('{"price": "100.50::N"}::JS\n')
+        assert result == {"price": Decimal("100.50")}
+
+    def test_leading_whitespace(self):
+        """Leading whitespace is stripped before parsing."""
+        result = from_text('  {"price": "100.50::N"}::JS')
+        assert result == {"price": Decimal("100.50")}
+
+    def test_both_whitespace(self):
+        """Both leading and trailing whitespace handled."""
+        result = from_text('\n  {"price": "100.50::N"}::JS  \n')
+        assert result == {"price": Decimal("100.50")}
+
     def test_unknown_suffix(self):
         """Unknown suffix is left as string."""
         result = from_text('{"value": "test::UNKNOWN"}::JS')
@@ -179,9 +207,31 @@ class TestEdgeCases:
         from datetime import timezone
         original = {"dt": datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)}
         encoded = to_typed_text(original)
+        assert '"2025-01-15T10:30:00.000Z::DHZ"' in encoded
         decoded = from_text(encoded)
         assert decoded["dt"].year == 2025
         assert decoded["dt"].hour == 10
+
+    def test_datetime_milliseconds_roundtrip(self):
+        """Datetime with milliseconds roundtrip."""
+        from datetime import timezone
+        original = {"dt": datetime(2025, 1, 15, 10, 30, 45, 123000)}
+        encoded = to_typed_text(original)
+        decoded = from_text(encoded)
+        # After roundtrip: aware UTC, same milliseconds
+        assert decoded["dt"].year == 2025
+        assert decoded["dt"].hour == 10
+        assert decoded["dt"].second == 45
+        assert decoded["dt"].microsecond == 123000
+
+    def test_datetime_microseconds_precision_loss(self):
+        """Datetime microseconds truncated to milliseconds in roundtrip."""
+        from datetime import timezone
+        original = {"dt": datetime(2025, 1, 15, 10, 30, 45, 123456)}
+        encoded = to_typed_text(original)
+        decoded = from_text(encoded)
+        # Microseconds truncated: 123456 → 123000
+        assert decoded["dt"].microsecond == 123000
 
     def test_time_with_microseconds(self):
         """Time with microseconds."""

@@ -9,7 +9,7 @@ Only scalar types are supported in base version.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -30,10 +30,17 @@ def _deserialize_date(s: str) -> date:
     return date.fromisoformat(s)
 
 def _serialize_datetime(v: datetime) -> str:
+    """Serialize datetime with millisecond precision (3 decimal places).
+
+    Microseconds are truncated to milliseconds for cross-language compatibility
+    (JavaScript Date has millisecond precision).
+    """
     if v.tzinfo is None:
         # Naive datetime -> DHZ format (UTC assumption)
-        return v.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
-    return v.isoformat()
+        return v.isoformat(timespec="milliseconds") + "Z"
+    # Aware datetime -> convert to UTC and use milliseconds
+    utc_dt = v.astimezone(timezone.utc)
+    return utc_dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 def _deserialize_datetime(s: str) -> datetime:
     # Handle Z suffix

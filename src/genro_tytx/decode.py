@@ -66,12 +66,21 @@ def _hydrate_recursive(value: Any) -> Any:
     return value
 
 
+def _has_type_suffix(data: str) -> bool:
+    """Check if string ends with a valid type suffix (::XXX)."""
+    idx = data.rfind("::")
+    if idx == -1:
+        return False
+    suffix = data[idx + 2:]
+    return suffix in SUFFIX_TO_TYPE or suffix == "JS"
+
+
 def from_text(data: str, *, use_orjson: bool | None = None) -> Any:
     """
     Decode a TYTX JSON string to Python objects.
 
     Args:
-        data: JSON string, optionally with ::JS suffix
+        data: JSON string with ::JS suffix (struct) or ::T suffix (scalar)
         use_orjson: Force orjson (True), stdlib json (False), or auto (None)
 
     Returns:
@@ -80,26 +89,38 @@ def from_text(data: str, *, use_orjson: bool | None = None) -> Any:
     Example:
         >>> from_text('{"price": "100.50::N"}::JS')
         {"price": Decimal("100.50")}
+        >>> from_text('"2025-01-15::D"')
+        date(2025, 1, 15)
     """
+    # Strip whitespace (handles trailing newlines, etc.)
+    data = data.strip()
+
     if use_orjson is None:
         use_orjson = HAS_ORJSON
 
-    # Check for TYTX marker
-    has_tytx = data.endswith(TYTX_MARKER)
-    if has_tytx:
-        data = data[:-len(TYTX_MARKER)]
+    # Check if data has any type suffix
+    if not _has_type_suffix(data):
+        # Plain JSON, no TYTX
+        if use_orjson and HAS_ORJSON:
+            return orjson.loads(data)
+        return json.loads(data)
 
-    # Parse JSON
+    # Check for ::JS marker (struct)
+    if data.endswith(TYTX_MARKER):
+        data = data[:-len(TYTX_MARKER)]
+        if use_orjson and HAS_ORJSON:
+            parsed = orjson.loads(data)
+        else:
+            parsed = json.loads(data)
+        return _hydrate_recursive(parsed)
+
+    # Scalar with type suffix (e.g., "2025-01-15::D")
     if use_orjson and HAS_ORJSON:
         parsed = orjson.loads(data)
     else:
         parsed = json.loads(data)
 
-    # Early exit if no TYTX marker
-    if not has_tytx:
-        return parsed
-
-    # Hydrate typed values
+    # parsed is now a string like "2025-01-15::D", hydrate it
     return _hydrate_recursive(parsed)
 
 
@@ -110,7 +131,7 @@ def from_json(data: str, *, use_orjson: bool | None = None) -> Any:
     Expects TYTX:// prefix per protocol spec.
 
     Args:
-        data: JSON string with TYTX:// prefix and optional ::JS suffix
+        data: JSON string with TYTX:// prefix and ::JS or ::T suffix
         use_orjson: Force orjson (True), stdlib json (False), or auto (None)
 
     Returns:
@@ -119,25 +140,15 @@ def from_json(data: str, *, use_orjson: bool | None = None) -> Any:
     Example:
         >>> from_json('TYTX://{"price": "100.50::N"}::JS')
         {"price": Decimal("100.50")}
+        >>> from_json('TYTX://"2025-01-15::D"')
+        date(2025, 1, 15)
     """
-    if use_orjson is None:
-        use_orjson = HAS_ORJSON
+    # Strip whitespace first
+    data = data.strip()
 
     # Strip TYTX:// prefix if present
     if data.startswith(TYTX_PREFIX):
         data = data[len(TYTX_PREFIX):]
 
-    # Check for ::JS suffix
-    has_tytx = data.endswith(TYTX_MARKER)
-    if has_tytx:
-        data = data[:-len(TYTX_MARKER)]
-
-    if use_orjson and HAS_ORJSON:
-        parsed = orjson.loads(data)
-    else:
-        parsed = json.loads(data)
-
-    if not has_tytx:
-        return parsed
-
-    return _hydrate_recursive(parsed)
+    # Delegate to from_text
+    return from_text(data, use_orjson=use_orjson)

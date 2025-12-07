@@ -98,13 +98,15 @@ For web applications:
 ```python
 from genro_tytx import encode_body, decode_body, make_headers
 
-# Create request
-headers = make_headers("json")  # {"Content-Type": "application/json"}
+# Create request with TYTX MIME type
+headers = make_headers("json")  # {"Content-Type": "application/vnd.tytx+json"}
 body = encode_body(data, format="json")
 
 # Parse response
-result = decode_body(response_body, content_type="application/json")
+result = decode_body(response_body, content_type="application/vnd.tytx+json")
 ```
+
+> **Important**: When using HTTP with TYTX MIME types (`application/vnd.tytx+json`), the body is valid JSON **without** the `TYTX://` prefix. The Content-Type header already identifies the protocol. The `TYTX://` prefix would invalidate the JSON and is only used for self-identifying payloads stored without HTTP metadata.
 
 ## Type Codes Reference
 
