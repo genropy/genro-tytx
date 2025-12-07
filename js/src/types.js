@@ -65,7 +65,21 @@ const StrType = {
 
 /**
  * Decimal type (N = Numeric)
- * Uses big.js or decimal.js if available.
+ *
+ * Uses big.js or decimal.js if available for arbitrary precision.
+ * Without a decimal library, falls back to JavaScript's native Number type:
+ * - parse() returns parseFloat(value) - may lose precision for large/precise numbers
+ * - serialize() uses String(value) - may produce scientific notation
+ *
+ * For financial or scientific applications requiring exact decimal arithmetic,
+ * install big.js or decimal.js: `npm install big.js` or `npm install decimal.js`
+ *
+ * @example
+ * // With big.js installed:
+ * parse("12345678901234567890.123456789") → Big("12345678901234567890.123456789")
+ *
+ * // Without decimal library (PRECISION LOSS):
+ * parse("12345678901234567890.123456789") → 12345678901234567000 (!)
  */
 const DecimalType = {
     code: 'N',
@@ -73,12 +87,14 @@ const DecimalType = {
         if (DecimalLib) {
             return new DecimalLib(value);
         }
+        // Fallback: JavaScript Number has ~15-17 significant digits precision
         return parseFloat(value);
     },
     serialize(value) {
         if (isDecimalInstance(value)) {
             return value.toString();
         }
+        // Fallback: may produce scientific notation for very large/small numbers
         return String(value);
     }
 };

@@ -69,7 +69,24 @@ export const StrType: TypeDefinition<string> = {
     parse: (raw: string): string => raw
 };
 
-/** Decimal type (N) - requires big.js or decimal.js */
+/**
+ * Decimal type (N = Numeric)
+ *
+ * Uses big.js or decimal.js if available for arbitrary precision.
+ * Without a decimal library, falls back to JavaScript's native Number type:
+ * - parse() returns parseFloat(value) - may lose precision for large/precise numbers
+ * - serialize() uses String(value) - may produce scientific notation
+ *
+ * For financial or scientific applications requiring exact decimal arithmetic,
+ * install big.js or decimal.js: `npm install big.js` or `npm install decimal.js`
+ *
+ * @example
+ * // With big.js installed:
+ * parse("12345678901234567890.123456789") → Big("12345678901234567890.123456789")
+ *
+ * // Without decimal library (PRECISION LOSS):
+ * parse("12345678901234567890.123456789") → 12345678901234567000 (!)
+ */
 export const DecimalType: TypeDefinition<DecimalValue | number> = {
     code: 'N',
     name: 'decimal',
@@ -177,7 +194,10 @@ export const NaiveDateTimeType: TypeDefinition<Date> = {
     }
 };
 
-/** Time type (H) - time only, no date component */
+/**
+ * Time type (H = Hour)
+ * Serializes with millisecond precision per spec 6.4.
+ */
 export const TimeType: TypeDefinition<Date> = {
     code: 'H',
     name: 'time',
@@ -188,14 +208,21 @@ export const TimeType: TypeDefinition<Date> = {
         const h = pad2(value.getUTCHours());
         const m = pad2(value.getUTCMinutes());
         const s = pad2(value.getUTCSeconds());
-        return `${h}:${m}:${s}`;
+        const ms = value.getUTCMilliseconds();
+        if (ms === 0) {
+            return `${h}:${m}:${s}`;
+        }
+        return `${h}:${m}:${s}.${String(ms).padStart(3, '0')}`;
     },
     parse: (raw: string): Date => {
-        const parts = raw.split(':').map(Number);
+        // Handle both HH:MM:SS and HH:MM:SS.mmm formats
+        const [timePart, msPart] = raw.split('.');
+        const parts = timePart.split(':').map(Number);
         const h = parts[0] ?? 0;
         const m = parts[1] ?? 0;
         const s = parts[2] ?? 0;
-        return new Date(Date.UTC(1970, 0, 1, h, m, s, 0));
+        const ms = msPart ? parseInt(msPart.padEnd(3, '0').slice(0, 3), 10) : 0;
+        return new Date(Date.UTC(1970, 0, 1, h, m, s, ms));
     }
 };
 
