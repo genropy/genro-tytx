@@ -20,6 +20,28 @@ export const TYTX_MARKER = '::JS';
 /** TYTX protocol prefix */
 export const TYTX_PREFIX = 'TYTX://';
 
+/** Known type suffixes for scalar detection */
+const KNOWN_SUFFIXES = new Set(['N', 'D', 'DH', 'DHZ', 'H', 'B', 'L', 'R', 'T']);
+
+/**
+ * Check if string ends with a valid type suffix.
+ * Handles both raw JSON (ends with ::JS) and quoted scalars (ends with ::X").
+ */
+function hasTypeSuffix(data: string): boolean {
+    // Handle quoted JSON scalar: "value::X"
+    if (data.endsWith('"')) {
+        const idx = data.lastIndexOf('::');
+        if (idx === -1) return false;
+        const suffix = data.slice(idx + 2, -1); // Strip trailing quote
+        return KNOWN_SUFFIXES.has(suffix);
+    }
+    // Handle struct marker: {...}::JS or [...]::JS
+    const idx = data.lastIndexOf('::');
+    if (idx === -1) return false;
+    const suffix = data.slice(idx + 2);
+    return KNOWN_SUFFIXES.has(suffix) || suffix === 'JS';
+}
+
 /**
  * Hydrate a single typed string value.
  * @param value - String like "100.50::N"
@@ -71,9 +93,9 @@ function hydrateRecursive(obj: unknown): unknown {
 
 /**
  * Decode a TYTX text format string.
- * Handles ::JS suffix.
+ * Handles ::JS suffix and quoted scalars with type suffix.
  *
- * @param data - JSON string with optional ::JS suffix
+ * @param data - JSON string with optional ::JS suffix or scalar with type suffix
  * @returns JavaScript object with typed values hydrated
  *
  * @example
@@ -82,29 +104,34 @@ function hydrateRecursive(obj: unknown): unknown {
  *
  * const result = fromText('{"price":"100.50::N"}::JS');
  * // { price: Big("100.50") }
+ *
+ * const scalar = fromText('"2025-01-15::D"');
+ * // Date(2025, 0, 15)
  * ```
  */
 export function fromText<T = unknown>(data: string): T {
-    let jsonStr = data;
-
-    // Check for ::JS marker
-    const hasTytx = jsonStr.endsWith(TYTX_MARKER);
-    if (hasTytx) {
-        jsonStr = jsonStr.slice(0, -TYTX_MARKER.length);
+    // Check if data has any type suffix
+    if (!hasTypeSuffix(data)) {
+        // Plain JSON, no TYTX
+        return JSON.parse(data) as T;
     }
 
-    const parsed = JSON.parse(jsonStr) as unknown;
-
-    if (!hasTytx) {
-        return parsed as T;
+    // Check for ::JS marker (struct)
+    if (data.endsWith(TYTX_MARKER)) {
+        const jsonStr = data.slice(0, -TYTX_MARKER.length);
+        const parsed = JSON.parse(jsonStr) as unknown;
+        return hydrateRecursive(parsed) as T;
     }
 
+    // Scalar with type suffix (e.g., "2025-01-15::D")
+    const parsed = JSON.parse(data) as unknown;
+    // parsed is now a string like "2025-01-15::D", hydrate it
     return hydrateRecursive(parsed) as T;
 }
 
 /**
  * Decode a TYTX JSON format string.
- * Handles TYTX:// prefix and ::JS suffix.
+ * Handles TYTX:// prefix, ::JS suffix, and quoted scalars.
  *
  * @param data - JSON string with optional TYTX:// prefix
  * @returns JavaScript object with typed values hydrated
@@ -116,9 +143,8 @@ export function fromText<T = unknown>(data: string): T {
  * const result = fromJson('TYTX://{"price":"100.50::N"}::JS');
  * // { price: Big("100.50") }
  *
- * // Also works without prefix
- * const result2 = fromJson('{"price":"100.50::N"}::JS');
- * // { price: Big("100.50") }
+ * const scalar = fromJson('TYTX://"2025-01-15::D"');
+ * // Date(2025, 0, 15)
  * ```
  */
 export function fromJson<T = unknown>(data: string): T {
@@ -129,17 +155,6 @@ export function fromJson<T = unknown>(data: string): T {
         jsonStr = jsonStr.slice(TYTX_PREFIX.length);
     }
 
-    // Check for ::JS marker
-    const hasTytx = jsonStr.endsWith(TYTX_MARKER);
-    if (hasTytx) {
-        jsonStr = jsonStr.slice(0, -TYTX_MARKER.length);
-    }
-
-    const parsed = JSON.parse(jsonStr) as unknown;
-
-    if (!hasTytx) {
-        return parsed as T;
-    }
-
-    return hydrateRecursive(parsed) as T;
+    // Delegate to fromText
+    return fromText<T>(jsonStr);
 }

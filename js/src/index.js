@@ -32,8 +32,7 @@ const {
     DateType,
     DateTimeType,
     NaiveDateTimeType,
-    TimeType,
-    IntAliasType
+    TimeType
 } = require('./types');
 
 // Import encode/decode functions
@@ -68,7 +67,6 @@ module.exports = {
     DateTimeType,
     NaiveDateTimeType,
     TimeType,
-    IntAliasType,
 
     // Utilities
     isDecimalInstance,

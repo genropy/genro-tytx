@@ -130,14 +130,36 @@ describe('TYTX Base - Decode', () => {
         assert.equal(result.value, 3.14);
     });
 
-    it('should decode Integer alias (I)', () => {
-        const result = fromText('{"count":"42::I"}::JS');
-        assert.equal(result.count, 42);
-    });
-
-    it('should not hydrate without ::JS marker', () => {
+    it('should not hydrate dict without ::JS marker', () => {
+        // Dict/object without ::JS marker - values remain as strings
         const result = fromText('{"price":"100.50::N"}');
         assert.equal(result.price, '100.50::N', 'Should remain as string');
+    });
+
+    it('should hydrate quoted scalar with type suffix', () => {
+        // Quoted scalar "value::SUFFIX" should be hydrated (spec 3.5 step 3)
+        const result = fromText('"2025-01-15::D"');
+        assert.ok(result instanceof Date, 'Should be Date instance');
+        assert.equal(result.getUTCFullYear(), 2025);
+        assert.equal(result.getUTCMonth(), 0);
+        assert.equal(result.getUTCDate(), 15);
+    });
+
+    it('should hydrate quoted Decimal scalar', () => {
+        const result = fromText('"100.50::N"');
+        if (DecimalLib) {
+            assert.ok(isDecimalInstance(result), 'Should be Decimal instance');
+            assert.equal(Number(result.toString()), 100.50);
+        } else {
+            assert.equal(result, 100.50);
+        }
+    });
+
+    it('should hydrate quoted DateTime scalar', () => {
+        const result = fromText('"2025-01-15T10:30:00.000Z::DHZ"');
+        assert.ok(result instanceof Date, 'Should be Date instance');
+        assert.equal(result.getUTCHours(), 10);
+        assert.equal(result.getUTCMinutes(), 30);
     });
 
     it('should handle unknown suffix', () => {
@@ -257,7 +279,6 @@ describe('TYTX Base - Registry', () => {
         assert.ok(registry.get('R'), 'Should have R (Float)');
         assert.ok(registry.get('B'), 'Should have B (Boolean)');
         assert.ok(registry.get('T'), 'Should have T (String)');
-        assert.ok(registry.get('I'), 'Should have I (Integer alias)');
     });
 
     it('should detect decimal library', () => {

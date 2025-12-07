@@ -32,7 +32,6 @@ These types ARE native to JSON but need encoding in XML (where everything is str
 | Suffix | Type | Format | Example |
 |--------|------|--------|---------|
 | `L` | Integer (Long) | Decimal integer string | `"42::L"` |
-| `I` | Integer | Alias for L (XML compatibility) | `"42::I"` |
 | `R` | Real (Float) | Decimal floating point string | `"3.14159::R"` |
 | `B` | Boolean | "1" for true, "0" for false | `"1::B"` |
 | `T` | Text | Plain string (rarely used) | `"hello::T"` |
@@ -340,7 +339,7 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 - Serialize: `"1"` for true, `"0"` for false
 - Deserialize: `"1"` -> true, anything else -> false
 
-### 6.6 Integer (L/I)
+### 6.6 Integer (L)
 
 - Serialize: Decimal string representation
 - Example: `42` -> `"42"`

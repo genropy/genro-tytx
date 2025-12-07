@@ -199,15 +199,6 @@ export const TimeType: TypeDefinition<Date> = {
     }
 };
 
-/** Integer alias type (I) - alias for L */
-export const IntAliasType: TypeDefinition<number> = {
-    code: 'I',
-    name: 'integer_alias',
-    match: (_value: unknown): boolean => false, // Never matches for encoding (use L)
-    serialize: (value: number): string => String(value),
-    parse: (raw: string): number => parseInt(raw, 10)
-};
-
 /** All type definitions */
 export const allTypes: TypeDefinition[] = [
     DecimalType,
@@ -218,6 +209,5 @@ export const allTypes: TypeDefinition[] = [
     IntType,
     FloatType,
     BoolType,
-    StrType,
-    IntAliasType
+    StrType
 ];

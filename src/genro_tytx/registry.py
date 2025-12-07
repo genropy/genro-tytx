@@ -17,17 +17,22 @@ from typing import Any
 # Serializers: type -> (suffix, serialize_fn)
 # Deserializers: suffix -> (type, deserialize_fn)
 
+
 def _serialize_decimal(v: Decimal) -> str:
     return str(v)
+
 
 def _deserialize_decimal(s: str) -> Decimal:
     return Decimal(s)
 
+
 def _serialize_date(v: date) -> str:
     return v.isoformat()
 
+
 def _deserialize_date(s: str) -> date:
     return date.fromisoformat(s)
+
 
 def _serialize_datetime(v: datetime) -> str:
     """Serialize datetime with millisecond precision (3 decimal places).
@@ -42,38 +47,49 @@ def _serialize_datetime(v: datetime) -> str:
     utc_dt = v.astimezone(timezone.utc)
     return utc_dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
+
 def _deserialize_datetime(s: str) -> datetime:
     # Handle Z suffix
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
     return datetime.fromisoformat(s)
 
+
 def _serialize_time(v: time) -> str:
     return v.isoformat()
+
 
 def _deserialize_time(s: str) -> time:
     return time.fromisoformat(s)
 
+
 def _serialize_bool(v: bool) -> str:
     return "1" if v else "0"
+
 
 def _deserialize_bool(s: str) -> bool:
     return s == "1"
 
+
 def _serialize_int(v: int) -> str:
     return str(v)
+
 
 def _deserialize_int(s: str) -> int:
     return int(s)
 
+
 def _serialize_float(v: float) -> str:
     return str(v)
+
 
 def _deserialize_float(s: str) -> float:
     return float(s)
 
+
 def _serialize_str(v: str) -> str:
     return v
+
 
 def _deserialize_str(s: str) -> str:
     return s
@@ -95,15 +111,14 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     # Non-native types
     "N": (Decimal, _deserialize_decimal),
     "D": (date, _deserialize_date),
-    "DH": (datetime, _deserialize_datetime),   # deprecated, still accepted
+    "DH": (datetime, _deserialize_datetime),  # deprecated, still accepted
     "DHZ": (datetime, _deserialize_datetime),  # canonical
     "H": (time, _deserialize_time),
     # Native JSON types (for receiving from other systems)
-    "L": (int, _deserialize_int),              # Long integer
-    "R": (float, _deserialize_float),          # Real (float)
-    "T": (str, _deserialize_str),              # Text (string)
+    "L": (int, _deserialize_int),  # Long integer
+    "R": (float, _deserialize_float),  # Real (float)
+    "T": (str, _deserialize_str),  # Text (string)
     "B": (bool, _deserialize_bool),
-    "I": (int, _deserialize_int),              # Alias for L (XML compat)
 }
 
 # XML Registry - types that need explicit _type attribute

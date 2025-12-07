@@ -154,11 +154,6 @@ class TestDecodeNativeTypes:
         assert result == {"name": "hello"}
         assert isinstance(result["name"], str)
 
-    def test_integer_alias_I(self):
-        """I is alias for L (XML compat)."""
-        result = from_text('{"count": "42::I"}::JS')
-        assert result == {"count": 42}
-
 
 class TestEdgeCases:
     """Tests for edge cases and special values."""

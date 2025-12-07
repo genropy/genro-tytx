@@ -33,7 +33,6 @@ export {
     DateTimeType,
     NaiveDateTimeType,
     TimeType,
-    IntAliasType,
     allTypes
 } from './types';
 

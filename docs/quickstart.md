@@ -140,7 +140,6 @@ These are decoded but never encoded (they are native JSON types in Python):
 | `R` | `float` |
 | `B` | `bool` |
 | `T` | `str` |
-| `I` | `int` (alias for `L`) |
 
 ### XML (all types)
 

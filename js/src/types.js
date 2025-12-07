@@ -154,19 +154,6 @@ const TimeType = {
 };
 
 /**
- * Integer alias (I - XML compat)
- */
-const IntAliasType = {
-    code: 'I',
-    parse(value) {
-        return parseInt(value, 10);
-    },
-    serialize(value) {
-        return String(Math.trunc(value));
-    }
-};
-
-/**
  * Register all built-in types.
  */
 function registerBuiltins() {
@@ -179,7 +166,6 @@ function registerBuiltins() {
     registry.register(DateTimeType);
     registry.register(NaiveDateTimeType);
     registry.register(TimeType);
-    registry.register(IntAliasType);
 }
 
 // Auto-register on module load
@@ -195,7 +181,6 @@ module.exports = {
     DateTimeType,
     NaiveDateTimeType,
     TimeType,
-    IntAliasType,
     registerBuiltins,
     DecimalLib,
     decimalLibName,
