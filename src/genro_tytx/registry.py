@@ -56,7 +56,12 @@ def _deserialize_datetime(s: str) -> datetime:
 
 
 def _serialize_time(v: time) -> str:
-    return v.isoformat()
+    """Serialize time with millisecond precision (3 decimal places).
+
+    Microseconds are truncated to milliseconds for cross-language compatibility
+    (JavaScript Date has millisecond precision).
+    """
+    return v.isoformat(timespec="milliseconds")
 
 
 def _deserialize_time(s: str) -> time:

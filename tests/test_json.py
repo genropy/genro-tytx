@@ -42,7 +42,7 @@ class TestEncode:
     def test_time(self):
         result = to_typed_text({"t": time(10, 30, 0)})
         assert "::JS" in result
-        assert '"10:30:00::H"' in result
+        assert '"10:30:00.000::H"' in result
 
     def test_bool_native(self):
         """Bool is native JSON type, no encoding needed."""
@@ -231,11 +231,12 @@ class TestEdgeCases:
         assert decoded["dt"].microsecond == 123000
 
     def test_time_with_microseconds(self):
-        """Time with microseconds."""
+        """Time with microseconds - truncated to milliseconds."""
         original = {"t": time(10, 30, 45, 123456)}
         encoded = to_typed_text(original)
         decoded = from_text(encoded)
-        assert decoded == original
+        # Microseconds truncated: 123456 → 123000
+        assert decoded["t"].microsecond == 123000
 
 
 class TestRoundTrip:

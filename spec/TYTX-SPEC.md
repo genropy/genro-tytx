@@ -23,7 +23,7 @@ These types are NOT native to JSON and MUST be encoded with type suffixes:
 | `N` | Decimal | Arbitrary precision number as string | `"100.50::N"` |
 | `D` | Date | ISO 8601 date (YYYY-MM-DD) | `"2025-01-15::D"` |
 | `DHZ` | DateTime | ISO 8601 datetime with milliseconds and Z suffix | `"2025-01-15T10:30:00.000Z::DHZ"` |
-| `H` | Time | ISO 8601 time (HH:MM:SS[.microseconds]) | `"10:30:00::H"` |
+| `H` | Time | ISO 8601 time with milliseconds (HH:MM:SS.sss) | `"10:30:00.000::H"` |
 
 ### 2.2 Native Types (for XML and interop)
 
