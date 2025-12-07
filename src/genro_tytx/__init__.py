@@ -44,6 +44,14 @@ from .http import (
     make_headers,
 )
 from .compare import datetime_equivalent, tytx_equivalent
+from .middleware import (
+    TYTXMiddleware,
+    TYTXWSGIMiddleware,
+    encode_query_string,
+    decode_query_string,
+    encode_header_value,
+    decode_header_value,
+)
 
 __version__ = "0.7.0"
 
@@ -79,6 +87,13 @@ __all__ = [
     # Comparison utilities
     "datetime_equivalent",
     "tytx_equivalent",
+    # Middleware
+    "TYTXMiddleware",
+    "TYTXWSGIMiddleware",
+    "encode_query_string",
+    "decode_query_string",
+    "encode_header_value",
+    "decode_header_value",
     # Version
     "__version__",
 ]

@@ -39,6 +39,16 @@ const {
 const { toTypedText, toTypedJson, TYTX_MARKER, TYTX_PREFIX } = require('./encode');
 const { fromText, fromJson } = require('./decode');
 
+// Import fetch utilities
+const {
+    createDate,
+    createTime,
+    createDateTime,
+    encodeQueryString,
+    decodeQueryString,
+    tytx_fetch
+} = require('./fetch');
+
 const VERSION = '0.7.0';
 
 module.exports = {
@@ -75,5 +85,13 @@ module.exports = {
 
     // Constants
     TYTX_MARKER,
-    TYTX_PREFIX
+    TYTX_PREFIX,
+
+    // Fetch utilities
+    createDate,
+    createTime,
+    createDateTime,
+    encodeQueryString,
+    decodeQueryString,
+    tytx_fetch
 };

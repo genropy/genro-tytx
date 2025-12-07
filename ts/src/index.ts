@@ -61,5 +61,16 @@ export {
     fromJson
 } from './decode';
 
+// Re-export fetch utilities
+export type { TYTXFetchOptions } from './fetch';
+export {
+    createDate,
+    createTime,
+    createDateTime,
+    encodeQueryString,
+    decodeQueryString,
+    tytx_fetch
+} from './fetch';
+
 /** Library version */
 export const VERSION = '0.7.0';
