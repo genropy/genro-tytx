@@ -60,6 +60,22 @@ describe('TYTX Base - Encode', () => {
         assert.ok(!result.includes('::JS'), 'Should NOT have ::JS suffix for native types');
     });
 
+    it('should encode scalar Date without ::JS', () => {
+        const result = toTypedText(new Date('2025-01-15T00:00:00.000Z'));
+        assert.ok(!result.endsWith('::JS'), 'Scalar Date should NOT have ::JS suffix');
+        assert.ok(result.includes('::D'), 'Should have ::D suffix');
+    });
+
+    it('should encode scalar Decimal without ::JS', () => {
+        if (!DecimalLib) {
+            console.log('Skipping - no decimal library');
+            return;
+        }
+        const result = toTypedText(new DecimalLib('100.50'));
+        assert.ok(!result.endsWith('::JS'), 'Scalar Decimal should NOT have ::JS suffix');
+        assert.ok(result.includes('::N'), 'Should have ::N suffix');
+    });
+
     it('should handle nested structures', () => {
         const data = {
             invoice: {

@@ -99,7 +99,8 @@ function serializeRecursive(value: unknown): SerializeResult {
 
 /**
  * Encode a value to TYTX text format.
- * Adds ::JS suffix only if typed values are present.
+ * Adds ::JS suffix only if typed values are present in dict/list.
+ * Scalar typed values do NOT get ::JS suffix (spec 3.2).
  *
  * @param value - Value to encode
  * @returns JSON string with optional ::JS suffix
@@ -112,9 +113,19 @@ function serializeRecursive(value: unknown): SerializeResult {
  * const data = { price: new Big('100.50') };
  * const encoded = toTypedText(data);
  * // '{"price":"100.50::N"}::JS'
+ *
+ * const scalar = toTypedText(new Date('2025-01-15'));
+ * // '"2025-01-15::D"'  (no ::JS for scalars)
  * ```
  */
 export function toTypedText(value: unknown): string {
+    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
+    const typeDef = getTypeDef(value);
+    if (typeDef) {
+        const serialized = typeDef.serialize(value as never);
+        return JSON.stringify(`${serialized}::${typeDef.code}`);
+    }
+
     const { value: serialized, hasTyped } = serializeRecursive(value);
     const json = JSON.stringify(serialized);
     return hasTyped ? json + TYTX_MARKER : json;
@@ -122,7 +133,8 @@ export function toTypedText(value: unknown): string {
 
 /**
  * Encode a value to TYTX JSON format.
- * Always adds TYTX:// prefix, adds ::JS suffix only if typed values present.
+ * Always adds TYTX:// prefix. ::JS suffix only for dict/list with typed values.
+ * Scalar typed values do NOT get ::JS suffix (spec 3.2).
  *
  * @param value - Value to encode
  * @returns JSON string with TYTX:// prefix and optional ::JS suffix
@@ -135,9 +147,19 @@ export function toTypedText(value: unknown): string {
  * const data = { price: new Big('100.50') };
  * const encoded = toTypedJson(data);
  * // 'TYTX://{"price":"100.50::N"}::JS'
+ *
+ * const scalar = toTypedJson(new Date('2025-01-15'));
+ * // 'TYTX://"2025-01-15::D"'  (no ::JS for scalars)
  * ```
  */
 export function toTypedJson(value: unknown): string {
+    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
+    const typeDef = getTypeDef(value);
+    if (typeDef) {
+        const serialized = typeDef.serialize(value as never);
+        return TYTX_PREFIX + JSON.stringify(`${serialized}::${typeDef.code}`);
+    }
+
     const { value: serialized, hasTyped } = serializeRecursive(value);
     const json = JSON.stringify(serialized);
     if (hasTyped) {

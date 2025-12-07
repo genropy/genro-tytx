@@ -87,7 +87,8 @@ function serializeRecursive(obj) {
 
 /**
  * Encode a JavaScript value to TYTX text format.
- * Uses ::JS suffix only when typed values are present.
+ * Uses ::JS suffix only when typed values are present in dict/list.
+ * Scalar typed values do NOT get ::JS suffix (spec 3.2).
  *
  * @param {*} value - Value to encode
  * @returns {string} JSON string with optional ::JS suffix
@@ -96,10 +97,19 @@ function serializeRecursive(obj) {
  * toTypedText({price: new Big("100.50")})
  * // '{"price":"100.50::N"}::JS'
  *
+ * toTypedText(new Date('2025-01-15'))
+ * // '"2025-01-15::D"'  (no ::JS for scalars)
+ *
  * toTypedText({name: "test"})
  * // '{"name":"test"}'
  */
 function toTypedText(value) {
+    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
+    if (value instanceof Date || isDecimalInstance(value)) {
+        const serialized = serializeValue(value);
+        return JSON.stringify(serialized);
+    }
+
     const { value: serialized, hasTyped } = serializeRecursive(value);
     const json = JSON.stringify(serialized);
     return hasTyped ? json + TYTX_MARKER : json;
@@ -107,7 +117,8 @@ function toTypedText(value) {
 
 /**
  * Encode a JavaScript value to TYTX JSON format.
- * Uses TYTX:// prefix and ::JS suffix.
+ * Uses TYTX:// prefix. ::JS suffix only for dict/list with typed values.
+ * Scalar typed values do NOT get ::JS suffix (spec 3.2).
  *
  * @param {*} value - Value to encode
  * @returns {string} JSON string with TYTX:// prefix
@@ -116,10 +127,19 @@ function toTypedText(value) {
  * toTypedJson({price: new Big("100.50")})
  * // 'TYTX://{"price":"100.50::N"}::JS'
  *
+ * toTypedJson(new Date('2025-01-15'))
+ * // 'TYTX://"2025-01-15::D"'  (no ::JS for scalars)
+ *
  * toTypedJson({name: "test"})
  * // 'TYTX://{"name":"test"}'
  */
 function toTypedJson(value) {
+    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
+    if (value instanceof Date || isDecimalInstance(value)) {
+        const serialized = serializeValue(value);
+        return TYTX_PREFIX + JSON.stringify(serialized);
+    }
+
     const { value: serialized, hasTyped } = serializeRecursive(value);
     const json = JSON.stringify(serialized);
     if (hasTyped) {
