@@ -2,23 +2,21 @@
 """
 TYTX MessagePack Encoding/Decoding.
 
-MessagePack format uses ExtType(42, ...) for TYTX typed values.
-The payload is the TYTX JSON string.
+MessagePack serializes typed values as strings with type suffix (e.g., "100.50::N").
+On decode, these strings are hydrated back to Python types.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from .encode import to_typed_text
-from .decode import from_text
-
-# TYTX ExtType code
-TYTX_EXT_CODE = 42
+from .encode import _serialize_value
+from .decode import _hydrate_recursive
 
 # Check for msgpack availability
 try:
     import msgpack
+
     HAS_MSGPACK = True
 except ImportError:
     HAS_MSGPACK = False
@@ -28,22 +26,17 @@ def _check_msgpack():
     if not HAS_MSGPACK:
         raise ImportError(
             "msgpack is required for MessagePack support. "
-            "Install with: pip install genro-tytx-base[msgpack]"
+            "Install with: pip install genro-tytx[msgpack]"
         )
 
 
-def _default_encoder(obj: Any) -> msgpack.ExtType:
-    """Default encoder for msgpack - wraps non-native types in TYTX."""
-    # Serialize the object to TYTX JSON and wrap in ExtType
-    tytx_str = to_typed_text(obj)
-    return msgpack.ExtType(TYTX_EXT_CODE, tytx_str.encode("utf-8"))
-
-
-def _ext_hook(code: int, data: bytes) -> Any:
-    """Ext hook for msgpack - unwraps TYTX ExtType."""
-    if code == TYTX_EXT_CODE:
-        return from_text(data.decode("utf-8"))
-    return msgpack.ExtType(code, data)
+def _default_encoder(obj: Any) -> str:
+    """Default encoder for msgpack - converts typed values to TYTX strings."""
+    result = _serialize_value(obj)
+    if result is not None:
+        serialized, suffix = result
+        return f"{serialized}::{suffix}"
+    raise TypeError(f"Object of type {type(obj).__name__} is not TYTX serializable")
 
 
 def to_msgpack(value: Any) -> bytes:
@@ -54,7 +47,7 @@ def to_msgpack(value: Any) -> bytes:
         value: Python object to encode
 
     Returns:
-        MessagePack bytes with typed values wrapped in ExtType(42)
+        MessagePack bytes with typed values as TYTX strings
 
     Example:
         >>> to_msgpack({"price": Decimal("100.50")})
@@ -79,4 +72,5 @@ def from_msgpack(data: bytes) -> Any:
         {"price": Decimal("100.50")}
     """
     _check_msgpack()
-    return msgpack.unpackb(data, ext_hook=_ext_hook, raw=False)
+    parsed = msgpack.unpackb(data, raw=False)
+    return _hydrate_recursive(parsed)

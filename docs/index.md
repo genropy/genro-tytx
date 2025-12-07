@@ -99,6 +99,8 @@ result = from_json(json_str)
 Overview <self>
 installation
 quickstart
+http-integration
+middleware-api
 ```
 
 ---
@@ -110,15 +112,13 @@ quickstart
 | Scalar types (N, D, DHZ, H, B, L, R, T) | ✅ | ✅ |
 | JSON / XML / MessagePack | ✅ | ✅ |
 | HTTP utilities | ✅ | ✅ |
-| Typed arrays (`#`) | ❌ | ✅ |
-| Custom types (`~`) | ❌ | ✅ |
 | Struct schemas (`@`) | ❌ | ✅ |
 | XTYTX envelope | ❌ | ✅ |
 | Pydantic integration | ❌ | ✅ |
 
 **Use TYTX Base** when you only need scalar types and want a minimal footprint.
 
-**Use TYTX** when you need advanced features like typed arrays, custom types, or struct schemas.
+**Use TYTX** when you need advanced features like struct schemas or Pydantic integration.
 
 ---
 

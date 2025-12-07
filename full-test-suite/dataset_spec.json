@@ -1,0 +1,96 @@
+{
+  "scalar": [
+    {"id": "decimal_small", "type": "decimal", "value": "100.50"},
+    {"id": "decimal_micro", "type": "decimal", "value": "123456.789012"},
+    {"id": "decimal_negative", "type": "decimal", "value": "-9999.999"},
+    {"id": "date_basic", "type": "date", "value": "2025-01-15"},
+    {"id": "date_epoch", "type": "date", "value": "1970-01-01"},
+    {"id": "datetime_utc", "type": "datetime", "value": "2025-01-15T10:30:00Z"},
+    {"id": "datetime_utc_ms", "type": "datetime", "value": "2025-01-15T10:30:00.123456Z"},
+    {"id": "datetime_naive", "type": "datetime_naive", "value": "2025-01-15T10:30:00"},
+    {"id": "time_basic", "type": "time", "value": "10:30:00"},
+    {"id": "time_micro", "type": "time", "value": "10:30:45.123456"},
+    {"id": "bool_true", "type": "bool", "value": true},
+    {"id": "bool_false", "type": "bool", "value": false},
+    {"id": "int_small", "type": "int", "value": 42},
+    {"id": "int_big", "type": "int", "value": 1234567890123},
+    {"id": "float_pi", "type": "float", "value": 3.14159},
+    {"id": "float_huge", "type": "float", "value": 1.23e8},
+    {"id": "string_simple", "type": "string", "value": "hello world"},
+    {"id": "string_long", "type": "string", "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
+    {"id": "null_value", "type": "null", "value": null}
+  ],
+  "composite": [
+    {
+      "id": "list_mixed",
+      "type": "list",
+      "value": ["#decimal_small", "#date_basic", "plain text", true, 42]
+    },
+    {
+      "id": "dict_nested",
+      "type": "dict",
+      "value": {
+        "invoice": {
+          "total": "#decimal_small",
+          "issued": "#date_basic",
+          "paid": "#bool_false",
+          "lines": [
+            {"price": "#decimal_micro", "qty": 2},
+            {"price": "#decimal_small", "qty": 3}
+          ]
+        }
+      }
+    },
+    {
+      "id": "deep_mixed",
+      "type": "dict",
+      "value": {
+        "meta": {"id": "#int_big", "tags": ["a", "b", "c"]},
+        "window": {
+          "start": "#datetime_naive",
+          "end": "#datetime_utc_ms",
+          "tz": "UTC"
+        },
+        "items": [
+          {"at": "#time_basic", "value": "#decimal_negative", "ok": "#bool_true"},
+          {"at": "#time_micro", "value": "#decimal_small", "ok": "#bool_false"}
+        ]
+      }
+    }
+  ],
+  "recordset": {
+    "rows": 2000,
+    "columns": [
+      {"name": "id", "type": "int", "start": 1, "step": 1},
+      {"name": "sku", "type": "string", "template": "SKU-{row}"},
+      {"name": "title", "type": "string", "template": "Item {row}"},
+      {"name": "active", "type": "bool", "pattern": "row%2==0"},
+      {"name": "price", "type": "decimal", "start": 10.0, "step": 0.25},
+      {"name": "discount", "type": "float", "start": 0.0, "step": 0.01, "mod": 0.5},
+      {"name": "quantity", "type": "int", "start": 1, "step": 3, "mod": 50},
+      {"name": "rating", "type": "float", "start": 1.0, "step": 0.1, "mod": 5.0},
+      {"name": "created_date", "type": "date", "start": "2024-01-01", "step_days": 1},
+      {"name": "updated_dt", "type": "datetime", "start": "2024-01-01T00:00:00Z", "step_seconds": 900},
+      {"name": "time_slot", "type": "time", "start": "08:00:00", "step_seconds": 60},
+      {"name": "flag_a", "type": "bool", "pattern": "row%2==0"},
+      {"name": "flag_b", "type": "bool", "pattern": "row%3==0"},
+      {"name": "notes", "type": "string", "template": "Note {row_mod_10}"},
+      {"name": "category", "type": "string", "choices": ["A", "B", "C", "D"]},
+      {"name": "code", "type": "string", "template": "C{row_pad_5}"},
+      {"name": "balance", "type": "decimal", "start": -1000.0, "step": 1.5},
+      {"name": "due_date", "type": "date", "start": "2025-06-01", "step_days": 7},
+      {"name": "last_seen", "type": "datetime", "start": "2025-01-01T12:00:00Z", "step_seconds": 3600},
+      {"name": "progress", "type": "float", "start": 0.0, "step": 0.05, "mod": 1.0},
+      {"name": "checksum", "type": "int", "start": 1000, "step": 7, "mod": 100000},
+      {"name": "tags", "type": "list", "template": ["alpha", "beta", "gamma"]},
+      {"name": "payload", "type": "dict", "template": {"p": 1, "q": 2}},
+      {"name": "ipv4", "type": "string", "template": "192.168.{row_mod_255}.{row_mod_251}"},
+      {"name": "uuid_like", "type": "string", "template": "00000000-0000-0000-0000-{row_pad_12}"},
+      {"name": "bool_randomish", "type": "bool", "pattern": "row%5<2"},
+      {"name": "tiny_time", "type": "time", "start": "00:00:00", "step_seconds": 1},
+      {"name": "small_dt_naive", "type": "datetime_naive", "start": "2025-01-01T00:00:00", "step_seconds": 60},
+      {"name": "json_blob", "type": "string", "template": "{\"k\": {row}}"},
+      {"name": "zero_decimal", "type": "decimal", "value": "0.00"}
+    ]
+  }
+}

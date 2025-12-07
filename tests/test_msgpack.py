@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 """Tests for MessagePack encoding/decoding."""
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest

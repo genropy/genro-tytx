@@ -180,7 +180,33 @@ decoded = from_text(encoded)
 assert decoded == invoice  # ✓ Perfect roundtrip
 ```
 
+## Middleware (ASGI/WSGI)
+
+For web applications, use the built-in middleware for automatic encoding/decoding:
+
+```python
+from genro_tytx import TYTXMiddleware  # ASGI
+# or
+from genro_tytx import TYTXWSGIMiddleware  # WSGI
+
+# FastAPI / Starlette
+app = TYTXMiddleware(your_app)
+
+# Flask
+app.wsgi_app = TYTXWSGIMiddleware(app.wsgi_app)
+```
+
+The middleware:
+
+- Decodes TYTX values from query strings, headers, cookies, and body
+- Encodes JSON responses with TYTX
+- Makes decoded data available in `scope["tytx"]` (ASGI) or `environ["tytx"]` (WSGI)
+
+See [HTTP Integration](http-integration.md) and [Middleware API](middleware-api.md) for details.
+
 ## Next Steps
 
 - See [Installation](installation.md) for optional dependencies
-- Check TYTX (full) for advanced features like typed arrays, custom types, and struct schemas
+- See [HTTP Integration](http-integration.md) for end-to-end type handling
+- See [Middleware API](middleware-api.md) for Python middleware and JS/TS `tytx_fetch`
+- Check TYTX (full) for advanced features like struct schemas and Pydantic integration
