@@ -379,3 +379,896 @@ class TestWSGIMiddleware:
         # Check response was encoded (content-type updated)
         content_type = dict(response_headers).get("Content-Type", "")
         assert "vnd.tytx+json" in content_type
+
+
+class TestMiddlewareEdgeCases:
+    """Tests for middleware edge cases."""
+
+    def test_encode_time_with_microseconds(self) -> None:
+        """Time with microseconds should format milliseconds."""
+        t = time(10, 30, 45, 123456)  # 123456 microseconds = 123 milliseconds
+        result = encode_header_value(t)
+        assert "10:30:45.123::H" in result
+
+    def test_decode_unknown_suffix(self) -> None:
+        """Unknown suffix returns string as-is."""
+        result = decode_header_value("something::UNKNOWN")
+        assert result == "something::UNKNOWN"
+
+
+class TestASGIMiddlewareEdgeCases:
+    """Additional tests for ASGI middleware edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_decode_cookies(self) -> None:
+        """Test cookie decoding."""
+        captured_scope = {}
+
+        async def app(scope, receive, send):
+            captured_scope.update(scope)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [
+                (b"cookie", b"session=abc123; date=2025-01-15::D"),
+            ],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        assert "tytx" in captured_scope
+        cookies = captured_scope["tytx"]["cookies"]
+        assert cookies["session"] == "abc123"
+        assert cookies["date"] == date(2025, 1, 15)
+
+    @pytest.mark.asyncio
+    async def test_decode_empty_body(self) -> None:
+        """Test empty body handling."""
+        captured_scope = {}
+
+        async def app(scope, receive, send):
+            captured_scope.update(scope)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/json")],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        assert captured_scope["tytx"]["body"] is None
+
+    @pytest.mark.asyncio
+    async def test_decode_invalid_json_body(self) -> None:
+        """Test invalid JSON body handling."""
+        captured_scope = {}
+
+        async def app(scope, receive, send):
+            captured_scope.update(scope)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/json")],
+        }
+
+        body_sent = False
+
+        async def receive():
+            nonlocal body_sent
+            if not body_sent:
+                body_sent = True
+                return {"type": "http.request", "body": b"not valid json", "more_body": False}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        assert captured_scope["tytx"]["body"] is None
+
+    @pytest.mark.asyncio
+    async def test_encode_response_no_encoding(self) -> None:
+        """Test response without encoding when disabled."""
+        async def app(scope, receive, send):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b'{"total": 100}',
+            })
+
+        middleware = TYTXMiddleware(app, encode_response=False)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Response should NOT be encoded
+        headers = dict(sent[0]["headers"])
+        assert b"vnd.tytx+json" not in headers.get(b"content-type", b"")
+
+    @pytest.mark.asyncio
+    async def test_encode_response_with_content_length(self) -> None:
+        """Test response encoding updates content-length."""
+        import json
+
+        async def app(scope, receive, send):
+            body = json.dumps({"total": 100.50}).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Content-length should be updated
+        headers = dict(sent[0]["headers"])
+        assert b"content-length" in headers
+        # Body should be encoded
+        assert b"::JS" in sent[1]["body"] or b"total" in sent[1]["body"]
+
+    @pytest.mark.asyncio
+    async def test_encode_invalid_json_response(self) -> None:
+        """Test response encoding with invalid JSON passes through."""
+        async def app(scope, receive, send):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b"not valid json",
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Should pass through unchanged
+        assert sent[1]["body"] == b"not valid json"
+
+
+class TestWSGIMiddlewareEdgeCases:
+    """Additional tests for WSGI middleware edge cases."""
+
+    def test_decode_cookies(self) -> None:
+        """Test cookie decoding."""
+        from io import BytesIO
+        captured_environ = {}
+
+        def app(environ, start_response):
+            captured_environ.update(environ)
+            start_response("200 OK", [])
+            return [b""]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "HTTP_COOKIE": "session=abc123; date=2025-01-15::D",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        assert "tytx" in captured_environ
+        cookies = captured_environ["tytx"]["cookies"]
+        assert cookies["session"] == "abc123"
+        assert cookies["date"] == date(2025, 1, 15)
+
+    def test_decode_body(self) -> None:
+        """Test JSON body decoding."""
+        from io import BytesIO
+        captured_environ = {}
+
+        def app(environ, start_response):
+            captured_environ.update(environ)
+            start_response("200 OK", [])
+            return [b""]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        body = b'{"price":"100.50::N"}::JS'
+        environ = {
+            "QUERY_STRING": "",
+            "CONTENT_TYPE": "application/json",
+            "CONTENT_LENGTH": str(len(body)),
+            "wsgi.input": BytesIO(body),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        assert captured_environ["tytx"]["body"]["price"] == Decimal("100.50")
+
+    def test_decode_empty_body(self) -> None:
+        """Test empty body handling."""
+        from io import BytesIO
+        captured_environ = {}
+
+        def app(environ, start_response):
+            captured_environ.update(environ)
+            start_response("200 OK", [])
+            return [b""]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "CONTENT_TYPE": "application/json",
+            "CONTENT_LENGTH": "0",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        assert captured_environ["tytx"]["body"] is None
+
+    def test_decode_invalid_json_body(self) -> None:
+        """Test invalid JSON body handling."""
+        from io import BytesIO
+        captured_environ = {}
+
+        def app(environ, start_response):
+            captured_environ.update(environ)
+            start_response("200 OK", [])
+            return [b""]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        body = b"not valid json"
+        environ = {
+            "QUERY_STRING": "",
+            "CONTENT_TYPE": "application/json",
+            "CONTENT_LENGTH": str(len(body)),
+            "wsgi.input": BytesIO(body),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        assert captured_environ["tytx"]["body"] is None
+
+    def test_no_encode_response(self) -> None:
+        """Test response without encoding when disabled."""
+        from io import BytesIO
+        import json
+
+        def app(environ, start_response):
+            start_response("200 OK", [("Content-Type", "application/json")])
+            return [json.dumps({"total": 100}).encode()]
+
+        middleware = TYTXWSGIMiddleware(app, encode_response=False)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        response_headers = []
+
+        def start_response(status, headers):
+            response_headers.extend(headers)
+
+        result = list(middleware(environ, start_response))
+
+        # Response should NOT be encoded
+        content_type = dict(response_headers).get("Content-Type", "")
+        assert "vnd.tytx+json" not in content_type
+
+    def test_encode_response_with_content_length(self) -> None:
+        """Test response encoding updates content-length."""
+        from io import BytesIO
+        import json
+
+        body = json.dumps({"total": 100.50}).encode()
+
+        def app(environ, start_response):
+            start_response("200 OK", [
+                ("Content-Type", "application/json"),
+                ("Content-Length", str(len(body))),
+            ])
+            return [body]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        response_headers = []
+
+        def start_response(status, headers):
+            response_headers.extend(headers)
+
+        result = list(middleware(environ, start_response))
+
+        # Content-length should be updated
+        headers_dict = dict(response_headers)
+        assert "Content-Length" in headers_dict
+
+    def test_encode_invalid_json_response(self) -> None:
+        """Test response encoding with invalid JSON passes through."""
+        from io import BytesIO
+
+        def app(environ, start_response):
+            start_response("200 OK", [("Content-Type", "application/json")])
+            return [b"not valid json"]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        response_headers = []
+
+        def start_response(status, headers):
+            response_headers.extend(headers)
+
+        result = list(middleware(environ, start_response))
+
+        # Should pass through unchanged
+        assert result[0] == b"not valid json"
+
+    def test_response_with_close(self) -> None:
+        """Test response iterator with close method."""
+        from io import BytesIO
+
+        close_called = False
+
+        class ClosableIterator:
+            def __init__(self):
+                self.data = [b"test"]
+                self.index = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                if self.index >= len(self.data):
+                    raise StopIteration
+                item = self.data[self.index]
+                self.index += 1
+                return item
+
+            def close(self):
+                nonlocal close_called
+                close_called = True
+
+        def app(environ, start_response):
+            start_response("200 OK", [("Content-Type", "text/plain")])
+            return ClosableIterator()
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        assert close_called
+
+
+class TestMiddlewareDisabledOptions:
+    """Tests for middleware with disabled options."""
+
+    @pytest.mark.asyncio
+    async def test_asgi_all_decode_disabled(self) -> None:
+        """Test ASGI middleware with all decoding disabled."""
+        captured_scope = {}
+
+        async def app(scope, receive, send):
+            captured_scope.update(scope)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(
+            app,
+            decode_query=False,
+            decode_headers=False,
+            decode_cookies=False,
+            decode_body=False,
+            encode_response=False,
+        )
+
+        scope = {
+            "type": "http",
+            "query_string": b"date=2025-01-15::D",
+            "headers": [
+                (b"x-tytx-date", b"2025-01-15::D"),
+                (b"cookie", b"date=2025-01-15::D"),
+                (b"content-type", b"application/json"),
+            ],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b'{"x":"y"}', "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # tytx should be empty (no decoding)
+        assert "query" not in captured_scope["tytx"]
+        assert "headers" not in captured_scope["tytx"]
+        assert "cookies" not in captured_scope["tytx"]
+        assert "body" not in captured_scope["tytx"]
+
+    def test_wsgi_all_decode_disabled(self) -> None:
+        """Test WSGI middleware with all decoding disabled."""
+        from io import BytesIO
+        captured_environ = {}
+
+        def app(environ, start_response):
+            captured_environ.update(environ)
+            start_response("200 OK", [])
+            return [b""]
+
+        middleware = TYTXWSGIMiddleware(
+            app,
+            decode_query=False,
+            decode_headers=False,
+            decode_cookies=False,
+            decode_body=False,
+            encode_response=False,
+        )
+
+        environ = {
+            "QUERY_STRING": "date=2025-01-15::D",
+            "HTTP_X_TYTX_DATE": "2025-01-15::D",
+            "HTTP_COOKIE": "date=2025-01-15::D",
+            "CONTENT_TYPE": "application/json",
+            "CONTENT_LENGTH": "10",
+            "wsgi.input": BytesIO(b'{"x":"y"}'),
+        }
+
+        def start_response(status, headers):
+            pass
+
+        list(middleware(environ, start_response))
+
+        # tytx should be empty
+        assert "query" not in captured_environ["tytx"]
+        assert "headers" not in captured_environ["tytx"]
+        assert "cookies" not in captured_environ["tytx"]
+        assert "body" not in captured_environ["tytx"]
+
+    def test_wsgi_response_other_header(self) -> None:
+        """Test WSGI response with other headers preserved."""
+        from io import BytesIO
+        import json
+
+        body = json.dumps({"total": 100.50}).encode()
+
+        def app(environ, start_response):
+            start_response("200 OK", [
+                ("Content-Type", "application/json"),
+                ("X-Custom", "value"),
+            ])
+            return [body]
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        response_headers = []
+
+        def start_response(status, headers):
+            response_headers.extend(headers)
+
+        list(middleware(environ, start_response))
+
+        # Custom header should be preserved
+        headers_dict = dict(response_headers)
+        assert headers_dict.get("X-Custom") == "value"
+
+    @pytest.mark.asyncio
+    async def test_asgi_receive_wrapper_used(self) -> None:
+        """Test that receive_wrapper is used when app calls receive."""
+        body_from_app = None
+
+        async def app(scope, receive, send):
+            nonlocal body_from_app
+            # App calls receive - should get the buffered body
+            msg = await receive()
+            body_from_app = msg.get("body", b"")
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app, decode_body=False)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        call_count = 0
+
+        async def receive():
+            nonlocal call_count
+            call_count += 1
+            return {"type": "http.request", "body": b"test body", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # receive_wrapper should pass through the body
+        assert body_from_app == b"test body"
+
+    @pytest.mark.asyncio
+    async def test_asgi_response_other_header(self) -> None:
+        """Test ASGI response with other headers preserved."""
+        import json
+
+        async def app(scope, receive, send):
+            body = json.dumps({"total": 100.50}).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"x-custom", b"value"),
+                ],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": body,
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Custom header should be preserved
+        headers = dict(sent[0]["headers"])
+        assert headers.get(b"x-custom") == b"value"
+
+    @pytest.mark.asyncio
+    async def test_asgi_chunked_body(self) -> None:
+        """ASGI middleware handles chunked body (more_body=True)."""
+        captured_scope = {}
+
+        async def app(scope, receive, send):
+            captured_scope.update(scope)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/json")],
+        }
+
+        # Simulate chunked body: first chunk with more_body=True, second with False
+        chunks = [
+            {"type": "http.request", "body": b'{"price": "100.', "more_body": True},
+            {"type": "http.request", "body": b'50::N"}::JS', "more_body": False},
+        ]
+        chunk_iter = iter(chunks)
+
+        async def receive():
+            return next(chunk_iter)
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Body should be reassembled and decoded correctly
+        assert captured_scope["tytx"]["body"]["price"] == Decimal("100.50")
+
+    @pytest.mark.asyncio
+    async def test_asgi_receive_wrapper_called_twice(self) -> None:
+        """Test receive_wrapper returns buffered body on second call."""
+        receive_results = []
+
+        async def app(scope, receive, send):
+            # App calls receive twice
+            msg1 = await receive()
+            msg2 = await receive()
+            receive_results.append(msg1)
+            receive_results.append(msg2)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = TYTXMiddleware(app, decode_body=False)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"test body", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Both calls should return the same buffered body
+        assert receive_results[0]["body"] == b"test body"
+        assert receive_results[1]["body"] == b"test body"
+
+    @pytest.mark.asyncio
+    async def test_asgi_response_chunked_body(self) -> None:
+        """Test response with chunked body (more_body=True)."""
+        async def app(scope, receive, send):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            })
+            # First chunk with more_body=True
+            await send({
+                "type": "http.response.body",
+                "body": b'{"total":',
+                "more_body": True,
+            })
+            # Second chunk with more_body=False
+            await send({
+                "type": "http.response.body",
+                "body": b' 100}',
+                "more_body": False,
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Response should be assembled and sent
+        assert len(sent) == 2
+        assert sent[0]["type"] == "http.response.start"
+        # Body should contain the full assembled response
+        assert b"total" in sent[1]["body"]
+
+    @pytest.mark.asyncio
+    async def test_asgi_response_unknown_message_type_ignored(self) -> None:
+        """Test send_wrapper ignores unknown message types."""
+        async def app(scope, receive, send):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [],
+            })
+            # Send an unknown message type - should be ignored by send_wrapper
+            await send({"type": "http.response.trailers", "headers": []})
+            await send({
+                "type": "http.response.body",
+                "body": b"test",
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Only start and body should be sent (trailers ignored by middleware)
+        assert len(sent) == 2
+        assert sent[0]["type"] == "http.response.start"
+        assert sent[1]["type"] == "http.response.body"
+
+    @pytest.mark.asyncio
+    async def test_asgi_response_no_content_type_header(self) -> None:
+        """Test response encoding skipped when no content-type header."""
+        async def app(scope, receive, send):
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"x-custom", b"value")],  # No content-type
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b'{"total": 100}',
+            })
+
+        middleware = TYTXMiddleware(app)
+
+        scope = {
+            "type": "http",
+            "query_string": b"",
+            "headers": [],
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        sent = []
+
+        async def send(msg):
+            sent.append(msg)
+
+        await middleware(scope, receive, send)
+
+        # Body should pass through unchanged (no encoding without content-type)
+        assert sent[1]["body"] == b'{"total": 100}'
+
+    def test_wsgi_response_no_content_type_header(self) -> None:
+        """Test WSGI response encoding skipped when no content-type header."""
+        from io import BytesIO
+
+        def app(environ, start_response):
+            start_response("200 OK", [("X-Custom", "value")])  # No Content-Type
+            return [b'{"total": 100}']
+
+        middleware = TYTXWSGIMiddleware(app)
+
+        environ = {
+            "QUERY_STRING": "",
+            "wsgi.input": BytesIO(b""),
+        }
+
+        response_headers = []
+
+        def start_response(status, headers):
+            response_headers.extend(headers)
+
+        result = list(middleware(environ, start_response))
+
+        # Body should pass through unchanged
+        assert result[0] == b'{"total": 100}'

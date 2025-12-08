@@ -1,161 +1,196 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="TYTX Logo" width="200">
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/genro-tytx/"><img src="https://img.shields.io/pypi/v/genro-tytx?color=blue" alt="PyPI"></a>
+  <a href="https://www.npmjs.com/package/genro-tytx"><img src="https://img.shields.io/npm/v/genro-tytx?color=red" alt="npm"></a>
+  <a href="https://pypi.org/project/genro-tytx/"><img src="https://img.shields.io/pypi/pyversions/genro-tytx" alt="Python"></a>
+  <a href="https://github.com/genropy/genro-tytx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
+  <img src="https://img.shields.io/badge/status-beta-yellow" alt="Status">
+  <br>
+  <a href="https://github.com/genropy/genro-tytx/actions/workflows/tests.yml"><img src="https://github.com/genropy/genro-tytx/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="https://codecov.io/gh/genropy/genro-tytx"><img src="https://codecov.io/gh/genropy/genro-tytx/branch/main/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://genro-tytx.readthedocs.io/"><img src="https://readthedocs.org/projects/genro-tytx/badge/?version=latest" alt="Documentation"></a>
+</p>
+
 # genro-tytx
 
-**TYTX Base** - Typed Text Protocol for Scalar Types
+**Stop Converting Types Manually.**
 
-Minimal implementation of the TYTX protocol supporting scalar types over JSON, XML, and MessagePack.
+You send a `Decimal` from Python, JavaScript receives a string. You convert it back. Every. Single. Time.
+
+TYTX fixes this. Types flow automatically between Python and JavaScript.
+
+## The Pain You Know
+
+```python
+# Your Python API
+return {"price": Decimal("99.99"), "due_date": date(2025, 1, 15)}
+```
+
+```javascript
+// Your JavaScript client
+const data = await response.json();
+// data.price is "99.99" (string) - need to convert
+// data.due_date is "2025-01-15" (string) - need to convert
+
+const price = new Decimal(data.price);      // Manual conversion
+const dueDate = new Date(data.due_date);    // Manual conversion
+```
+
+**This leads to:**
+
+- Conversion code scattered everywhere
+- Bugs when someone forgets to convert
+- Financial calculations with floating-point errors
+- Different date formats causing off-by-one-day bugs
+
+## The TYTX Solution
+
+```python
+# Server - just return native types
+return {"price": Decimal("99.99"), "due_date": date(2025, 1, 15)}
+```
+
+```javascript
+// Client - types arrive ready to use
+const data = await tytx_fetch('/api/order');
+data.price      // → Decimal (not string)
+data.due_date   // → Date (not string)
+```
+
+**Zero conversion code. Types just work.**
+
+## 30-Second Demo
+
+**Python:**
+
+```bash
+pip install genro-tytx
+```
+
+```python
+from decimal import Decimal
+from datetime import date
+from genro_tytx import to_typed_text, from_text
+
+# Encode
+data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+encoded = to_typed_text(data)
+# '{"price": "99.99::N", "date": "2025-01-15::D"}::JS'
+
+# Decode
+decoded = from_text(encoded)
+# {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
+```
+
+**JavaScript:**
+
+```bash
+npm install genro-tytx big.js
+```
+
+```javascript
+import { tytx_fetch } from 'genro-tytx';
+
+const result = await tytx_fetch('/api/invoice', {
+    body: { price: new Decimal('99.99'), date: new Date() }
+});
+// result.total → Decimal (ready to use)
+```
 
 ## Installation
 
 ```bash
+# Python
 pip install genro-tytx
 
-# With optional dependencies
-pip install genro-tytx[fast]      # orjson for faster JSON
-pip install genro-tytx[msgpack]   # MessagePack support
-pip install genro-tytx[all]       # All optional dependencies
+# JavaScript/TypeScript
+npm install genro-tytx
+
+# Recommended: decimal library for JS
+npm install big.js  # lightweight, good for most cases
+# or: npm install decimal.js  # more features
 ```
 
-## Quick Start
+## Full Stack Setup
+
+### Python Server (FastAPI)
 
 ```python
-from datetime import date
+from fastapi import FastAPI, Request
+from genro_tytx import TYTXMiddleware
 from decimal import Decimal
-from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
 
-# Encode dict (text format - with ::JS suffix)
-data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
-text_str = to_typed_text(data)
-# '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
+app = FastAPI()
+app = TYTXMiddleware(app)
 
-# Encode scalar (no ::JS suffix)
-scalar_str = to_typed_text(date(2025, 1, 15))
-# '"2025-01-15::D"'
+@app.post("/api/order")
+async def create_order(request: Request):
+    data = request.scope["tytx"]["body"]
 
-# Decode
-result = from_text(text_str)
-# {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
+    # Types are already correct!
+    price = data["price"]       # Decimal
+    quantity = data["quantity"] # int
 
-# Encode (JSON format - with TYTX:// protocol prefix)
-json_str = to_typed_json(data)
-# 'TYTX://{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
-
-# Decode
-result = from_json(json_str)
-# {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
+    return {"total": price * quantity * Decimal("1.22")}
 ```
 
-### API Functions
+### JavaScript Client
 
-| Function | Format | Description |
-|----------|--------|-------------|
-| `to_typed_text` | `...::JS` or `"value::T"` | Encode dict/list with `::JS` suffix, scalar with type suffix only |
-| `from_text` | `...::JS` or `"value::T"` | Decode text format |
-| `to_typed_json` | `TYTX://...::JS` or `TYTX://"value::T"` | Encode with protocol prefix |
-| `from_json` | `TYTX://...` | Decode JSON format (prefix optional) |
+```javascript
+import { tytx_fetch, createDate } from 'genro-tytx';
+import Decimal from 'decimal.js';
+
+const result = await tytx_fetch('/api/order', {
+    method: 'POST',
+    body: {
+        price: new Decimal('49.99'),
+        quantity: 2,
+        date: createDate(2025, 1, 15),
+    }
+});
+
+// Types are already correct!
+console.log(result.total.toFixed(2));  // "121.98" (Decimal)
+```
 
 ## Supported Types
 
-### JSON (non-native types only)
+| Python | JavaScript | Wire Format |
+|--------|------------|-------------|
+| `Decimal` | `Decimal` (big.js) | `"99.99::N"` |
+| `date` | `Date` (midnight UTC) | `"2025-01-15::D"` |
+| `datetime` | `Date` | `"2025-01-15T10:30:00.000Z::DHZ"` |
+| `time` | `Date` (epoch date) | `"10:30:00.000::H"` |
 
-| Type | Suffix | Example |
-|------|--------|---------|
-| Decimal | `N` | `"100.50::N"` |
-| date | `D` | `"2025-01-15::D"` |
-| datetime | `DHZ` | `"2025-01-15T10:30:00Z::DHZ"` |
-| time | `H` | `"10:30:00::H"` |
+Native JSON types (string, number, boolean, null) pass through unchanged.
 
-> **Note**: `DH` is deprecated but still accepted for backward compatibility.
+## When to Use TYTX
 
-### XML (all types, everything is string)
+**Good fit:**
 
-| Type | Suffix | Example |
-|------|--------|---------|
-| Decimal | `N` | `<price>100.50::N</price>` |
-| date | `D` | `<d>2025-01-15::D</d>` |
-| datetime | `DHZ` | `<dt>2025-01-15T10:30:00.000Z::DHZ</dt>` |
-| time | `H` | `<t>10:30:00::H</t>` |
-| bool | `B` | `<flag>1::B</flag>` |
-| int | `L` | `<count>42::L</count>` |
+- Web apps with forms containing dates/decimals
+- Financial applications requiring decimal precision
+- APIs that send/receive typed data frequently
+- Excel-like grids with mixed types
 
-## Formats
+**Not needed:**
 
-### JSON
+- APIs that only use strings and integers
+- Simple CRUD with no special types
+- Already using GraphQL/Protobuf with full type support
 
-```python
-from decimal import Decimal
-from genro_tytx import to_typed_text, from_text, to_typed_json, from_json
+## Documentation
 
-# Text format (suffix only)
-encoded = to_typed_text({"price": Decimal("100.50")})
-# '{"price": "100.50::N"}::JS'
-decoded = from_text(encoded)
-
-# JSON format (with TYTX:// protocol prefix)
-encoded = to_typed_json({"price": Decimal("100.50")})
-# 'TYTX://{"price": "100.50::N"}::JS'
-decoded = from_json(encoded)
-```
-
-### XML
-
-```python
-from decimal import Decimal
-from genro_tytx import to_xml, from_xml
-
-data = {
-    "order": {
-        "attrs": {"id": 123},
-        "value": {"price": {"attrs": {}, "value": Decimal("100.50")}}
-    }
-}
-encoded = to_xml(data)
-# '<order id="123::L"><price>100.50::N</price></order>'
-
-decoded = from_xml(encoded)
-```
-
-### MessagePack
-
-```python
-from genro_tytx import to_msgpack, from_msgpack
-
-packed = to_msgpack({"price": Decimal("100.50")})
-unpacked = from_msgpack(packed)
-```
-
-## HTTP Utilities
-
-```python
-from genro_tytx import encode_body, decode_body, make_headers
-
-# Create request
-headers = make_headers("json")
-body = encode_body(data, format="json")
-
-# Parse response
-result = decode_body(response_body, content_type=response.headers["Content-Type"])
-```
-
-## Transparent Type Handling (End-to-End)
-
-TYTX enables **transparent type handling** across the entire HTTP stack:
-
-```text
-Browser                     Server                      Handler
-───────                     ──────                      ───────
-tytx_fetch({           →    Middleware decode      →    Native types
-  date: Date,               (query, headers,            date(), Decimal()
-  price: Decimal            cookies, body)                    ↓
-})                                ↓                     return {total: Decimal}
-      ↑                     Middleware encode      ←          │
-      └─────────────────────────────────────────────────────────┘
-```
-
-- **Browser**: `tytx_fetch` encodes query, headers, cookies, body
-- **Server**: Middleware decodes/encodes automatically
-- **Handler**: Works only with native types (Date, Decimal, etc.)
-
-📖 **Full documentation**: [docs/http-integration.md](docs/http-integration.md)
+| I want to... | Go to... |
+|--------------|----------|
+| Try it in 5 minutes | [Quick Start](docs/quickstart.md) |
+| Use with FastAPI/Flask | [HTTP Integration](docs/http-integration.md) |
+| Understand the wire format | [How It Works](docs/how-it-works.md) |
+| See API reference | [Middleware API](docs/middleware-api.md) |
+| Compare with alternatives | [Alternatives](docs/alternatives.md) |
 
 ## License
 

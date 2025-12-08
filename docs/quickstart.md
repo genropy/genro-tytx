@@ -1,212 +1,195 @@
 # Quick Start
 
-Get productive with TYTX Base in 5 minutes.
+Get productive with TYTX in 5 minutes.
 
-## Core Concept
+## Installation
 
-TYTX uses `value::type_code` syntax to encode type information in strings:
+```bash
+# Python
+pip install genro-tytx
 
-| Syntax | Python Result |
-|--------|---------------|
-| `"100.50::N"` | `Decimal("100.50")` |
-| `"2025-01-15::D"` | `date(2025, 1, 15)` |
-| `"2025-01-15T10:30:00Z::DHZ"` | `datetime(2025, 1, 15, 10, 30, tzinfo=...)` |
-| `"10:30:00::H"` | `time(10, 30, 0)` |
+# JavaScript/TypeScript
+npm install genro-tytx
 
-## Basic Usage
+# Recommended: decimal library for JS
+npm install big.js  # lightweight, good for most cases
+# or: npm install decimal.js  # more features
+```
 
-### Encode Python to TYTX JSON
+## 1. Basic Usage (Python only)
+
+Encode data with special types, decode back:
 
 ```python
 from datetime import date, datetime, time
 from decimal import Decimal
-from genro_tytx import to_typed_text, to_typed_json
+from genro_tytx import to_typed_text, from_text
 
 data = {
     "price": Decimal("99.99"),
-    "date": date(2025, 1, 15),
-    "time": time(10, 30, 0),
-    "name": "Widget"  # Native JSON type, no encoding
+    "due_date": date(2025, 1, 15),
+    "name": "Widget",  # Native JSON - unchanged
+    "quantity": 5,     # Native JSON - unchanged
 }
 
-# Text format (suffix only)
-to_typed_text(data)
-# '{"price": "99.99::N", "date": "2025-01-15::D", "time": "10:30:00::H", "name": "Widget"}::JS'
+# Encode
+encoded = to_typed_text(data)
+# '{"price": "99.99::N", "due_date": "2025-01-15::D", ...}::JS'
 
-# JSON format (with TYTX:// protocol prefix)
-to_typed_json(data)
-# 'TYTX://{"price": "99.99::N", "date": "2025-01-15::D", "time": "10:30:00::H", "name": "Widget"}::JS'
+# Decode
+decoded = from_text(encoded)
+assert decoded["price"] == Decimal("99.99")
+assert decoded["due_date"] == date(2025, 1, 15)
 ```
 
-### Decode TYTX JSON to Python
+## 2. Web Application (Full Stack)
+
+The real power: types flow automatically between browser and server.
+
+### Server (FastAPI)
 
 ```python
-from genro_tytx import from_text, from_json
-
-# Decode text format
-result = from_text('{"price": "99.99::N", "date": "2025-01-15::D"}::JS')
-# {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
-
-# Decode JSON format (with or without TYTX:// prefix)
-result = from_json('TYTX://{"price": "99.99::N", "date": "2025-01-15::D"}::JS')
-# {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
-```
-
-## XML Usage
-
-TYTX Base encodes types in XML using inline `::SUFFIX` syntax (same as JSON):
-
-```python
+from fastapi import FastAPI, Request
+from genro_tytx import TYTXMiddleware
 from decimal import Decimal
-from datetime import date
-from genro_tytx import to_xml, from_xml
+from datetime import date, timedelta
 
-# Encode to XML (requires attrs/value structure)
-data = {
-    "order": {
-        "attrs": {"id": 123},
-        "value": {
-            "price": {"attrs": {}, "value": Decimal("99.99")},
-            "date": {"attrs": {}, "value": date(2025, 1, 15)}
-        }
+app = FastAPI()
+app = TYTXMiddleware(app)
+
+@app.post("/api/order")
+async def create_order(request: Request):
+    data = request.scope["tytx"]["body"]
+
+    # Types are already correct!
+    price = data["price"]       # Decimal
+    quantity = data["quantity"] # int
+    ship_date = data["date"]    # date
+
+    total = price * quantity * Decimal("1.22")
+
+    return {
+        "total": total,                          # Decimal
+        "ship_date": ship_date + timedelta(days=3),  # date
     }
-}
-xml = to_xml(data)
-# '<order id="123::L"><price>99.99::N</price><date>2025-01-15::D</date></order>'
-
-# Decode from XML
-result = from_xml(xml)
 ```
 
-## MessagePack Usage
+### Client (JavaScript)
 
-TYTX Base uses ExtType(42) for binary serialization:
+```javascript
+import { tytx_fetch, createDate } from 'genro-tytx';
+import Decimal from 'decimal.js';
+
+const result = await tytx_fetch('/api/order', {
+    method: 'POST',
+    body: {
+        price: new Decimal('49.99'),
+        quantity: 2,
+        date: createDate(2025, 1, 15),
+    }
+});
+
+// Types are already correct!
+console.log(result.total.toFixed(2));  // "121.98" (Decimal)
+console.log(result.ship_date);         // Date object
+```
+
+### Server (Flask)
 
 ```python
-from decimal import Decimal
+from flask import Flask, g
+from genro_tytx import TYTXWSGIMiddleware
+
+app = Flask(__name__)
+app.wsgi_app = TYTXWSGIMiddleware(app.wsgi_app)
+
+@app.route("/api/order", methods=["POST"])
+def create_order():
+    data = g.environ["tytx"]["body"]
+    return {"total": data["price"] * data["quantity"]}
+```
+
+## 3. TypeScript with Types
+
+```typescript
+import { tytx_fetch, createDate } from 'genro-tytx';
+import Decimal from 'decimal.js';
+
+interface OrderResponse {
+    total: Decimal;
+    ship_date: Date;
+}
+
+const result = await tytx_fetch<OrderResponse>('/api/order', {
+    method: 'POST',
+    body: {
+        price: new Decimal('49.99'),
+        quantity: 2,
+        date: createDate(2025, 1, 15),
+    }
+});
+```
+
+## 4. Query Parameters
+
+Types in URL query strings:
+
+```javascript
+const result = await tytx_fetch('/api/search', {
+    query: {
+        start_date: createDate(2025, 1, 1),
+        end_date: createDate(2025, 12, 31),
+        min_price: new Decimal('10.00'),
+    }
+});
+// URL: /api/search?start_date=2025-01-01::D&end_date=2025-12-31::D&min_price=10.00::N
+```
+
+```python
+@app.get("/api/search")
+async def search(request: Request):
+    params = request.scope["tytx"]["query"]
+    start = params["start_date"]    # date object
+    min_price = params["min_price"] # Decimal object
+```
+
+## Helper Functions (JavaScript)
+
+```javascript
+import { createDate, createTime, createDateTime } from 'genro-tytx';
+
+// Date only (midnight UTC)
+const date = createDate(2025, 1, 15);
+
+// Time only (stored as epoch date)
+const time = createTime(14, 30, 0);
+
+// Full datetime
+const datetime = createDateTime(2025, 1, 15, 14, 30, 0);
+```
+
+## Other Formats
+
+### MessagePack (Binary)
+
+More compact, good for large data:
+
+```python
 from genro_tytx import to_msgpack, from_msgpack
 
-data = {"price": Decimal("99.99")}
-
-# Encode to binary
-packed = to_msgpack(data)
-
-# Decode from binary
-result = from_msgpack(packed)
-# {"price": Decimal("99.99")}
+packed = to_msgpack({"price": Decimal("100.50")})
+unpacked = from_msgpack(packed)
 ```
 
-> **Note**: Requires `pip install genro-tytx[msgpack]`
+> Requires `pip install genro-tytx[msgpack]`
 
-## HTTP Utilities
+### XML
 
-For web applications:
-
-```python
-from genro_tytx import encode_body, decode_body, make_headers
-
-# Create request with TYTX MIME type
-headers = make_headers("json")  # {"Content-Type": "application/vnd.tytx+json"}
-body = encode_body(data, format="json")
-
-# Parse response
-result = decode_body(response_body, content_type="application/vnd.tytx+json")
-```
-
-> **Important**: When using HTTP with TYTX MIME types (`application/vnd.tytx+json`), the body is valid JSON **without** the `TYTX://` prefix. The Content-Type header already identifies the protocol. The `TYTX://` prefix would invalidate the JSON and is only used for self-identifying payloads stored without HTTP metadata.
-
-## Type Codes Reference
-
-### JSON (non-native types only)
-
-TYTX Base only encodes types that JSON cannot represent natively:
-
-| Code | Name | Python Type | Example |
-|------|------|-------------|---------|
-| `N` | decimal | `Decimal` | `"100.50::N"` |
-| `D` | date | `date` | `"2025-01-15::D"` |
-| `DHZ` | datetime | `datetime` | `"2025-01-15T10:00:00Z::DHZ"` |
-| `H` | time | `time` | `"10:30:00::H"` |
-
-> **Note**: `DH` is deprecated but still accepted for backward compatibility.
-
-### Receive-only types
-
-These are decoded but never encoded (they are native JSON types in Python):
-
-| Code | Python Type |
-|------|-------------|
-| `L` | `int` |
-| `R` | `float` |
-| `B` | `bool` |
-| `T` | `str` |
-
-### XML (all types)
-
-In XML, all values are strings, so all types are encoded with inline suffixes:
-
-| Code | Python Type | Example |
-|------|-------------|---------|
-| `N` | `Decimal` | `<price>100.50::N</price>` |
-| `D` | `date` | `<d>2025-01-15::D</d>` |
-| `DHZ` | `datetime` | `<dt>2025-01-15T10:30:00.000Z::DHZ</dt>` |
-| `H` | `time` | `<t>10:30:00::H</t>` |
-| `B` | `bool` | `<flag>1::B</flag>` |
-| `L` | `int` | `<count>42::L</count>` |
-
-## Nested Structures
-
-TYTX Base handles nested dicts and lists:
-
-```python
-from decimal import Decimal
-from datetime import date
-from genro_tytx import to_typed_text, from_text
-
-invoice = {
-    "invoice": {
-        "total": Decimal("999.99"),
-        "date": date(2025, 1, 15),
-        "items": [
-            {"price": Decimal("100.00"), "qty": 2},
-            {"price": Decimal("200.00"), "qty": 1},
-        ],
-    }
-}
-
-encoded = to_typed_text(invoice)
-decoded = from_text(encoded)
-
-assert decoded == invoice  # ✓ Perfect roundtrip
-```
-
-## Middleware (ASGI/WSGI)
-
-For web applications, use the built-in middleware for automatic encoding/decoding:
-
-```python
-from genro_tytx import TYTXMiddleware  # ASGI
-# or
-from genro_tytx import TYTXWSGIMiddleware  # WSGI
-
-# FastAPI / Starlette
-app = TYTXMiddleware(your_app)
-
-# Flask
-app.wsgi_app = TYTXWSGIMiddleware(app.wsgi_app)
-```
-
-The middleware:
-
-- Decodes TYTX values from query strings, headers, cookies, and body
-- Encodes JSON responses with TYTX
-- Makes decoded data available in `scope["tytx"]` (ASGI) or `environ["tytx"]` (WSGI)
-
-See [HTTP Integration](http-integration.md) and [Middleware API](middleware-api.md) for details.
+For legacy systems requiring XML. See [XML Format Reference](xml-format.md).
 
 ## Next Steps
 
-- See [Installation](installation.md) for optional dependencies
-- See [HTTP Integration](http-integration.md) for end-to-end type handling
-- See [Middleware API](middleware-api.md) for Python middleware and JS/TS `tytx_fetch`
-- Check TYTX (full) for advanced features like struct schemas and Pydantic integration
+- [HTTP Integration](http-integration.md) - Complete full-stack guide
+- [Middleware API](middleware-api.md) - API reference
+- [FAQ](faq.md) - Common questions
+- [How It Works](how-it-works.md) - Wire format details

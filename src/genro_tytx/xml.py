@@ -42,7 +42,7 @@ def _serialize_attr_value(value: Any) -> str:
 
 def _serialize_text_value(value: Any) -> str | None:
     """Serialize a value for use as XML text content."""
-    if value is None:
+    if value is None:  # pragma: no cover - None handled by caller before this
         return None
 
     # Check if it's a typed scalar
@@ -60,19 +60,27 @@ def _serialize_text_value(value: Any) -> str | None:
 
 def _serialize_element(tag: str, data: dict[str, Any]) -> ET.Element:
     """
-    Serialize a dict with 'attrs' and 'value' keys to XML element.
+    Serialize a dict with 'value' key (and optional 'attrs') to XML element.
 
     Args:
         tag: Element tag name
-        data: Dict with 'attrs' and 'value' keys
+        data: Dict with 'value' key and optional 'attrs' key
 
     Returns:
         XML Element
+
+    Raises:
+        ValueError: If data doesn't have 'value' key
     """
+    if not isinstance(data, dict) or "value" not in data:
+        raise ValueError(
+            f"Element '{tag}' must be a dict with 'value' key, got: {type(data).__name__}"
+        )
+
     element = ET.Element(tag)
 
     attrs = data.get("attrs", {})
-    value = data.get("value")
+    value = data["value"]
 
     # Set attributes
     for attr_name, attr_value in attrs.items():
@@ -88,35 +96,14 @@ def _serialize_element(tag: str, data: dict[str, Any]) -> ET.Element:
             if isinstance(child_data, list):
                 # Repeated elements
                 for item in child_data:
-                    # Auto-wrap non-attrs/value items
-                    if not isinstance(item, dict):
-                        # Scalar value
-                        item = {"attrs": {}, "value": item}
-                    elif not ("attrs" in item and "value" in item):
-                        # Plain dict
-                        item = {"attrs": {}, "value": _convert_legacy_value(item)}
                     child_element = _serialize_element(child_tag, item)
                     element.append(child_element)
             else:
-                # Auto-wrap non-attrs/value items
-                if not isinstance(child_data, dict):
-                    # Scalar value
-                    child_data = {"attrs": {}, "value": child_data}
-                elif not ("attrs" in child_data and "value" in child_data):
-                    # Plain dict
-                    child_data = {"attrs": {}, "value": _convert_legacy_value(child_data)}
                 child_element = _serialize_element(child_tag, child_data)
                 element.append(child_element)
     elif isinstance(value, list):
         # Direct list (wrapped in _item tags)
         for item in value:
-            # Auto-wrap non-attrs/value items
-            if not isinstance(item, dict):
-                # Scalar value
-                item = {"attrs": {}, "value": item}
-            elif not ("attrs" in item and "value" in item):
-                # Plain dict
-                item = {"attrs": {}, "value": _convert_legacy_value(item)}
             child_element = _serialize_element("_item", item)
             element.append(child_element)
     else:
@@ -126,40 +113,68 @@ def _serialize_element(tag: str, data: dict[str, Any]) -> ET.Element:
     return element
 
 
-def to_xml(value: dict[str, Any], *, declaration: bool = True) -> str:
+def to_xml(
+    value: Any,
+    *,
+    declaration: bool = True,
+    root: bool | str | dict[str, Any] | None = None,
+) -> str:
     """
-    Encode a Python dict to TYTX XML string.
+    Encode a Python value to TYTX XML string.
 
-    The input must be a dict with a single key (the root tag) mapping to
-    a dict with 'attrs' and 'value' keys.
+    The input must follow the structure: {tag: {value: ..., attrs: ...}}
+    where 'attrs' is optional (defaults to {}).
 
     Args:
-        value: Dict in format {"tag": {"attrs": {...}, "value": ...}}
+        value: Data to encode in {tag: {value: ..., attrs: ...}} format.
+               If root is specified, value is wrapped automatically.
         declaration: Include XML declaration
+        root: Optional root wrapper:
+            - None/False: value must be dict with single root key (default)
+            - True: wrap in <tytx_root>...</tytx_root>
+            - str: wrap in <{root}>...</{root}>
+            - dict: wrap in <tytx_root {attrs}>...</tytx_root> with attributes
 
     Returns:
         XML string with typed values marked
 
     Example:
-        >>> to_xml({
-        ...     "order": {
-        ...         "attrs": {"id": 123},
-        ...         "value": {"total": {"attrs": {}, "value": Decimal("100.50")}}
-        ...     }
-        ... })
-        '<?xml version="1.0" ?><order id="123::L"><total>100.50::N</total></order>'
+        >>> to_xml({"order": {"attrs": {"id": 123}, "value": {"total": {"value": Decimal("100")}}}})
+        '<?xml version="1.0" ?><order id="123::L"><total>100::N</total></order>'
+
+        >>> to_xml({"price": {"value": Decimal("100.50")}}, root=True)
+        '<?xml version="1.0" ?><tytx_root><price>100.50::N</price></tytx_root>'
     """
+    # Handle root wrapper
+    if root is not None and root is not False:
+        if root is True:
+            root_tag = "tytx_root"
+            root_attrs: dict[str, Any] = {}
+        elif isinstance(root, str):
+            root_tag = root
+            root_attrs = {}
+        elif isinstance(root, dict):
+            root_tag = "tytx_root"
+            root_attrs = root
+        else:
+            raise TypeError(
+                f"root must be bool, str, or dict, not {type(root).__name__}"
+            )
+
+        # Wrap value in root element
+        value = {root_tag: {"attrs": root_attrs, "value": value}}
+
     if not isinstance(value, dict) or len(value) != 1:
         raise ValueError("Input must be a dict with a single root element")
 
     root_tag, root_data = next(iter(value.items()))
 
-    # Handle simple dict (backwards compatibility)
-    if not isinstance(root_data, dict) or (
-        "attrs" not in root_data and "value" not in root_data
-    ):
-        # Legacy format: convert to new format
-        root_data = {"attrs": {}, "value": _convert_legacy_value(root_data)}
+    # Validate format
+    if not isinstance(root_data, dict) or "value" not in root_data:
+        raise ValueError(
+            f"Root element '{root_tag}' must be a dict with 'value' key. "
+            f"Expected format: {{'{root_tag}': {{'value': ..., 'attrs': ...}}}}"
+        )
 
     element = _serialize_element(root_tag, root_data)
     xml_str = ET.tostring(element, encoding="unicode")
@@ -167,33 +182,6 @@ def to_xml(value: dict[str, Any], *, declaration: bool = True) -> str:
     if declaration:
         return f'<?xml version="1.0" ?>{xml_str}'
     return xml_str
-
-
-def _convert_legacy_value(value: Any) -> Any:
-    """Convert legacy format value to new format."""
-    if value is None:
-        return None
-
-    if isinstance(value, dict):
-        # Convert each child to new format
-        result = {}
-        for k, v in value.items():
-            if isinstance(v, dict) and "attrs" in v and "value" in v:
-                result[k] = v
-            else:
-                result[k] = {"attrs": {}, "value": _convert_legacy_value(v)}
-        return result
-
-    if isinstance(value, list):
-        return [
-            {"attrs": {}, "value": _convert_legacy_value(item)}
-            if not (isinstance(item, dict) and "attrs" in item and "value" in item)
-            else item
-            for item in value
-        ]
-
-    # Scalar
-    return value
 
 
 def _hydrate_value(text: str) -> Any:
@@ -271,15 +259,19 @@ def _deserialize_element(element: ET.Element) -> dict[str, Any]:
     return {"attrs": attrs, "value": hydrated}
 
 
-def from_xml(data: str) -> dict[str, Any]:
+def from_xml(data: str) -> dict[str, Any] | Any:
     """
-    Decode a TYTX XML string to Python dict.
+    Decode a TYTX XML string to Python value.
+
+    If the root element is 'tytx_root', it is automatically unwrapped
+    and the inner value is returned directly.
 
     Args:
         data: XML string with typed values
 
     Returns:
-        Dict in format {"tag": {"attrs": {...}, "value": ...}}
+        If root is 'tytx_root': the unwrapped value (dict, list, or scalar)
+        Otherwise: Dict in format {"tag": {"attrs": {...}, "value": ...}}
 
     Example:
         >>> from_xml('<order id="123::L"><total>100.50::N</total></order>')
@@ -289,7 +281,15 @@ def from_xml(data: str) -> dict[str, Any]:
                 "value": {"total": {"attrs": {}, "value": Decimal("100.50")}}
             }
         }
+
+        >>> from_xml('<tytx_root><price>100.50::N</price></tytx_root>')
+        {"price": {"attrs": {}, "value": Decimal("100.50")}}
     """
     root = ET.fromstring(data)
     result = _deserialize_element(root)
+
+    # Auto-unwrap tytx_root
+    if root.tag == "tytx_root":
+        return result["value"]
+
     return {root.tag: result}

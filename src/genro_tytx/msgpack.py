@@ -18,11 +18,11 @@ try:
     import msgpack
 
     HAS_MSGPACK = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAS_MSGPACK = False
 
 
-def _check_msgpack():
+def _check_msgpack():  # pragma: no cover
     if not HAS_MSGPACK:
         raise ImportError(
             "msgpack is required for MessagePack support. "

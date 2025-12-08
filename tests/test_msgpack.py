@@ -58,3 +58,16 @@ class TestMsgpackRoundTrip:
         packed = to_msgpack(original)
         result = from_msgpack(packed)
         assert result == original
+
+
+class TestMsgpackErrors:
+    """Tests for MessagePack error cases."""
+
+    def test_unserializable_type(self):
+        """Unserializable type raises TypeError."""
+
+        class CustomClass:
+            pass
+
+        with pytest.raises(TypeError):
+            to_msgpack({"obj": CustomClass()})

@@ -84,13 +84,14 @@ class TestXmlEncode:
         # No ::T suffix for strings
         assert "::T" not in result
 
-    def test_legacy_format_compatibility(self):
-        """Backwards compatibility with simple dict format."""
-        # Legacy format without attrs/value structure
+    def test_invalid_format_raises_error(self):
+        """Invalid format (missing 'value' key) raises ValueError."""
+        import pytest
+
+        # Missing 'value' key
         data = {"price": Decimal("100.50")}
-        result = to_xml(data, declaration=False)
-        # Should still work
-        assert "100.50::N" in result
+        with pytest.raises(ValueError, match="must be a dict with 'value' key"):
+            to_xml(data, declaration=False)
 
 
 class TestXmlDecode:
@@ -239,3 +240,268 @@ class TestXmlRoundTrip:
         # Use tytx_equivalent for semantic comparison
         # (handles datetime naive vs aware UTC equivalence)
         assert tytx_equivalent(original, decoded)
+
+
+class TestXmlEdgeCases:
+    """Tests for XML edge cases and error handling."""
+
+    def test_unsupported_type_in_attribute(self):
+        """Unsupported type in attribute raises TypeError."""
+        import pytest
+
+        class CustomClass:
+            pass
+
+        data = {"item": {"attrs": {"custom": CustomClass()}, "value": None}}
+        with pytest.raises(TypeError, match="Cannot serialize"):
+            to_xml(data, declaration=False)
+
+    def test_unsupported_type_in_text(self):
+        """Unsupported type in text content raises TypeError."""
+        import pytest
+
+        class CustomClass:
+            pass
+
+        data = {"item": {"attrs": {}, "value": CustomClass()}}
+        with pytest.raises(TypeError, match="Cannot serialize"):
+            to_xml(data, declaration=False)
+
+    def test_invalid_input_not_single_root(self):
+        """Multiple root elements raise ValueError."""
+        import pytest
+
+        data = {"a": {"attrs": {}, "value": None}, "b": {"attrs": {}, "value": None}}
+        with pytest.raises(ValueError, match="single root element"):
+            to_xml(data)
+
+    def test_invalid_input_not_dict(self):
+        """Non-dict input raises ValueError."""
+        import pytest
+
+        with pytest.raises(ValueError, match="single root element"):
+            to_xml("not a dict")
+
+    def test_none_attribute_value(self):
+        """None as attribute value becomes empty string."""
+        data = {"item": {"attrs": {"empty": None}, "value": "test"}}
+        result = to_xml(data, declaration=False)
+        assert 'empty=""' in result
+
+    def test_text_none_value(self):
+        """None as text value produces no text content."""
+        data = {"item": {"attrs": {}, "value": None}}
+        result = to_xml(data, declaration=False)
+        # Element should be empty or self-closing
+        assert "<item" in result
+
+    def test_unknown_suffix_returns_string(self):
+        """Unknown suffix returns string as-is."""
+        xml = '<item value="something::UNKNOWN" />'
+        result = from_xml(xml)
+        # Unknown suffix should be kept as string
+        assert result["item"]["attrs"]["value"] == "something::UNKNOWN"
+
+
+class TestXmlItemTag:
+    """Tests for _item tag handling."""
+
+    def test_direct_list_creates_item_tags(self):
+        """Direct list value creates _item tags."""
+        data = {
+            "container": {
+                "attrs": {},
+                "value": [
+                    {"attrs": {}, "value": Decimal("10.00")},
+                    {"attrs": {}, "value": Decimal("20.00")}
+                ]
+            }
+        }
+        result = to_xml(data, declaration=False)
+        assert "<_item>10.00::N</_item>" in result
+        assert "<_item>20.00::N</_item>" in result
+
+    def test_item_tags_roundtrip(self):
+        """_item tags roundtrip correctly."""
+        data = {
+            "container": {
+                "attrs": {},
+                "value": [
+                    {"attrs": {}, "value": Decimal("10.00")},
+                    {"attrs": {}, "value": Decimal("20.00")}
+                ]
+            }
+        }
+        encoded = to_xml(data, declaration=False)
+        decoded = from_xml(encoded)
+        assert decoded == data
+
+    def test_decode_item_tags_as_list(self):
+        """Decode _item tags back to list."""
+        xml = """
+        <container>
+            <_item>10.00::N</_item>
+            <_item>20.00::N</_item>
+        </container>
+        """
+        result = from_xml(xml)
+        assert result["container"]["value"] == [
+            {"attrs": {}, "value": Decimal("10.00")},
+            {"attrs": {}, "value": Decimal("20.00")}
+        ]
+
+    def test_direct_list_with_scalars(self):
+        """Direct list with scalar values."""
+        data = {
+            "prices": {
+                "attrs": {},
+                "value": [
+                    {"attrs": {}, "value": Decimal("10.00")},
+                    {"attrs": {}, "value": Decimal("20.00")},
+                    {"attrs": {}, "value": Decimal("30.00")}
+                ]
+            }
+        }
+        result = to_xml(data, declaration=False)
+        decoded = from_xml(result)
+        assert decoded == data
+
+    def test_direct_list_with_raw_scalars_raises_error(self):
+        """Direct list with raw scalars (not attrs/value) raises ValueError."""
+        import pytest
+
+        data = {
+            "prices": {
+                "attrs": {},
+                "value": [
+                    Decimal("10.00"),
+                    Decimal("20.00")
+                ]
+            }
+        }
+        with pytest.raises(ValueError, match="must be a dict with 'value' key"):
+            to_xml(data, declaration=False)
+
+    def test_direct_list_with_plain_dicts_raises_error(self):
+        """Direct list with plain dicts (missing 'value' key) raises ValueError."""
+        import pytest
+
+        data = {
+            "container": {
+                "attrs": {},
+                "value": [
+                    {"price": Decimal("10.00")},
+                    {"price": Decimal("20.00")}
+                ]
+            }
+        }
+        with pytest.raises(ValueError, match="must be a dict with 'value' key"):
+            to_xml(data, declaration=False)
+
+
+class TestXmlDeclaration:
+    """Tests for XML declaration handling."""
+
+    def test_with_declaration(self):
+        """Test with XML declaration."""
+        data = {"item": {"attrs": {}, "value": "test"}}
+        result = to_xml(data, declaration=True)
+        assert result.startswith('<?xml version="1.0" ?>')
+        assert "<item>test</item>" in result
+
+
+class TestXmlRootWrapper:
+    """Tests for the root parameter in to_xml."""
+
+    def test_root_true_wraps_dict(self):
+        """root=True wraps dict in tytx_root."""
+        data = {
+            "price": {"value": Decimal("100.50")},
+            "date": {"value": date(2025, 1, 15)}
+        }
+        result = to_xml(data, root=True, declaration=False)
+        assert result.startswith("<tytx_root>")
+        assert result.endswith("</tytx_root>")
+        assert "100.50::N" in result
+        assert "2025-01-15::D" in result
+
+    def test_root_true_wraps_list(self):
+        """root=True wraps list in tytx_root."""
+        data = [
+            {"value": Decimal("1.1")},
+            {"value": Decimal("2.2")},
+            {"value": Decimal("3.3")}
+        ]
+        result = to_xml(data, root=True, declaration=False)
+        assert result.startswith("<tytx_root>")
+        assert "<_item>1.1::N</_item>" in result
+        assert "<_item>2.2::N</_item>" in result
+
+    def test_root_string_custom_tag(self):
+        """root='custom' wraps in custom tag."""
+        data = {"price": {"value": Decimal("100.50")}}
+        result = to_xml(data, root="data", declaration=False)
+        assert result.startswith("<data>")
+        assert result.endswith("</data>")
+
+    def test_root_dict_with_attrs(self):
+        """root=dict wraps in tytx_root with attributes."""
+        data = {"price": {"value": Decimal("100.50")}}
+        result = to_xml(data, root={"version": 1}, declaration=False)
+        assert "<tytx_root" in result
+        assert 'version="1::L"' in result
+        assert "</tytx_root>" in result
+
+    def test_from_xml_unwraps_tytx_root(self):
+        """from_xml auto-unwraps tytx_root."""
+        xml = "<tytx_root><price>100.50::N</price></tytx_root>"
+        result = from_xml(xml)
+        # Should return unwrapped value, not {"tytx_root": ...}
+        assert "tytx_root" not in result
+        assert "price" in result
+        assert result["price"]["value"] == Decimal("100.50")
+
+    def test_from_xml_unwraps_tytx_root_list(self):
+        """from_xml auto-unwraps tytx_root containing list."""
+        xml = "<tytx_root><_item>1.1::N</_item><_item>2.2::N</_item></tytx_root>"
+        result = from_xml(xml)
+        # Should return list directly
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["value"] == Decimal("1.1")
+
+    def test_roundtrip_with_root_true(self):
+        """Roundtrip with root=True."""
+        original = {
+            "price": {"value": Decimal("100.50")},
+            "date": {"value": date(2025, 1, 15)}
+        }
+        encoded = to_xml(original, root=True, declaration=False)
+        decoded = from_xml(encoded)
+        # Decoded should match original structure
+        assert decoded["price"]["value"] == Decimal("100.50")
+        assert decoded["date"]["value"] == date(2025, 1, 15)
+
+    def test_roundtrip_list_with_root_true(self):
+        """Roundtrip list with root=True."""
+        original = [{"value": Decimal("1.1")}, {"value": Decimal("2.2")}]
+        encoded = to_xml(original, root=True, declaration=False)
+        decoded = from_xml(encoded)
+        assert isinstance(decoded, list)
+        assert decoded[0]["value"] == Decimal("1.1")
+        assert decoded[1]["value"] == Decimal("2.2")
+
+    def test_regular_root_not_unwrapped(self):
+        """Regular root element (not tytx_root) is not unwrapped."""
+        xml = "<order><price>100.50::N</price></order>"
+        result = from_xml(xml)
+        assert "order" in result
+        assert result["order"]["value"]["price"]["value"] == Decimal("100.50")
+
+    def test_invalid_root_type_raises_error(self):
+        """Invalid root type raises TypeError."""
+        import pytest
+
+        data = {"price": {"value": Decimal("100.50")}}
+        with pytest.raises(TypeError, match="root must be bool, str, or dict"):
+            to_xml(data, root=123)

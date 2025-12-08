@@ -73,7 +73,7 @@ def _serialize_bool(v: bool) -> str:
 
 
 def _deserialize_bool(s: str) -> bool:
-    return s == "1"
+    return s.lower() in ("1", "true", "yes", "t", "on", "y")
 
 
 def _serialize_int(v: int) -> str:
@@ -92,7 +92,7 @@ def _deserialize_float(s: str) -> float:
     return float(s)
 
 
-def _serialize_str(v: str) -> str:
+def _serialize_str(v: str) -> str:  # pragma: no cover
     return v
 
 

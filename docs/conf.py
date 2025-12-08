@@ -36,8 +36,8 @@ myst_enable_extensions = [
 # Theme
 html_theme = "sphinx_rtd_theme"
 
-# Logo (uncomment when logo is available)
-# html_logo = "assets/logo.png"
+# Logo
+html_logo = "assets/logo.png"
 
 # Source files
 source_suffix = {

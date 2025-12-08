@@ -156,9 +156,7 @@ def _decode_cookies(cookie_header: str) -> dict[str, Any]:
     return result
 
 
-def _decode_headers(
-    headers: list[tuple[bytes, bytes]], prefix: str
-) -> dict[str, Any]:
+def _decode_headers(headers: list[tuple[bytes, bytes]], prefix: str) -> dict[str, Any]:
     """Decode headers with given prefix, hydrating TYTX values."""
     result = {}
     prefix_lower = prefix.lower()
@@ -331,7 +329,10 @@ class TYTXMiddleware:
                                     )
                                 elif name.lower() == b"content-length":
                                     new_headers.append(
-                                        (name, str(len(response_body)).encode("latin-1"))
+                                        (
+                                            name,
+                                            str(len(response_body)).encode("latin-1"),
+                                        )
                                     )
                                 else:
                                     new_headers.append((name, value))
@@ -340,15 +341,19 @@ class TYTXMiddleware:
                             pass
 
                     # Send response
-                    await send({
-                        "type": "http.response.start",
-                        "status": response_status,
-                        "headers": response_headers,
-                    })
-                    await send({
-                        "type": "http.response.body",
-                        "body": response_body,
-                    })
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": response_status,
+                            "headers": response_headers,
+                        }
+                    )
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": response_body,
+                        }
+                    )
 
         await self.app(scope, receive_wrapper, send_wrapper)
 

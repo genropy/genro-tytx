@@ -101,7 +101,7 @@ def decode_body(
         return from_xml(data)
 
     if format == "msgpack":
-        if isinstance(data, str):
+        if isinstance(data, str):  # pragma: no cover
             data = data.encode("utf-8")
         return from_msgpack(data)
 

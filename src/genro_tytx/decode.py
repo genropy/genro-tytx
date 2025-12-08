@@ -17,7 +17,7 @@ try:
     import orjson
 
     HAS_ORJSON = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAS_ORJSON = False
 
 TYTX_MARKER = "::JS"

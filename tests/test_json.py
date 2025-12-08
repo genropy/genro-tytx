@@ -371,3 +371,125 @@ class TestTypedJson:
         assert encoded.startswith("TYTX://")
         decoded = from_json(encoded)
         assert decoded == original
+
+
+class TestEncodeErrors:
+    """Tests for encoding error cases."""
+
+    def test_unserializable_type_stdlib(self):
+        """Unserializable type raises TypeError with stdlib json."""
+
+        class CustomClass:
+            pass
+
+        import pytest
+
+        with pytest.raises(TypeError):
+            to_typed_text({"obj": CustomClass()}, use_orjson=False)
+
+    def test_unserializable_type_orjson(self):
+        """Unserializable type raises TypeError with orjson."""
+
+        class CustomClass:
+            pass
+
+        import pytest
+
+        with pytest.raises(TypeError):
+            to_typed_text({"obj": CustomClass()}, use_orjson=True)
+
+
+class TestRegistry:
+    """Tests for registry functions."""
+
+    def test_get_suffix_known(self):
+        """get_suffix returns suffix for known type."""
+        from genro_tytx import get_suffix
+        from decimal import Decimal
+
+        assert get_suffix(Decimal) == "N"
+
+    def test_get_suffix_unknown(self):
+        """get_suffix returns None for unknown type."""
+        from genro_tytx import get_suffix
+
+        assert get_suffix(str) is None
+
+    def test_get_type_known(self):
+        """get_type returns type for known suffix."""
+        from genro_tytx import get_type
+        from decimal import Decimal
+
+        assert get_type("N") == Decimal
+
+    def test_get_type_unknown(self):
+        """get_type returns None for unknown suffix."""
+        from genro_tytx import get_type
+
+        assert get_type("UNKNOWN") is None
+
+    def test_register_type(self):
+        """register_type adds custom type."""
+        from genro_tytx import register_type, get_suffix, get_type
+
+        class Money:
+            def __init__(self, amount):
+                self.amount = amount
+
+        def serialize_money(m):
+            return str(m.amount)
+
+        def deserialize_money(s):
+            return Money(float(s))
+
+        register_type(Money, "M", serialize_money, deserialize_money)
+
+        assert get_suffix(Money) == "M"
+        assert get_type("M") == Money
+
+
+class TestDatetimeOffset:
+    """Tests for datetime with explicit timezone offset."""
+
+    def test_decode_datetime_with_offset(self):
+        """Decode datetime with explicit offset (not Z suffix)."""
+        # This tests the branch where datetime string doesn't end with Z
+        result = from_text('"2025-01-15T10:30:00.000+01:00::DHZ"')
+        assert isinstance(result, datetime)
+        # Should parse correctly with the offset
+        assert result.hour == 10
+        assert result.minute == 30
+
+
+class TestDecodeScalar:
+    """Tests for decoding scalar values with orjson."""
+
+    def test_scalar_with_orjson(self):
+        """Decode scalar with orjson."""
+        from genro_tytx import from_text
+        from datetime import date
+
+        result = from_text('"2025-01-15::D"', use_orjson=True)
+        assert result == date(2025, 1, 15)
+
+    def test_scalar_with_stdlib(self):
+        """Decode scalar with stdlib json."""
+        from genro_tytx import from_text
+        from datetime import date
+
+        result = from_text('"2025-01-15::D"', use_orjson=False)
+        assert result == date(2025, 1, 15)
+
+    def test_string_without_suffix(self):
+        """String without :: returns as-is."""
+        from genro_tytx.decode import _hydrate_value
+
+        result = _hydrate_value("plain string")
+        assert result == "plain string"
+
+    def test_quoted_string_no_suffix(self):
+        """Quoted JSON string without :: suffix."""
+        from genro_tytx import from_text
+
+        result = from_text('"plain string"')
+        assert result == "plain string"
