@@ -136,22 +136,28 @@ DATASETS = [
 ]
 
 
+def dataset_iterator():
+    """Yield all valid test case combinations as (value, transport, use_orjson)."""
+    for value, transports in DATASETS:
+        valid_transports = transports if transports else TRANSPORTS
+        for transport in valid_transports:
+            for use_orjson in [False, True]:
+                yield value, transport, use_orjson
+
+
 def run_tests():
     """Run all roundtrip tests and return failures."""
     fails = {}
 
-    for k, (v, transports) in enumerate(DATASETS):
-        test_transports = transports if transports else TRANSPORTS
-        for use_orjson in (False, True):
-            encode_module.USE_ORJSON = use_orjson and encode_module.HAS_ORJSON
-            for transport in test_transports:
-                try:
-                    txt = to_tytx(v, transport=transport)
-                    nv = from_tytx(txt, transport=transport, use_orjson=use_orjson)
-                    if not tytx_equivalent(v, nv):
-                        fails[(k, use_orjson, transport)] = (v, txt, nv)
-                except Exception as e:
-                    fails[(k, use_orjson, transport)] = (v, None, str(e))
+    for value, transport, use_orjson in dataset_iterator():
+        encode_module.USE_ORJSON = use_orjson and encode_module.HAS_ORJSON
+        try:
+            txt = to_tytx(value, transport=transport)
+            nv = from_tytx(txt, transport=transport, use_orjson=use_orjson)
+            if not tytx_equivalent(value, nv):
+                fails[(use_orjson, transport)] = (value, txt, nv)
+        except Exception as e:
+            fails[(use_orjson, transport)] = (value, None, str(e))
 
     # Restore default
     encode_module.USE_ORJSON = encode_module.HAS_ORJSON
@@ -195,18 +201,21 @@ class TestExtendedRoundtrip:
             }
         }
 
-    def test_all_roundtrips(self):
-        """All roundtrips should succeed."""
-        fails = run_tests()
-
-        if fails:
-            msg = "\n\nRoundtrip failures:\n"
-            for (k, use_orjson, transport), (original, txt, result) in fails.items():
-                msg += f"\n  [index={k}] orjson={use_orjson}, transport={transport}\n"
-                msg += f"    original: {original!r}\n"
-                msg += f"    serialized: {txt!r}\n"
-                msg += f"    result: {result!r}\n"
-            pytest.fail(msg)
+    @pytest.mark.parametrize(
+        "value,transport,use_orjson",
+        [
+            pytest.param(*args, id=f"{i}-{args[1]}-orjson={args[2]}")
+            for i, args in enumerate(dataset_iterator())
+        ],
+    )
+    def test_roundtrip(self, value, transport, use_orjson):
+        """Roundtrip test for each dataset/transport/orjson combination."""
+        encode_module.USE_ORJSON = use_orjson and encode_module.HAS_ORJSON
+        txt = to_tytx(value, transport=transport)
+        result = from_tytx(txt, transport=transport, use_orjson=use_orjson)
+        assert tytx_equivalent(
+            value, result
+        ), f"Mismatch: {value!r} -> {txt!r} -> {result!r}"
 
 
 if __name__ == "__main__":
