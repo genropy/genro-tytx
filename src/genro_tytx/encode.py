@@ -1,16 +1,16 @@
 # Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 """
-TYTX Encoding - Python objects to TYTX JSON string.
+TYTX Encoding - Python objects to TYTX format.
 
-Uses json.JSONEncoder.default or orjson.dumps(default=...) for performance.
+Supports multiple transports: json, xml, msgpack.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal, cast
 
-from .registry import TYPE_TO_SUFFIX
+from .utils import raw_encode
 
 # Check for orjson availability
 try:
@@ -20,18 +20,8 @@ try:
 except ImportError:  # pragma: no cover
     HAS_ORJSON = False
 
-
-def _serialize_value(value: Any) -> tuple[str, str] | None:
-    """
-    Serialize a value to TYTX format (internal).
-
-    Returns (serialized_value, suffix) or None if type not registered.
-    """
-    entry = TYPE_TO_SUFFIX.get(type(value))
-    if entry is None:
-        return None
-    suffix, serializer = entry
-    return serializer(value), suffix
+# Runtime control: set to False to force json stdlib even if orjson is available
+USE_ORJSON = HAS_ORJSON
 
 
 class _TYTXEncoder(json.JSONEncoder):
@@ -44,12 +34,8 @@ class _TYTXEncoder(json.JSONEncoder):
         self.has_special = False
 
     def default(self, obj: Any) -> str:
-        result = _serialize_value(obj)
-        if result is not None:
-            self.has_special = True
-            value, suffix = result
-            return f"{value}::{suffix}"
-        return super().default(obj)
+        self.has_special = True
+        return cast(str, to_tytx(obj))
 
 
 class _OrjsonDefault:
@@ -61,42 +47,27 @@ class _OrjsonDefault:
         self.has_special = False
 
     def __call__(self, obj: Any) -> str:
-        result = _serialize_value(obj)
-        if result is not None:
-            self.has_special = True
-            value, suffix = result
-            return f"{value}::{suffix}"
-        raise TypeError(f"Object of type {type(obj).__name__} is not TYTX serializable")
+        self.has_special = True
+        return cast(str, to_tytx(obj))
 
 
-def to_typed_text(value: Any, *, use_orjson: bool | None = None) -> str:
+def _to_json(value: Any, force_suffix: bool = False) -> str:
     """
-    Encode a Python value to TYTX JSON string.
+    Encode a Python value to TYTX JSON string (internal).
 
     Args:
         value: Python object to encode
-        use_orjson: Force orjson (True), stdlib json (False), or auto (None)
+        force_suffix: If True, add suffix for all types (int/bool/float)
 
     Returns:
         JSON string. For dict/list with typed values: adds ::JS suffix.
         For scalar typed values: returns value with type suffix only (no ::JS).
-
-    Example:
-        >>> to_typed_text({"price": Decimal("100.50")})
-        '{"price": "100.50::N"}::JS'
-        >>> to_typed_text(date(2025, 1, 15))
-        '"2025-01-15::D"'
     """
-    # Check if root value is a typed scalar
-    scalar_result = _serialize_value(value)
-    if scalar_result is not None:
-        serialized, suffix = scalar_result
-        return f'"{serialized}::{suffix}"'
+    encoded, result = raw_encode(value, force_suffix)
+    if encoded:
+        return result
 
-    if use_orjson is None:
-        use_orjson = HAS_ORJSON
-
-    if use_orjson and HAS_ORJSON:
+    if USE_ORJSON:
         default_fn = _OrjsonDefault()
         # OPT_PASSTHROUGH_DATETIME forces date/datetime/time to go through default
         result = orjson.dumps(
@@ -115,48 +86,47 @@ def to_typed_text(value: Any, *, use_orjson: bool | None = None) -> str:
         return result
 
 
-def to_typed_json(value: Any, *, use_orjson: bool | None = None) -> str:
-    """
-    Encode a Python value to TYTX JSON string with protocol prefix.
+def _to_msgpack(value: Any) -> bytes:
+    """Encode a Python value to TYTX MessagePack bytes (internal)."""
+    from .msgpack import to_msgpack
 
-    Uses TYTX:// prefix for protocol identification per spec.
+    return to_msgpack(value)
+
+
+def to_tytx(
+    value: Any,
+    transport: Literal["json", "xml", "msgpack"] | None = None,
+    *,
+    _force_suffix: bool = False,
+) -> str | bytes:
+    """
+    Encode a Python value to TYTX format.
 
     Args:
         value: Python object to encode
-        use_orjson: Force orjson (True), stdlib json (False), or auto (None)
+        transport: Output format - "json", "xml", or "msgpack"
+        _force_suffix: Internal - force suffix for all types (int/bool/float)
 
     Returns:
-        JSON string with TYTX:// prefix. For dict/list with typed values: adds ::JS suffix.
-        For scalar typed values: returns TYTX:// prefix + value with type suffix (no ::JS).
+        Encoded data (str for json/xml, bytes for msgpack)
 
     Example:
-        >>> to_typed_json({"price": Decimal("100.50")})
-        'TYTX://{"price": "100.50::N"}::JS'
-        >>> to_typed_json(date(2025, 1, 15))
-        'TYTX://"2025-01-15::D"'
+        >>> to_tytx({"price": Decimal("100.50")})
+        '{"price": "100.50::N"}::JS'
+        >>> to_tytx({"root": {"value": Decimal("100")}}, transport="xml")
+        '<?xml version="1.0" ?><root>100::N</root>'
     """
-    # Check if root value is a typed scalar
-    scalar_result = _serialize_value(value)
-    if scalar_result is not None:
-        serialized, suffix = scalar_result
-        return f'TYTX://"{serialized}::{suffix}"'
+    if transport is None or transport == "json":
+        result = _to_json(value, _force_suffix)
+        if transport == "json":
+            return f'"{result}"'
+        return result
+    elif transport == "xml":
+        from .xml import to_xml
 
-    if use_orjson is None:
-        use_orjson = HAS_ORJSON
-
-    if use_orjson and HAS_ORJSON:
-        default_fn = _OrjsonDefault()
-        result = orjson.dumps(
-            value,
-            default=default_fn,
-            option=orjson.OPT_PASSTHROUGH_DATETIME,
-        ).decode("utf-8")
-        if default_fn.has_special:
-            return f"TYTX://{result}::JS"
-        return f"TYTX://{result}"
+        result = to_xml(value)
+        return f'<?xml version="1.0" ?><tytx_root>{result}</tytx_root>'
+    elif transport == "msgpack":
+        return _to_msgpack(value)
     else:
-        encoder = _TYTXEncoder()
-        result = encoder.encode(value)
-        if encoder.has_special:
-            return f"TYTX://{result}::JS"
-        return f"TYTX://{result}"
+        raise ValueError(f"Unknown transport: {transport}")

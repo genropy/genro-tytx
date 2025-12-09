@@ -8,27 +8,24 @@ Minimal implementation supporting:
 - HTTP utilities
 
 Usage:
-    from genro_tytx import to_typed_text, from_text
+    from genro_tytx import to_tytx, from_tytx
 
     # Encode
     data = {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
-    json_str = to_typed_text(data)
+    json_str = to_tytx(data)
     # '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
 
     # Decode
-    result = from_text(json_str)
+    result = from_tytx(json_str)
     # {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 """
 
 from .registry import (
     SUFFIX_TO_TYPE,
-    TYPE_TO_SUFFIX,
-    register_type,
-    get_suffix,
-    get_type,
+    TYPE_REGISTRY,
 )
-from .encode import to_typed_text, to_typed_json
-from .decode import from_text, from_json
+from .encode import to_tytx
+from .decode import from_tytx
 from .xml import to_xml, from_xml
 from .msgpack import to_msgpack, from_msgpack
 from .http import (
@@ -42,9 +39,6 @@ from .http import (
     encode_body,
     decode_body,
     make_headers,
-)
-from .compare import datetime_equivalent, tytx_equivalent
-from .middleware import (
     TYTXMiddleware,
     TYTXWSGIMiddleware,
     encode_query_string,
@@ -52,15 +46,14 @@ from .middleware import (
     encode_header_value,
     decode_header_value,
 )
+from .utils import datetime_equivalent, tytx_equivalent, walk
 
 __version__ = "0.7.0"
 
 __all__ = [
-    # JSON (core)
-    "to_typed_text",
-    "to_typed_json",
-    "from_text",
-    "from_json",
+    # Unified API
+    "to_tytx",
+    "from_tytx",
     # XML
     "to_xml",
     "from_xml",
@@ -80,13 +73,11 @@ __all__ = [
     "make_headers",
     # Registry
     "SUFFIX_TO_TYPE",
-    "TYPE_TO_SUFFIX",
-    "register_type",
-    "get_suffix",
-    "get_type",
-    # Comparison utilities
+    "TYPE_REGISTRY",
+    # Utilities
     "datetime_equivalent",
     "tytx_equivalent",
+    "walk",
     # Middleware
     "TYTXMiddleware",
     "TYTXWSGIMiddleware",

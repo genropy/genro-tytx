@@ -1,16 +1,16 @@
 # Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 """
-TYTX Decoding - TYTX JSON string to Python objects.
+TYTX Decoding - TYTX format to Python objects.
 
-Uses json.loads() followed by recursive hydration.
+Supports multiple transports: json, xml, msgpack.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal, cast
 
-from .registry import SUFFIX_TO_TYPE
+from .utils import walk, raw_decode
 
 # Check for orjson availability
 try:
@@ -24,72 +24,14 @@ TYTX_MARKER = "::JS"
 TYTX_PREFIX = "TYTX://"
 
 
-def _hydrate_value(value: str) -> Any:
+def is_string(v):
+    """Filter for string values."""
+    return isinstance(v, str)
+
+
+def _from_json(data: str, *, use_orjson: bool | None = None) -> Any:
     """
-    Hydrate a single TYTX-encoded string value (internal).
-
-    Args:
-        value: String like "100.50::N" or "2025-01-15::D"
-
-    Returns:
-        Python object (Decimal, date, etc.) or original string if not typed
-    """
-    if "::" not in value:
-        return value
-
-    # Find last :: to get suffix
-    idx = value.rfind("::")
-    raw_value = value[:idx]
-    suffix = value[idx + 2 :]
-
-    entry = SUFFIX_TO_TYPE.get(suffix)
-    if entry is None:
-        # Unknown suffix, return as-is
-        return value
-
-    _, deserializer = entry
-    return deserializer(raw_value)
-
-
-def _hydrate_recursive(value: Any) -> Any:
-    """Recursively hydrate all typed values in a structure."""
-    if isinstance(value, str):
-        if "::" in value:
-            return _hydrate_value(value)
-        return value
-
-    if isinstance(value, dict):
-        return {k: _hydrate_recursive(v) for k, v in value.items()}
-
-    if isinstance(value, list):
-        return [_hydrate_recursive(item) for item in value]
-
-    return value
-
-
-def _has_type_suffix(data: str) -> bool:
-    """Check if string ends with a valid type suffix (::XXX).
-
-    Handles both raw JSON (ends with ::JS) and quoted scalars (ends with ::X").
-    """
-    # Handle quoted JSON scalar: "value::X"
-    if data.endswith('"'):
-        idx = data.rfind("::")
-        if idx == -1:
-            return False
-        suffix = data[idx + 2 : -1]  # Strip trailing quote
-        return suffix in SUFFIX_TO_TYPE
-    # Handle struct marker: {...}::JS or [...]::JS
-    idx = data.rfind("::")
-    if idx == -1:
-        return False
-    suffix = data[idx + 2 :]
-    return suffix in SUFFIX_TO_TYPE or suffix == "JS"
-
-
-def from_text(data: str, *, use_orjson: bool | None = None) -> Any:
-    """
-    Decode a TYTX JSON string to Python objects.
+    Decode a TYTX JSON string to Python objects (internal).
 
     Args:
         data: JSON string with ::JS suffix (struct) or ::T suffix (scalar)
@@ -97,70 +39,81 @@ def from_text(data: str, *, use_orjson: bool | None = None) -> Any:
 
     Returns:
         Python object with typed values hydrated
-
-    Example:
-        >>> from_text('{"price": "100.50::N"}::JS')
-        {"price": Decimal("100.50")}
-        >>> from_text('"2025-01-15::D"')
-        date(2025, 1, 15)
     """
-    # Strip whitespace (handles trailing newlines, etc.)
-    data = data.strip()
+    # Try raw_decode first (scalar with type suffix)
+    decoded, value = raw_decode(data)
+    if decoded:
+        return value
 
     if use_orjson is None:
         use_orjson = HAS_ORJSON
+    jsloader = orjson.loads if use_orjson else json.loads
 
-    # Check if data has any type suffix
-    if not _has_type_suffix(data):
-        # Plain JSON, no TYTX
-        if use_orjson and HAS_ORJSON:
-            return orjson.loads(data)
-        return json.loads(data)
-
-    # Check for ::JS marker (struct)
-    if data.endswith(TYTX_MARKER):
-        data = data[: -len(TYTX_MARKER)]
-        if use_orjson and HAS_ORJSON:
-            parsed = orjson.loads(data)
-        else:
-            parsed = json.loads(data)
-        return _hydrate_recursive(parsed)
-
-    # Scalar with type suffix (e.g., "2025-01-15::D")
-    if use_orjson and HAS_ORJSON:
-        parsed = orjson.loads(data)
-    else:
-        parsed = json.loads(data)
-
-    # parsed is now a string like "2025-01-15::D", hydrate it
-    return _hydrate_recursive(parsed)
+    if data.endswith("::JS"):
+        data = data[:-4]
+    try:
+        parsed = jsloader(data)
+    except (json.JSONDecodeError, orjson.JSONDecodeError):
+        return data
+    return walk(parsed, _decode_item, is_string)
 
 
-def from_json(data: str, *, use_orjson: bool | None = None) -> Any:
+def _decode_item(s):
+    if "::" not in s:
+        return s
+    return raw_decode(s)[1]
+
+
+def _from_xml(data: str) -> Any:
+    """Decode a TYTX XML string to Python objects (internal)."""
+    from .xml import from_xml
+
+    result = from_xml(data)
+    # If result is a string with TYTX suffix, hydrate it via JSON decoder
+    if isinstance(result, str):
+        return from_tytx(result)
+    return result
+
+
+def _from_msgpack(data: bytes) -> Any:
+    """Decode TYTX MessagePack bytes to Python objects (internal)."""
+    from .msgpack import from_msgpack
+
+    return from_msgpack(data)
+
+
+def from_tytx(
+    data: str | bytes | None,
+    transport: Literal["json", "xml", "msgpack"] | None = None,
+    **kwargs,
+) -> Any:
     """
-    Decode a TYTX JSON string with protocol prefix to Python objects.
-
-    Expects TYTX:// prefix per protocol spec.
+    Decode TYTX format to Python objects.
 
     Args:
-        data: JSON string with TYTX:// prefix and ::JS or ::T suffix
-        use_orjson: Force orjson (True), stdlib json (False), or auto (None)
+        data: Encoded data (str for json/xml, bytes for msgpack), or None
+        transport: Input format - "json", "xml", or "msgpack"
+        **kwargs: Additional arguments passed to transport-specific decoder
 
     Returns:
-        Python object with typed values hydrated
+        Python object with typed values hydrated, or None if data is None
 
     Example:
-        >>> from_json('TYTX://{"price": "100.50::N"}::JS')
+        >>> from_tytx('{"price": "100.50::N"}::JS')
         {"price": Decimal("100.50")}
-        >>> from_json('TYTX://"2025-01-15::D"')
-        date(2025, 1, 15)
+        >>> from_tytx('<root>100::N</root>', transport="xml")
+        {"root": {"attrs": {}, "value": Decimal("100")}}
     """
-    # Strip whitespace first
-    data = data.strip()
+    if data is None:
+        return None
 
-    # Strip TYTX:// prefix if present
-    if data.startswith(TYTX_PREFIX):
-        data = data[len(TYTX_PREFIX) :]
-
-    # Delegate to from_text
-    return from_text(data, use_orjson=use_orjson)
+    if transport is None or transport == "json":
+        if transport == "json":
+            data = data[1:-1]  # Remove surrounding quotes
+        return _from_json(cast(str, data), **kwargs)
+    elif transport == "xml":
+        return _from_xml(cast(str, data))
+    elif transport == "msgpack":
+        return _from_msgpack(cast(bytes, data))
+    else:
+        raise ValueError(f"Unknown transport: {transport}")
