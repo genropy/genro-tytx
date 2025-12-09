@@ -1,160 +1,132 @@
+// Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 /**
- * TYTX Base - Decoding functions
+ * TYTX Decoding - TYTX format to JavaScript objects.
  *
- * Decode TYTX JSON strings to JavaScript objects.
- *
- * @module decode
- * @license Apache-2.0
- * @copyright Softwell S.r.l. 2025
+ * Supports multiple transports: json, xml, msgpack.
  */
 
-const { registry } = require('./registry');
-require('./types'); // Ensure types are registered
+import { walk, rawDecode } from './utils.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 const TYTX_MARKER = '::JS';
 const TYTX_PREFIX = 'TYTX://';
 
-// Known type suffixes for scalar detection
-const KNOWN_SUFFIXES = new Set(['N', 'D', 'DH', 'DHZ', 'H', 'B', 'L', 'R', 'T']);
+/**
+ * Filter for string values.
+ * @param {any} v
+ * @returns {boolean}
+ */
+function isString(v) {
+    return typeof v === 'string';
+}
 
 /**
- * Hydrate a single typed string value.
- * @param {string} value - String like "100.50::N"
- * @returns {*} Parsed value or original string
+ * Decode a TYTX JSON string to JavaScript objects (internal).
+ *
+ * @param {string} data - JSON string with ::JS suffix (struct) or ::T suffix (scalar)
+ * @returns {any} JavaScript object with typed values hydrated
  */
-function hydrateValue(value) {
-    if (typeof value !== 'string' || !value.includes('::')) {
+function _fromJson(data) {
+    // Try rawDecode first (scalar with type suffix)
+    const [decoded, value] = rawDecode(data);
+    if (decoded) {
         return value;
     }
 
-    const idx = value.lastIndexOf('::');
-    const rawValue = value.slice(0, idx);
-    const suffix = value.slice(idx + 2);
-
-    const typeDef = registry.get(suffix);
-    if (typeDef) {
-        return typeDef.parse(rawValue);
+    let jsonData = data;
+    if (jsonData.endsWith('::JS')) {
+        jsonData = jsonData.slice(0, -4);
     }
 
-    // Unknown suffix, return as-is
-    return value;
+    let parsed;
+    try {
+        parsed = JSON.parse(jsonData);
+    } catch {
+        return data;
+    }
+
+    return walk(parsed, _decodeItem, isString);
 }
 
 /**
- * Recursively hydrate typed values in a structure.
- * @param {*} obj
- * @returns {*}
+ * Decode a single item with TYTX suffix.
+ * @param {string} s
+ * @returns {any}
  */
-function hydrateRecursive(obj) {
-    if (typeof obj === 'string') {
-        if (obj.includes('::')) {
-            return hydrateValue(obj);
-        }
-        return obj;
+function _decodeItem(s) {
+    if (!s.includes('::')) {
+        return s;
     }
-
-    if (Array.isArray(obj)) {
-        return obj.map(item => hydrateRecursive(item));
-    }
-
-    if (obj !== null && typeof obj === 'object') {
-        const result = {};
-        for (const [k, v] of Object.entries(obj)) {
-            result[k] = hydrateRecursive(v);
-        }
-        return result;
-    }
-
-    return obj;
+    return rawDecode(s)[1];
 }
 
 /**
- * Check if string ends with a valid type suffix.
- * Handles both raw JSON (ends with ::JS) and quoted scalars (ends with ::X").
- * @param {string} data - JSON string
- * @returns {boolean}
+ * Decode a TYTX XML string to JavaScript objects (internal).
+ * @param {string} data
+ * @returns {any}
  */
-function hasTypeSuffix(data) {
-    // Handle quoted JSON scalar: "value::X"
-    if (data.endsWith('"')) {
-        const idx = data.lastIndexOf('::');
-        if (idx === -1) return false;
-        const suffix = data.slice(idx + 2, -1); // Strip trailing quote
-        return KNOWN_SUFFIXES.has(suffix);
+function _fromXml(data) {
+    const { fromXml } = require('./xml.js');
+    const result = fromXml(data);
+    // If result is a string with TYTX suffix, hydrate it via JSON decoder
+    if (typeof result === 'string') {
+        return fromTytx(result);
     }
-    // Handle struct marker: {...}::JS or [...]::JS
-    const idx = data.lastIndexOf('::');
-    if (idx === -1) return false;
-    const suffix = data.slice(idx + 2);
-    return KNOWN_SUFFIXES.has(suffix) || suffix === 'JS';
+    return result;
 }
 
 /**
- * Decode a TYTX text format string.
- * Handles ::JS suffix and quoted scalars with type suffix.
+ * Decode TYTX MessagePack bytes to JavaScript objects (internal).
+ * @param {Uint8Array} data
+ * @returns {any}
+ */
+function _fromMsgpack(data) {
+    const { fromMsgpack } = require('./msgpack.js');
+    return fromMsgpack(data);
+}
+
+/**
+ * Decode TYTX format to JavaScript objects.
  *
- * @param {string} data - JSON string with optional ::JS suffix or scalar with type suffix
- * @returns {*} JavaScript object with typed values hydrated
+ * @param {string|Uint8Array|null} data - Encoded data (string for json/xml, Uint8Array for msgpack), or null
+ * @param {string|null} transport - Input format: "json", "xml", "msgpack", or null
+ * @returns {any} JavaScript object with typed values hydrated, or null if data is null
  *
  * @example
- * fromText('{"price":"100.50::N"}::JS')
- * // {price: Big("100.50")}
+ * fromTytx('{"price": "100.50::N"}::JS')
+ * // {"price": Decimal("100.50")}
  *
- * fromText('"2025-01-15::D"')
- * // Date(2025, 0, 15)
+ * fromTytx('<root>100::N</root>', "xml")
+ * // {"root": {"attrs": {}, "value": Decimal("100")}}
  */
-function fromText(data) {
-    // Strip whitespace (handles trailing newlines, etc.)
-    data = data.trim();
-
-    // Check if data has any type suffix
-    if (!hasTypeSuffix(data)) {
-        // Plain JSON, no TYTX
-        return JSON.parse(data);
+function fromTytx(data, transport = null) {
+    if (data === null) {
+        return null;
     }
 
-    // Check for ::JS marker (struct)
-    if (data.endsWith(TYTX_MARKER)) {
-        data = data.slice(0, -TYTX_MARKER.length);
-        const parsed = JSON.parse(data);
-        return hydrateRecursive(parsed);
+    if (transport === null || transport === 'json') {
+        let jsonData = data;
+        if (transport === 'json') {
+            jsonData = data.slice(1, -1);  // Remove surrounding quotes
+        }
+        return _fromJson(jsonData);
+    } else if (transport === 'xml') {
+        return _fromXml(data);
+    } else if (transport === 'msgpack') {
+        return _fromMsgpack(data);
+    } else {
+        throw new Error(`Unknown transport: ${transport}`);
     }
-
-    // Scalar with type suffix (e.g., "2025-01-15::D")
-    const parsed = JSON.parse(data);
-    // parsed is now a string like "2025-01-15::D", hydrate it
-    return hydrateRecursive(parsed);
 }
 
-/**
- * Decode a TYTX JSON format string.
- * Handles TYTX:// prefix, ::JS suffix, and quoted scalars.
- *
- * @param {string} data - JSON string with optional TYTX:// prefix
- * @returns {*} JavaScript object with typed values hydrated
- *
- * @example
- * fromJson('TYTX://{"price":"100.50::N"}::JS')
- * // {price: Big("100.50")}
- *
- * fromJson('TYTX://"2025-01-15::D"')
- * // Date(2025, 0, 15)
- */
-function fromJson(data) {
-    // Strip TYTX:// prefix if present
-    if (data.startsWith(TYTX_PREFIX)) {
-        data = data.slice(TYTX_PREFIX.length);
-    }
-
-    // Delegate to fromText
-    return fromText(data);
-}
-
-module.exports = {
-    fromText,
-    fromJson,
-    hydrateValue,
-    hydrateRecursive,
+export {
+    fromTytx,
     TYTX_MARKER,
-    TYTX_PREFIX
+    TYTX_PREFIX,
+    isString,
+    _fromJson,
+    _fromXml,
+    _fromMsgpack,
+    _decodeItem,
 };

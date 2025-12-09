@@ -1,97 +1,73 @@
+// Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 /**
- * TYTX Base - Minimal Typed Text Protocol for Scalar Types
+ * TYTX Base - Typed Text Protocol for Scalar Types
  *
- * Public API:
- *     // Text format (suffix only)
- *     toTypedText(data)     → '{"price":"100.50::N"}::JS'
- *     fromText(str)         → {price: Decimal("100.50")}
+ * Minimal implementation supporting:
+ * - Scalar types: Decimal, date, datetime, time, bool, int
+ * - Encoders/Decoders: JSON, XML, MessagePack
  *
- *     // JSON format (with TYTX:// prefix)
- *     toTypedJson(data)     → 'TYTX://{"price":"100.50::N"}::JS'
- *     fromJson(str)         → {price: Decimal("100.50")}
+ * Usage:
+ *     import { toTytx, fromTytx, createDecimal } from 'genro-tytx';
  *
- * @module genro-tytx
- * @version 0.7.0
- * @license Apache-2.0
- * @copyright Softwell S.r.l. 2025
+ *     // Encode
+ *     const data = {"price": createDecimal("100.50"), "date": new Date(Date.UTC(2025, 0, 15))};
+ *     const jsonStr = toTytx(data);
+ *     // '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
+ *
+ *     // Decode
+ *     const result = fromTytx(jsonStr);
+ *     // {"price": Decimal("100.50"), "date": Date}
  */
 
-// Ensure types are registered
-require('./types');
+import {
+    SUFFIX_TO_TYPE,
+    decimalLibrary,
+    createDecimal,
+    isDecimal,
+    setDecimalLibrary,
+    getDecimalLibrary,
+    getDateType,
+    getTypeEntry,
+} from './registry.js';
 
-// Import registry
-const { registry, TypeRegistry, isDecimalInstance, DecimalLib, decimalLibName } = require('./registry');
+import { toTytx } from './encode.js';
+import { fromTytx, TYTX_MARKER, TYTX_PREFIX } from './decode.js';
+import { toXml, fromXml, fromXmlnode } from './xml.js';
+import { toMsgpack, fromMsgpack, HAS_MSGPACK } from './msgpack.js';
+import { datetimeEquivalent, tytxEquivalent, walk, rawEncode, rawDecode } from './utils.js';
 
-// Import type definitions
-const {
-    IntType,
-    FloatType,
-    BoolType,
-    StrType,
-    DecimalType,
-    DateType,
-    DateTimeType,
-    NaiveDateTimeType,
-    TimeType
-} = require('./types');
+const __version__ = '0.7.0';
 
-// Import encode/decode functions
-const { toTypedText, toTypedJson, TYTX_MARKER, TYTX_PREFIX } = require('./encode');
-const { fromText, fromJson } = require('./decode');
-
-// Import fetch utilities
-const {
-    createDate,
-    createTime,
-    createDateTime,
-    encodeQueryString,
-    decodeQueryString,
-    tytx_fetch
-} = require('./fetch');
-
-const VERSION = '0.7.0';
-
-module.exports = {
-    // Version
-    VERSION,
-
-    // Text format API
-    toTypedText,
-    fromText,
-
-    // JSON format API (with TYTX:// prefix)
-    toTypedJson,
-    fromJson,
-
+export {
+    // Unified API
+    toTytx,
+    fromTytx,
+    // XML
+    toXml,
+    fromXml,
+    fromXmlnode,
+    // MessagePack
+    toMsgpack,
+    fromMsgpack,
+    HAS_MSGPACK,
     // Registry
-    registry,
-    TypeRegistry,
-
-    // Type definitions
-    IntType,
-    FloatType,
-    BoolType,
-    StrType,
-    DecimalType,
-    DateType,
-    DateTimeType,
-    NaiveDateTimeType,
-    TimeType,
-
+    SUFFIX_TO_TYPE,
+    decimalLibrary,
+    createDecimal,
+    isDecimal,
+    setDecimalLibrary,
+    getDecimalLibrary,
+    getDateType,
+    getTypeEntry,
     // Utilities
-    isDecimalInstance,
-    DecimalLib,
-    decimalLibName,
-
+    datetimeEquivalent,
+    tytxEquivalent,
+    walk,
+    rawEncode,
+    rawDecode,
     // Constants
     TYTX_MARKER,
     TYTX_PREFIX,
-
-    // Fetch utilities
-    createDate,
-    createTime,
-    createDateTime,
-    encodeQueryString,
-    decodeQueryString,
-    tytx_fetch
+    // Version
+    __version__,
 };

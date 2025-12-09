@@ -1,157 +1,132 @@
+// Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 /**
- * TYTX Base - Encoding functions
+ * TYTX Encoding - JavaScript objects to TYTX format.
  *
- * Encode JavaScript objects to TYTX JSON strings.
+ * Supports multiple transports: json, xml, msgpack.
+ */
+
+import { rawEncode } from './utils.js';
+import { getTypeEntry } from './registry.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+/**
+ * Pre-process a value recursively, converting typed values to TYTX strings.
+ * Returns [processedValue, hasSpecial].
  *
- * @module encode
- * @license Apache-2.0
- * @copyright Softwell S.r.l. 2025
+ * @param {any} value
+ * @returns {[any, boolean]}
  */
-
-const { registry, isDecimalInstance } = require('./registry');
-require('./types'); // Ensure types are registered
-
-const TYTX_MARKER = '::JS';
-const TYTX_PREFIX = 'TYTX://';
-
-/**
- * Check if a value needs TYTX encoding (non-native JSON type).
- * @param {*} value
- * @returns {boolean}
- */
-function needsEncoding(value) {
-    if (value instanceof Date) return true;
-    if (isDecimalInstance(value)) return true;
-    return false;
-}
-
-/**
- * Serialize a single value to TYTX format.
- * @param {*} value
- * @returns {string|*} Typed string or original value
- */
-function serializeValue(value) {
-    if (value instanceof Date) {
-        const code = registry.getTypeCode(value);
-        const typeDef = registry.get(code);
-        if (typeDef) {
-            return typeDef.serialize(value) + '::' + code;
+function _preprocessValue(value) {
+    // Check if value is a typed value that needs encoding
+    const entry = getTypeEntry(value);
+    if (entry !== null) {
+        const [suffix, serializer, jsonNative] = entry;
+        if (!jsonNative) {
+            return [`${serializer(value)}::${suffix}`, true];
         }
-    }
-    if (isDecimalInstance(value)) {
-        const typeDef = registry.get('N');
-        if (typeDef) {
-            return typeDef.serialize(value) + '::N';
-        }
-    }
-    return value;
-}
-
-/**
- * Recursively serialize values, tracking if any need encoding.
- * @param {*} obj
- * @returns {{value: *, hasTyped: boolean}}
- */
-function serializeRecursive(obj) {
-    if (obj === null || obj === undefined) {
-        return { value: obj, hasTyped: false };
+        // jsonNative types (bool, int, float) are kept as-is
+        return [value, false];
     }
 
-    if (obj instanceof Date || isDecimalInstance(obj)) {
-        return { value: serializeValue(obj), hasTyped: true };
-    }
-
-    if (Array.isArray(obj)) {
-        let hasTyped = false;
-        const result = obj.map(item => {
-            const { value, hasTyped: itemHasTyped } = serializeRecursive(item);
-            if (itemHasTyped) hasTyped = true;
-            return value;
+    // Handle arrays
+    if (Array.isArray(value)) {
+        let hasSpecial = false;
+        const result = value.map(item => {
+            const [processed, special] = _preprocessValue(item);
+            if (special) hasSpecial = true;
+            return processed;
         });
-        return { value: result, hasTyped };
+        return [result, hasSpecial];
     }
 
-    if (typeof obj === 'object') {
-        let hasTyped = false;
+    // Handle objects (but not null)
+    if (value !== null && typeof value === 'object') {
+        let hasSpecial = false;
         const result = {};
-        for (const [k, v] of Object.entries(obj)) {
-            const { value, hasTyped: itemHasTyped } = serializeRecursive(v);
-            result[k] = value;
-            if (itemHasTyped) hasTyped = true;
+        for (const [k, v] of Object.entries(value)) {
+            const [processed, special] = _preprocessValue(v);
+            if (special) hasSpecial = true;
+            result[k] = processed;
         }
-        return { value: result, hasTyped };
+        return [result, hasSpecial];
     }
 
-    return { value: obj, hasTyped: false };
+    // Primitive values (string, number, boolean, null)
+    return [value, false];
 }
 
 /**
- * Encode a JavaScript value to TYTX text format.
- * Uses ::JS suffix only when typed values are present in dict/list.
- * Scalar typed values do NOT get ::JS suffix (spec 3.2).
+ * Encode a JavaScript value to TYTX JSON string (internal).
  *
- * @param {*} value - Value to encode
- * @returns {string} JSON string with optional ::JS suffix
- *
- * @example
- * toTypedText({price: new Big("100.50")})
- * // '{"price":"100.50::N"}::JS'
- *
- * toTypedText(new Date('2025-01-15'))
- * // '"2025-01-15::D"'  (no ::JS for scalars)
- *
- * toTypedText({name: "test"})
- * // '{"name":"test"}'
+ * @param {any} value - JavaScript object to encode
+ * @param {boolean} forceSuffix - If true, add suffix for all types (int/bool/float)
+ * @returns {string} JSON string. For dict/list with typed values: adds ::JS suffix.
  */
-function toTypedText(value) {
-    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
-    if (value instanceof Date || isDecimalInstance(value)) {
-        const serialized = serializeValue(value);
-        return JSON.stringify(serialized);
+function _toJson(value, forceSuffix = false) {
+    const [encoded, result] = rawEncode(value, forceSuffix);
+    if (encoded) {
+        return result;
     }
 
-    const { value: serialized, hasTyped } = serializeRecursive(value);
-    const json = JSON.stringify(serialized);
-    return hasTyped ? json + TYTX_MARKER : json;
+    const [processed, hasSpecial] = _preprocessValue(value);
+    const jsonResult = JSON.stringify(processed);
+
+    if (hasSpecial) {
+        return `${jsonResult}::JS`;
+    }
+    return jsonResult;
 }
 
 /**
- * Encode a JavaScript value to TYTX JSON format.
- * Uses TYTX:// prefix. ::JS suffix only for dict/list with typed values.
- * Scalar typed values do NOT get ::JS suffix (spec 3.2).
- *
- * @param {*} value - Value to encode
- * @returns {string} JSON string with TYTX:// prefix
- *
- * @example
- * toTypedJson({price: new Big("100.50")})
- * // 'TYTX://{"price":"100.50::N"}::JS'
- *
- * toTypedJson(new Date('2025-01-15'))
- * // 'TYTX://"2025-01-15::D"'  (no ::JS for scalars)
- *
- * toTypedJson({name: "test"})
- * // 'TYTX://{"name":"test"}'
+ * Encode a JavaScript value to TYTX MessagePack bytes (internal).
+ * @param {any} value
+ * @returns {Uint8Array}
  */
-function toTypedJson(value) {
-    // Check if root value is a typed scalar (spec 3.2: no ::JS for scalars)
-    if (value instanceof Date || isDecimalInstance(value)) {
-        const serialized = serializeValue(value);
-        return TYTX_PREFIX + JSON.stringify(serialized);
-    }
-
-    const { value: serialized, hasTyped } = serializeRecursive(value);
-    const json = JSON.stringify(serialized);
-    if (hasTyped) {
-        return TYTX_PREFIX + json + TYTX_MARKER;
-    }
-    return TYTX_PREFIX + json;
+async function _toMsgpack(value) {
+    const { toMsgpack } = await import('./msgpack.js');
+    return toMsgpack(value);
 }
 
-module.exports = {
-    toTypedText,
-    toTypedJson,
-    serializeValue,
-    TYTX_MARKER,
-    TYTX_PREFIX
+/**
+ * Encode a JavaScript value to TYTX format.
+ *
+ * @param {any} value - JavaScript object to encode
+ * @param {string|null} transport - Output format: "json", "xml", "msgpack", or null
+ * @param {Object} options - Options object
+ * @param {boolean} options._forceSuffix - Internal: force suffix for all types
+ * @returns {string|Uint8Array} Encoded data (string for json/xml, Uint8Array for msgpack)
+ *
+ * @example
+ * toTytx({"price": createDecimal("100.50")})
+ * // '{"price": "100.50::N"}::JS'
+ *
+ * toTytx({"root": {"value": createDecimal("100")}}, "xml")
+ * // '<?xml version="1.0" ?><root>100::N</root>'
+ */
+function toTytx(value, transport = null, { _forceSuffix = false } = {}) {
+    if (transport === null || transport === 'json') {
+        const result = _toJson(value, _forceSuffix);
+        if (transport === 'json') {
+            return `"${result}"`;
+        }
+        return result;
+    } else if (transport === 'xml') {
+        // Lazy import to avoid circular dependency
+        const { toXml } = require('./xml.js');
+        const result = toXml(value);
+        return `<?xml version="1.0" ?><tytx_root>${result}</tytx_root>`;
+    } else if (transport === 'msgpack') {
+        // Lazy import to avoid circular dependency
+        const { toMsgpack } = require('./msgpack.js');
+        return toMsgpack(value);
+    } else {
+        throw new Error(`Unknown transport: ${transport}`);
+    }
+}
+
+export {
+    toTytx,
+    _toJson,
+    _toMsgpack,
 };
