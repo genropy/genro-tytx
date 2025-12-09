@@ -8,10 +8,11 @@ On decode, these strings are hydrated back to Python types.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
-from .encode import _serialize_value
-from .decode import _hydrate_recursive
+from .encode import to_tytx
+from .decode import walk, is_string
+from .utils import raw_decode
 
 # Check for msgpack availability
 try:
@@ -32,11 +33,7 @@ def _check_msgpack():  # pragma: no cover
 
 def _default_encoder(obj: Any) -> str:
     """Default encoder for msgpack - converts typed values to TYTX strings."""
-    result = _serialize_value(obj)
-    if result is not None:
-        serialized, suffix = result
-        return f"{serialized}::{suffix}"
-    raise TypeError(f"Object of type {type(obj).__name__} is not TYTX serializable")
+    return cast(str, to_tytx(obj))
 
 
 def to_msgpack(value: Any) -> bytes:
@@ -73,4 +70,4 @@ def from_msgpack(data: bytes) -> Any:
     """
     _check_msgpack()
     parsed = msgpack.unpackb(data, raw=False)
-    return _hydrate_recursive(parsed)
+    return walk(parsed, lambda s: raw_decode(s)[1], is_string)
