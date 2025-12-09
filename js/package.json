@@ -1,61 +1,32 @@
 {
   "name": "genro-tytx",
   "version": "0.7.0",
-  "description": "TYTX Base - Minimal typed text protocol for scalar types",
+  "description": "TYTX - Typed Text Protocol for Scalar Types",
   "main": "src/index.js",
+  "type": "module",
   "exports": {
-    ".": {
-      "require": "./src/index.js"
-    }
+    ".": "./src/index.js"
   },
-  "files": [
-    "src"
-  ],
   "scripts": {
-    "test": "node --test test/test_core.js",
-    "test:coverage": "c8 node --test test/test_core.js",
-    "test:big": "TYTX_DECIMAL_LIB=big.js node --test test/test_core.js",
-    "test:decimal": "TYTX_DECIMAL_LIB=decimal.js node --test test/test_core.js",
-    "test:all": "npm run test:big && npm run test:decimal"
+    "test": "node --test test/"
   },
   "keywords": [
+    "tytx",
     "typed",
     "serialization",
-    "protocol",
     "json",
     "xml",
-    "genro",
-    "tytx",
-    "decimal"
+    "msgpack"
   ],
   "author": "Genropy Team",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/genropy/genro-tytx.git"
+    "url": "https://github.com/nickvazz/genro-tytx"
   },
-  "bugs": {
-    "url": "https://github.com/genropy/genro-tytx/issues"
-  },
-  "homepage": "https://github.com/genropy/genro-tytx#readme",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "peerDependencies": {
-    "big.js": ">=6.0.0",
-    "decimal.js": ">=10.0.0"
-  },
-  "peerDependenciesMeta": {
-    "big.js": {
-      "optional": true
-    },
-    "decimal.js": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "big.js": "^7.0.1",
-    "c8": "^10.1.2",
-    "decimal.js": "^10.6.0"
+  "optionalDependencies": {
+    "decimal.js": "^10.4.3",
+    "big.js": "^6.2.1",
+    "msgpack-lite": "^0.1.26"
   }
 }
