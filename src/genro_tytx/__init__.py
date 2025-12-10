@@ -29,7 +29,6 @@ from .decode import from_tytx
 from .xml import to_xml, from_xml
 from .msgpack import to_msgpack, from_msgpack
 from .http import asgi_data, wsgi_data
-from .utils import datetime_equivalent, tytx_equivalent, walk
 
 __version__ = "0.7.0"
 
@@ -37,22 +36,17 @@ __all__ = [
     # Unified API
     "to_tytx",
     "from_tytx",
-    # XML
+    # Transport-specific
     "to_xml",
     "from_xml",
-    # MessagePack
     "to_msgpack",
     "from_msgpack",
-    # Registry
-    "SUFFIX_TO_TYPE",
-    "TYPE_REGISTRY",
-    # Utilities
-    "datetime_equivalent",
-    "tytx_equivalent",
-    "walk",
     # HTTP
     "asgi_data",
     "wsgi_data",
+    # Registry (for extensibility)
+    "SUFFIX_TO_TYPE",
+    "TYPE_REGISTRY",
     # Version
     "__version__",
 ]

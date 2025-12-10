@@ -124,7 +124,7 @@ function _serializeTime(v) {
 }
 
 function _serializeBool(v) {
-    return v ? '1' : '0';
+    return v ? 'true' : 'false';
 }
 
 function _serializeInt(v) {
@@ -205,7 +205,7 @@ function _deserializeTime(s) {
 }
 
 function _deserializeBool(s) {
-    return ['1', 'true', 'yes', 't', 'on', 'y'].includes(s.toLowerCase());
+    return s.toLowerCase() === 'true';
 }
 
 function _deserializeInt(s) {

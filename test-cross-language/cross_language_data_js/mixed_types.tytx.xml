@@ -1,0 +1,1 @@
+<tytx_root><price>999.99::N</price><date>2025-06-15::D</date><datetime>2025-06-15T14:30:00.000Z::DHZ</datetime><time>08:00:00::H</time><string>hello</string><integer>42::L</integer><float>3.14::R</float><boolean>true::B</boolean><null /></tytx_root>

@@ -1,0 +1,18 @@
+{
+  "name": "genro-tytx-full-test-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Full interoperability test suite for genro-tytx (Python/JS/TS)",
+  "scripts": {
+    "test:js": "node --test js/test_full_suite.js",
+    "test:cross-py-to-js": "node --test cross_language_test.js",
+    "test:cross-js-to-py": "python cross_language_test.py",
+    "generate:py": "python cross_language_generate.py",
+    "generate:js": "node cross_language_generate.js",
+    "test:all": "npm run generate:py && npm run generate:js && npm run test:js && npm run test:cross-py-to-js && npm run test:cross-js-to-py"
+  },
+  "dependencies": {
+    "big.js": "^7.0.1",
+    "@msgpack/msgpack": "^3.1.2"
+  }
+}

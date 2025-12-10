@@ -33,7 +33,7 @@ These types ARE native to JSON but need encoding in XML (where everything is str
 |--------|------|--------|---------|
 | `L` | Integer (Long) | Decimal integer string | `"42::L"` |
 | `R` | Real (Float) | Decimal floating point string | `"3.14159::R"` |
-| `B` | Boolean | "1" for true, "0" for false | `"1::B"` |
+| `B` | Boolean | "true" for true, "false" for false | `"true::B"` |
 | `T` | Text | Plain string (rarely used) | `"hello::T"` |
 
 ### 2.3 Deprecated Suffixes
@@ -64,30 +64,14 @@ When encoding a single typed value (not wrapped in dict/list), NO `::JS` suffix 
 "2025-01-15::D"
 ```
 
-### 3.3 Protocol Prefix
-
-The `TYTX://` prefix is OPTIONAL and used for protocol identification:
-
-```
-TYTX://{"price": "100.50::N"}::JS
-```
-
-**IMPORTANT**: The `TYTX://` prefix makes the payload **invalid JSON**. Standard `JSON.parse()` or `json.loads()` will fail on prefixed payloads. Use the prefix only when:
-
-- Storing/logging payloads without HTTP metadata
-- The payload must be self-identifying
-- Using a TYTX-aware decoder
-
-**HTTP Transport**: When using MIME type `application/vnd.tytx+json`, the body MUST be valid JSON (no `TYTX://` prefix). The Content-Type header already identifies the protocol. See section 9.6 for HTTP details.
-
-### 3.4 Encoding Rules
+### 3.3 Encoding Rules
 
 1. **Typed scalars at root**: Return `"value::SUFFIX"` (no `::JS`)
 2. **Dict/List with typed values**: Return `{...}::JS` or `[...]::JS`
 3. **Dict/List without typed values**: Return plain JSON (no suffix)
 4. **Native JSON types** (bool, int, float, str, null): Pass through unchanged
 
-### 3.5 Decoding Rules
+### 3.4 Decoding Rules
 
 1. Check if string ends with a valid type suffix (`::N`, `::D`, `::DHZ`, `::H`, `::JS`, etc.)
 2. If ends with `::JS`:
@@ -99,7 +83,7 @@ TYTX://{"price": "100.50::N"}::JS
    - Hydrate the string value
 4. If no valid type suffix: Parse as plain JSON
 
-### 3.6 Hydration Algorithm
+### 3.5 Hydration Algorithm
 
 For each string value in the parsed JSON:
 
@@ -330,14 +314,14 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 ### 6.4 Time (H)
 
-- Serialize: ISO 8601 time format `HH:MM:SS[.ffffff]`
-- Example: `time(10, 30, 0)` -> `"10:30:00"`
-- Example: `time(10, 30, 0, 123456)` -> `"10:30:00.123456"`
+- Serialize: ISO 8601 time format `HH:MM:SS.sss` (millisecond precision)
+- Example: `time(10, 30, 0)` -> `"10:30:00.000"`
+- Example: `time(10, 30, 0, 123000)` -> `"10:30:00.123"`
 
 ### 6.5 Boolean (B)
 
-- Serialize: `"1"` for true, `"0"` for false
-- Deserialize: `"1"` -> true, anything else -> false
+- Serialize: `"true"` for true, `"false"` for false
+- Deserialize: `"true"` -> true, `"false"` -> false
 
 ### 6.6 Integer (L)
 
@@ -352,28 +336,41 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 ## 7. API Functions
 
-### 7.1 JSON API
+### 7.1 Core API
 
-| Function | Input | Output |
-|----------|-------|--------|
-| `to_typed_text(value)` | Any Python value | JSON string with `::JS` or `::SUFFIX` |
-| `from_text(data)` | JSON string | Python value |
-| `to_typed_json(value)` | Any Python value | `TYTX://` prefixed JSON string |
-| `from_json(data)` | JSON string (prefix optional) | Python value |
+| Function | Input | Output | Notes |
+|----------|-------|--------|-------|
+| `to_tytx(value, transport=None)` | Any value | Encoded data | Default: JSON string |
+| `from_tytx(data, transport=None)` | Encoded data | Native value | Auto-detect or specify |
 
-### 7.2 XML API
+### 7.2 Transport Parameter
 
-| Function | Input | Output |
-|----------|-------|--------|
-| `to_xml(value)` | Dict with `{"tag": {"attrs": {}, "value": ...}}` | XML string |
-| `from_xml(data)` | XML string | Dict with `{"tag": {"attrs": {}, "value": ...}}` |
+| Transport | Encode Output | Decode Input |
+|-----------|--------------|--------------|
+| `None` (default) | JSON string with `::JS` | JSON string |
+| `"json"` | JSON string with `::JS` | JSON string |
+| `"xml"` | XML string | XML string |
+| `"msgpack"` | bytes | bytes |
 
-### 7.3 MessagePack API
+**XML Input/Output:**
+- Input: Dict with `{"tag": {"attrs": {}, "value": ...}}`
+- Output: Same structure
 
-| Function | Input | Output |
-|----------|-------|--------|
-| `to_msgpack(value)` | Any Python value | bytes |
-| `from_msgpack(data)` | bytes | Python value |
+### 7.3 HTTP Utilities (language-specific)
+
+**Python:**
+
+| Function | Description |
+|----------|-------------|
+| `asgi_data(scope, receive)` | Extract TYTX data from ASGI request |
+| `wsgi_data(environ)` | Extract TYTX data from WSGI request |
+
+**JavaScript:**
+
+| Function | Description |
+|----------|-------------|
+| `fetchTytx(url, options)` | Fetch wrapper with TYTX encoding/decoding |
+| `getTransport(contentType)` | Detect transport from Content-Type header |
 
 ## 8. Examples
 
@@ -381,19 +378,19 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 ```python
 # Dict with typed values
-to_typed_text({"price": Decimal("100.50")})
+to_tytx({"price": Decimal("100.50")})
 # '{"price": "100.50::N"}::JS'
 
 # Scalar typed value
-to_typed_text(date(2025, 1, 15))
+to_tytx(date(2025, 1, 15))
 # '"2025-01-15::D"'
 
 # Dict without typed values
-to_typed_text({"name": "test", "count": 42})
+to_tytx({"name": "test", "count": 42})
 # '{"name": "test", "count": 42}'
 
 # Nested structure
-to_typed_text({
+to_tytx({
     "invoice": {
         "total": Decimal("999.99"),
         "items": [
@@ -409,15 +406,15 @@ to_typed_text({
 
 ```python
 # Dict with typed values
-from_text('{"price": "100.50::N"}::JS')
+from_tytx('{"price": "100.50::N"}::JS')
 # {"price": Decimal("100.50")}
 
 # Scalar typed value
-from_text('"2025-01-15::D"')
+from_tytx('"2025-01-15::D"')
 # date(2025, 1, 15)
 
 # Plain JSON (no typed values)
-from_text('{"name": "test"}')
+from_tytx('{"name": "test"}')
 # {"name": "test"}
 ```
 
@@ -500,11 +497,6 @@ When transmitting TYTX payloads over HTTP, the Content-Type header identifies th
 | JSON | `application/json` | `application/vnd.tytx+json` |
 | XML | `application/xml` | `application/vnd.tytx+xml` |
 | MessagePack | `application/msgpack` | `application/vnd.tytx+msgpack` |
-
-#### Prefix Rules
-
-- **With TYTX MIME type**: The `TYTX://` prefix MUST NOT be used. The Content-Type already identifies the protocol, and the prefix would invalidate the JSON.
-- **With standard MIME type**: The `TYTX://` prefix MAY be used if the payload needs to be self-identifying, but this breaks standard JSON parsers.
 
 #### Example HTTP Request
 

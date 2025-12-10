@@ -6,14 +6,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 
-import {
-    toTytx,
-    fromTytx,
-    createDecimal,
-    tytxEquivalent,
-    setDecimalLibrary,
-    getDecimalLibrary,
-} from '../src/index.js';
+import { toTytx, fromTytx } from '../src/index.js';
+import { createDecimal, setDecimalLibrary } from '../src/registry.js';
+import { tytxEquivalent } from '../src/utils.js';
 
 // Helper to create Date for date only (midnight UTC)
 const date = (y, m, d) => new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));

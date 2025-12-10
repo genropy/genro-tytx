@@ -51,7 +51,7 @@ def _serialize_time(v: time) -> str:
 
 
 def _serialize_bool(v: bool) -> str:
-    return "1" if v else "0"
+    return "true" if v else "false"
 
 
 def _serialize_int(v: int) -> str:
@@ -100,7 +100,7 @@ def _deserialize_time(s: str) -> time:
 
 
 def _deserialize_bool(s: str) -> bool:
-    return s.lower() in ("1", "true", "yes", "t", "on", "y")
+    return s.lower() == "true"
 
 
 def _deserialize_int(s: str) -> int:

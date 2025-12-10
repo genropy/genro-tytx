@@ -2,7 +2,7 @@
 """
 ASGI Test Server for TYTX End-to-End Testing.
 
-Runs a simple ASGI server with TYTXMiddleware for integration tests.
+Runs a simple ASGI server with manual TYTX decoding for integration tests.
 """
 
 import json
@@ -10,7 +10,7 @@ import asyncio
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
-from genro_tytx import TYTXMiddleware, to_typed_text
+from genro_tytx import asgi_data, to_tytx
 
 
 async def app(scope, receive, send):
@@ -19,18 +19,46 @@ async def app(scope, receive, send):
         return
 
     path = scope.get("path", "/")
-    method = scope.get("method", "GET")
+    
+    async def _send_json(data, status=200):
+        """Send JSON response."""
+        body = to_tytx(data).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": body,
+        })
 
-    # Read body
-    body = b""
-    while True:
-        message = await receive()
-        body += message.get("body", b"")
-        if not message.get("more_body", False):
-            break
+    def _serialize_for_json(value):
+        """Convert Python types to JSON-serializable format for echo."""
+        if isinstance(value, Decimal):
+            return {"_type": "Decimal", "value": str(value)}
+        if isinstance(value, datetime):
+            return {"_type": "datetime", "value": value.isoformat()}
+        if isinstance(value, date):
+            return {"_type": "date", "value": value.isoformat()}
+        if isinstance(value, time):
+            return {"_type": "time", "value": value.isoformat()}
+        if isinstance(value, dict):
+            return {k: _serialize_for_json(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_serialize_for_json(v) for v in value]
+        return value
 
-    # Get decoded data from middleware
-    tytx = scope.get("tytx", {})
+    # Decode request data using TYTX
+    # asgi_data consumes the body, so we don't need to read it manually
+    try:
+        tytx = await asgi_data(scope, receive)
+    except Exception as e:
+        await _send_json({"error": str(e)}, status=400)
+        return
 
     if path == "/echo":
         # Echo back all received data
@@ -40,7 +68,7 @@ async def app(scope, receive, send):
             "cookies": _serialize_for_json(tytx.get("cookies", {})),
             "body": _serialize_for_json(tytx.get("body")),
         }
-        await _send_json(send, response_data)
+        await _send_json(response_data)
 
     elif path == "/types":
         # Return various typed values
@@ -54,11 +82,11 @@ async def app(scope, receive, send):
             "boolean": True,
             "null": None,
         }
-        await _send_json(send, response_data)
+        await _send_json(response_data)
 
     elif path == "/compute":
         # Compute with received values
-        body_data = tytx.get("body", {})
+        body_data = tytx.get("body") or {}
         price = body_data.get("price", Decimal("0"))
         quantity = body_data.get("quantity", 0)
         tax_rate = body_data.get("tax_rate", Decimal("0.22"))
@@ -73,57 +101,20 @@ async def app(scope, receive, send):
             "total": total,
             "computed_at": datetime.now(timezone.utc),
         }
-        await _send_json(send, response_data)
+        await _send_json(response_data)
 
     elif path == "/health":
-        await _send_json(send, {"status": "ok"})
+        await _send_json({"status": "ok"})
 
     else:
-        await _send_json(send, {"error": "not found"}, status=404)
-
-
-def _serialize_for_json(value):
-    """Convert Python types to JSON-serializable format for echo."""
-    if isinstance(value, Decimal):
-        return {"_type": "Decimal", "value": str(value)}
-    if isinstance(value, datetime):
-        return {"_type": "datetime", "value": value.isoformat()}
-    if isinstance(value, date):
-        return {"_type": "date", "value": value.isoformat()}
-    if isinstance(value, time):
-        return {"_type": "time", "value": value.isoformat()}
-    if isinstance(value, dict):
-        return {k: _serialize_for_json(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_serialize_for_json(v) for v in value]
-    return value
-
-
-async def _send_json(send, data, status=200):
-    """Send JSON response."""
-    body = to_typed_text(data).encode("utf-8")
-    await send({
-        "type": "http.response.start",
-        "status": status,
-        "headers": [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(body)).encode()),
-        ],
-    })
-    await send({
-        "type": "http.response.body",
-        "body": body,
-    })
-
-
-# Wrap with middleware
-application = TYTXMiddleware(app)
+        await _send_json({"error": "not found"}, status=404)
 
 
 async def run_server(host="127.0.0.1", port=8765):
     """Run the ASGI server using uvicorn."""
     import uvicorn
-    config = uvicorn.Config(application, host=host, port=port, log_level="warning")
+    # Use the app directly
+    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
     await server.serve()
 

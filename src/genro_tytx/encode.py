@@ -114,7 +114,7 @@ def to_tytx(
         >>> to_tytx({"price": Decimal("100.50")})
         '{"price": "100.50::N"}::JS'
         >>> to_tytx({"root": {"value": Decimal("100")}}, transport="xml")
-        '<?xml version="1.0" ?><root>100::N</root>'
+        '<?xml version="1.0" ?><tytx_root><root>100::N</root></tytx_root>'
     """
     if transport is None or transport == "json":
         result = _to_json(value, _force_suffix)

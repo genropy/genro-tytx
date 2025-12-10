@@ -9,13 +9,9 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-    createDecimal,
-    tytxEquivalent,
-    setDecimalLibrary,
-    fetchTytx,
-    getTransport,
-} from '../src/index.js';
+import { fetchTytx, getTransport } from '../src/index.js';
+import { createDecimal, setDecimalLibrary } from '../src/registry.js';
+import { tytxEquivalent } from '../src/utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

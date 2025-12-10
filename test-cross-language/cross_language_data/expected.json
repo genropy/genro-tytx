@@ -1,0 +1,107 @@
+{
+  "decimal_simple": {
+    "price": {
+      "_type": "Decimal",
+      "value": "100.50"
+    }
+  },
+  "date_simple": {
+    "d": {
+      "_type": "date",
+      "value": "2025-01-15"
+    }
+  },
+  "datetime_utc": {
+    "dt": {
+      "_type": "datetime",
+      "value": "2025-01-15T10:30:00+00:00"
+    }
+  },
+  "time_simple": {
+    "t": {
+      "_type": "time",
+      "value": "10:30:45"
+    }
+  },
+  "mixed_types": {
+    "price": {
+      "_type": "Decimal",
+      "value": "999.99"
+    },
+    "date": {
+      "_type": "date",
+      "value": "2025-06-15"
+    },
+    "datetime": {
+      "_type": "datetime",
+      "value": "2025-06-15T14:30:00+00:00"
+    },
+    "time": {
+      "_type": "time",
+      "value": "08:00:00"
+    },
+    "string": "hello",
+    "integer": 42,
+    "float": 3.14,
+    "boolean": true,
+    "null": null
+  },
+  "nested_structure": {
+    "invoice": {
+      "total": {
+        "_type": "Decimal",
+        "value": "1234.56"
+      },
+      "issued": {
+        "_type": "date",
+        "value": "2025-03-01"
+      },
+      "items": [
+        {
+          "name": "Item A",
+          "price": {
+            "_type": "Decimal",
+            "value": "100.00"
+          },
+          "qty": 2
+        },
+        {
+          "name": "Item B",
+          "price": {
+            "_type": "Decimal",
+            "value": "200.00"
+          },
+          "qty": 1
+        }
+      ]
+    }
+  },
+  "array_of_decimals": [
+    {
+      "_type": "Decimal",
+      "value": "1.1"
+    },
+    {
+      "_type": "Decimal",
+      "value": "2.2"
+    },
+    {
+      "_type": "Decimal",
+      "value": "3.3"
+    }
+  ],
+  "array_of_dates": [
+    {
+      "_type": "date",
+      "value": "2025-01-01"
+    },
+    {
+      "_type": "date",
+      "value": "2025-02-01"
+    },
+    {
+      "_type": "date",
+      "value": "2025-03-01"
+    }
+  ]
+}

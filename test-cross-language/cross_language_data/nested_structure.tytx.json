@@ -1,0 +1,1 @@
+{"invoice":{"total":"1234.56::N","issued":"2025-03-01::D","items":[{"name":"Item A","price":"100.00::N","qty":2},{"name":"Item B","price":"200.00::N","qty":1}]}}::JS

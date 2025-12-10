@@ -10,7 +10,6 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
 const TYTX_MARKER = '::JS';
-const TYTX_PREFIX = 'TYTX://';
 
 /**
  * Filter for string values.
@@ -123,7 +122,6 @@ function fromTytx(data, transport = null) {
 export {
     fromTytx,
     TYTX_MARKER,
-    TYTX_PREFIX,
     isString,
     _fromJson,
     _fromXml,

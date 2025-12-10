@@ -44,11 +44,11 @@ pip install -e ".[dev]"
 ## Verify Installation
 
 ```python
->>> from genro_tytx import to_typed_text, from_text
+>>> from genro_tytx import to_tytx, from_tytx
 >>> from decimal import Decimal
->>> to_typed_text({"price": Decimal("100.50")})
+>>> to_tytx({"price": Decimal("100.50")})
 '{"price": "100.50::N"}::JS'
->>> from_text('{"price": "100.50::N"}::JS')
+>>> from_tytx('{"price": "100.50::N"}::JS')
 {'price': Decimal('100.50')}
 ```
 
@@ -62,17 +62,4 @@ For better JSON performance, install orjson:
 pip install orjson
 ```
 
-TYTX Base auto-detects orjson and uses it when available. You can also force a specific encoder:
-
-```python
-from genro_tytx import to_typed_text, from_text
-
-# Force stdlib json
-result = to_typed_text(data, use_orjson=False)
-
-# Force orjson (raises error if not installed)
-result = to_typed_text(data, use_orjson=True)
-
-# Auto-detect (default)
-result = to_typed_text(data)
-```
+TYTX auto-detects orjson and uses it when available.

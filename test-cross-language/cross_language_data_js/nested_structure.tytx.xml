@@ -1,0 +1,1 @@
+<tytx_root><invoice><total>1234.56::N</total><issued>2025-03-01::D</issued><items><_item><name>Item A</name><price>100::N</price><qty>2::L</qty></_item><_item><name>Item B</name><price>200::N</price><qty>1::L</qty></_item></items></invoice></tytx_root>

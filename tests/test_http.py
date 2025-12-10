@@ -197,29 +197,29 @@ async def test_asgi_data(
     # Verify query
     for key, expected in query_params.items():
         assert key in result["query"], f"Missing query param: {key}"
-        assert tytx_equivalent(
-            expected, result["query"][key]
-        ), f"Query mismatch for {key}: {expected!r} != {result['query'][key]!r}"
+        assert tytx_equivalent(expected, result["query"][key]), (
+            f"Query mismatch for {key}: {expected!r} != {result['query'][key]!r}"
+        )
 
     # Verify headers
     for key, expected in header_params.items():
         assert key in result["headers"], f"Missing header: {key}"
-        assert tytx_equivalent(
-            expected, result["headers"][key]
-        ), f"Header mismatch for {key}: {expected!r} != {result['headers'][key]!r}"
+        assert tytx_equivalent(expected, result["headers"][key]), (
+            f"Header mismatch for {key}: {expected!r} != {result['headers'][key]!r}"
+        )
 
     # Verify cookies
     for key, expected in cookie_params.items():
         assert key in result["cookies"], f"Missing cookie: {key}"
-        assert tytx_equivalent(
-            expected, result["cookies"][key]
-        ), f"Cookie mismatch for {key}: {expected!r} != {result['cookies'][key]!r}"
+        assert tytx_equivalent(expected, result["cookies"][key]), (
+            f"Cookie mismatch for {key}: {expected!r} != {result['cookies'][key]!r}"
+        )
 
     # Verify body
     if body_data is not None:
-        assert tytx_equivalent(
-            body_data, result["body"]
-        ), f"Body mismatch: {body_data!r} != {result['body']!r}"
+        assert tytx_equivalent(body_data, result["body"]), (
+            f"Body mismatch: {body_data!r} != {result['body']!r}"
+        )
 
 
 @pytest.mark.asyncio
@@ -312,29 +312,29 @@ def test_wsgi_data(description, query_params, header_params, cookie_params, body
     # Verify query
     for key, expected in query_params.items():
         assert key in result["query"], f"Missing query param: {key}"
-        assert tytx_equivalent(
-            expected, result["query"][key]
-        ), f"Query mismatch for {key}: {expected!r} != {result['query'][key]!r}"
+        assert tytx_equivalent(expected, result["query"][key]), (
+            f"Query mismatch for {key}: {expected!r} != {result['query'][key]!r}"
+        )
 
     # Verify headers
     for key, expected in header_params.items():
         assert key in result["headers"], f"Missing header: {key}"
-        assert tytx_equivalent(
-            expected, result["headers"][key]
-        ), f"Header mismatch for {key}: {expected!r} != {result['headers'][key]!r}"
+        assert tytx_equivalent(expected, result["headers"][key]), (
+            f"Header mismatch for {key}: {expected!r} != {result['headers'][key]!r}"
+        )
 
     # Verify cookies
     for key, expected in cookie_params.items():
         assert key in result["cookies"], f"Missing cookie: {key}"
-        assert tytx_equivalent(
-            expected, result["cookies"][key]
-        ), f"Cookie mismatch for {key}: {expected!r} != {result['cookies'][key]!r}"
+        assert tytx_equivalent(expected, result["cookies"][key]), (
+            f"Cookie mismatch for {key}: {expected!r} != {result['cookies'][key]!r}"
+        )
 
     # Verify body
     if body_data is not None:
-        assert tytx_equivalent(
-            body_data, result["body"]
-        ), f"Body mismatch: {body_data!r} != {result['body']!r}"
+        assert tytx_equivalent(body_data, result["body"]), (
+            f"Body mismatch: {body_data!r} != {result['body']!r}"
+        )
 
 
 def test_wsgi_data_no_body():

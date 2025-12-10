@@ -21,7 +21,6 @@ except ImportError:  # pragma: no cover
     HAS_ORJSON = False
 
 TYTX_MARKER = "::JS"
-TYTX_PREFIX = "TYTX://"
 
 
 def is_string(v):

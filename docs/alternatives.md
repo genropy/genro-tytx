@@ -98,7 +98,7 @@ message Order {
 
 Type system with query language:
 
-```graphql
+```text
 type Order {
   price: String!  # Custom scalar needed for Decimal
   date: Date!
@@ -171,6 +171,7 @@ async def create_order_v2(request):
 
 You can migrate endpoint by endpoint without breaking existing clients.
 
+(real-world-examples)=
 ## Real-World Comparison: Before and After
 
 ### Scenario 1: Form with Many Typed Fields
@@ -303,8 +304,8 @@ async def save_contract(request: Request):
 
 ```javascript
 async function saveContract(formData) {
-    // Send directly - tytx_fetch handles encoding
-    const result = await tytx_fetch('/api/save-contract', {
+    // Send directly - fetchTytx handles encoding
+    const result = await fetchTytx('/api/save-contract', {
         method: 'POST',
         body: {
             amount: formData.amount,           // Decimal
@@ -449,8 +450,8 @@ async def get_transactions():
 
 @app.put("/api/transactions")
 async def update_transactions(request: Request):
-    data = request.scope["tytx"]["body"]
-    for row in data["rows"]:
+    data = await asgi_data(request.scope, request.receive)
+    for row in data["body"]["rows"]:
         await db.execute(
             "UPDATE transactions SET date=?, amount=?, ... WHERE id=?",
             row["date"], row["amount"], row["tax"], row["total"],
@@ -464,12 +465,12 @@ async def update_transactions(request: Request):
 
 ```javascript
 async function loadGrid() {
-    const data = await tytx_fetch('/api/transactions');
+    const data = await fetchTytx('/api/transactions');
     return data.rows;  // All types correct
 }
 
 async function saveChanges(modifiedRows) {
-    await tytx_fetch('/api/transactions', {
+    await fetchTytx('/api/transactions', {
         method: 'PUT',
         body: { rows: modifiedRows }  // Types preserved
     });
@@ -517,19 +518,10 @@ async def list_orders(request: Request):
 
 #### ✅ With TYTX
 
-**Client**:
+**Client** (URL built manually with TYTX suffixes):
 
-```javascript
-const result = await tytx_fetch('/api/orders', {
-    query: {
-        start_date: startDate,      // Date
-        end_date: endDate,
-        min_price: minPrice,        // Decimal
-        max_price: maxPrice,
-        created_after: createdAfter // Date (datetime)
-    }
-});
-// URL: /api/orders?start_date=2025-01-01::D&end_date=2025-12-31::D&min_price=100.00::N&...
+```
+/api/orders?start_date=2025-01-01::D&end_date=2025-12-31::D&min_price=100.00::N&max_price=500.00::N
 ```
 
 **Server**:
@@ -537,14 +529,14 @@ const result = await tytx_fetch('/api/orders', {
 ```python
 @app.get("/api/orders")
 async def list_orders(request: Request):
-    params = request.scope["tytx"]["query"]
+    data = await asgi_data(request.scope, request.receive)
+    params = data["query"]
 
     # Already typed!
     start_date = params["start_date"]    # date
     end_date = params["end_date"]        # date
     min_price = params["min_price"]      # Decimal
     max_price = params["max_price"]      # Decimal
-    created_after = params["created_after"]  # datetime
 ```
 
 ---

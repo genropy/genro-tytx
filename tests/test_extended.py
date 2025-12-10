@@ -221,9 +221,9 @@ class TestExtendedRoundtrip:
         encode_module.USE_ORJSON = use_orjson and encode_module.HAS_ORJSON
         txt = to_tytx(value, transport=transport)
         result = from_tytx(txt, transport=transport, use_orjson=use_orjson)
-        assert tytx_equivalent(
-            value, result
-        ), f"Mismatch: {value!r} -> {txt!r} -> {result!r}"
+        assert tytx_equivalent(value, result), (
+            f"Mismatch: {value!r} -> {txt!r} -> {result!r}"
+        )
 
 
 # =============================================================================
@@ -328,9 +328,9 @@ class TestHTTPCrossLanguageRoundtrip:
             result = from_tytx(response_data.decode("utf-8"), transport=transport)
 
         # Verify equivalence
-        assert tytx_equivalent(
-            value, result
-        ), f"Mismatch: {value!r} -> {encoded!r} -> {result!r}"
+        assert tytx_equivalent(value, result), (
+            f"Mismatch: {value!r} -> {encoded!r} -> {result!r}"
+        )
 
 
 if __name__ == "__main__":
