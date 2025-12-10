@@ -16,11 +16,11 @@
 
 # genro-tytx
 
-**Stop Converting Types Manually.**
+**A lightweight, multi-transport typed data interchange system.**
 
-You send a `Decimal` from Python, JavaScript receives a string. You convert it back. Every. Single. Time.
+TYTX eliminates manual type conversions between Python and JavaScript, and makes switching to MessagePack for better performance as simple as changing a parameter.
 
-TYTX fixes this. Types flow automatically between Python and JavaScript.
+You send a `Decimal` from Python, JavaScript receives a string. You convert it back. Every. Single. Time. TYTX fixes this—types flow automatically between Python and JavaScript, over JSON, XML, or MessagePack.
 
 ## The Pain You Know
 

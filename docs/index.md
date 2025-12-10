@@ -4,11 +4,13 @@
 :width: 200px
 ```
 
-# TYTX - Stop Converting Types Manually
+# TYTX - Typed Data Interchange
 
-**You send a Decimal from Python, JavaScript receives a string. You convert it back. Every. Single. Time.**
+**A lightweight, multi-transport typed data interchange system.**
 
-TYTX fixes this. Types flow automatically between Python and JavaScript.
+TYTX eliminates manual type conversions between Python and JavaScript, and makes switching to MessagePack for better performance as simple as changing a parameter.
+
+You send a Decimal from Python, JavaScript receives a string. You convert it back. Every. Single. Time. TYTX fixes this—types flow automatically between Python and JavaScript, over JSON, XML, or MessagePack.
 
 ## The Pain You Know
 
