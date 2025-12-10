@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://pypi.org/project/genro-tytx/"><img src="https://img.shields.io/pypi/v/genro-tytx?color=blue" alt="PyPI"></a>
   <a href="https://www.npmjs.com/package/genro-tytx"><img src="https://img.shields.io/npm/v/genro-tytx?color=red" alt="npm"></a>
-  <a href="https://pypi.org/project/genro-tytx/"><img src="https://img.shields.io/pypi/pyversions/genro-tytx" alt="Python"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <a href="https://github.com/genropy/genro-tytx/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a>
   <img src="https://img.shields.io/badge/status-beta-yellow" alt="Status">
   <br>
