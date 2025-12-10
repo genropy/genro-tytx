@@ -8,7 +8,9 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test test/test_*.js"
+    "test": "node --test test/test_extended.js",
+    "test:all": "node --test test/test_*.js",
+    "test:http": "node --test test/test_http.js"
   },
   "keywords": [
     "tytx",
