@@ -1,8 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 """Extended roundtrip tests for all TYTX transports and types."""
 
-from datetime import date, datetime, time, timezone, timedelta
+import subprocess
+import time as time_module
+import urllib.error
+import urllib.request
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -71,7 +76,10 @@ DATASETS = [
     ([[Decimal("1.1"), Decimal("2.2")], [Decimal("3.3"), Decimal("4.4")]], None),
     ({"l1": {"l2": {"amount": Decimal("999.99"), "date": date(2025, 6, 15)}}}, None),
     (
-        [{"dt": datetime(2025, 1, 1, 0, 0)}, {"dt": datetime(2025, 12, 31, 23, 59)}],
+        [
+            {"dt": datetime(2025, 1, 1, 0, 0, 0, 1000)},
+            {"dt": datetime(2025, 12, 31, 23, 59, 0, 1000)},
+        ],
         None,
     ),
     ({"times": [time(8, 0), time(12, 30), time(18, 0)]}, None),
@@ -216,6 +224,113 @@ class TestExtendedRoundtrip:
         assert tytx_equivalent(
             value, result
         ), f"Mismatch: {value!r} -> {txt!r} -> {result!r}"
+
+
+# =============================================================================
+# HTTP Cross-Language Roundtrip Tests (Python → JS → Python)
+# =============================================================================
+
+JS_SERVER_PORT = 3456
+JS_SERVER_URL = f"http://localhost:{JS_SERVER_PORT}/echo"
+
+HTTP_TRANSPORTS = ["json", "xml", "msgpack"]
+
+CONTENT_TYPES = {
+    "json": "application/json",
+    "xml": "application/xml",
+    "msgpack": "application/msgpack",
+}
+
+
+def http_dataset_iterator():
+    """Yield test cases for HTTP roundtrip (only explicit transports)."""
+    for value, transports in DATASETS:
+        valid_transports = transports if transports else HTTP_TRANSPORTS
+        for transport in valid_transports:
+            if transport in HTTP_TRANSPORTS:
+                yield value, transport
+
+
+class TestHTTPCrossLanguageRoundtrip:
+    """Test roundtrip Python → JS server → Python via HTTP."""
+
+    @pytest.fixture(scope="class")
+    def js_server(self):
+        """Start JS echo server for tests."""
+        server_path = Path(__file__).parent.parent / "js" / "test" / "server_echo.js"
+        if not server_path.exists():
+            pytest.skip("JS server not found")
+
+        proc = subprocess.Popen(
+            ["node", str(server_path)],
+            cwd=Path(__file__).parent.parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        # Wait for server to start
+        for _ in range(20):
+            time_module.sleep(0.1)
+            try:
+                req = urllib.request.Request(
+                    f"http://localhost:{JS_SERVER_PORT}/health"
+                )
+                urllib.request.urlopen(req, timeout=1)
+                break
+            except urllib.error.URLError:
+                continue
+        else:
+            proc.terminate()
+            pytest.skip("JS server failed to start")
+
+        yield JS_SERVER_URL
+
+        proc.terminate()
+        proc.wait()
+
+    @pytest.mark.parametrize(
+        "value,transport",
+        [
+            pytest.param(*args, id=f"{i}-{args[1]}")
+            for i, args in enumerate(http_dataset_iterator())
+        ],
+    )
+    def test_roundtrip_via_js(self, value, transport, js_server):
+        """Roundtrip test: Python encode → JS decode/encode → Python decode."""
+        # Serialize in Python
+        encoded = to_tytx(value, transport=transport)
+
+        # Prepare request
+        content_type = CONTENT_TYPES[transport]
+        if transport == "msgpack":
+            data = encoded
+        else:
+            data = encoded.encode("utf-8")
+
+        req = urllib.request.Request(
+            js_server,
+            data=data,
+            headers={"Content-Type": content_type},
+            method="POST",
+        )
+
+        # Send to JS server
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                response_data = resp.read()
+        except urllib.error.URLError as e:
+            pytest.fail(f"HTTP request failed: {e}")
+
+        # Deserialize response
+        if transport == "msgpack":
+            result = from_tytx(response_data, transport=transport)
+        else:
+            result = from_tytx(response_data.decode("utf-8"), transport=transport)
+
+        # Verify equivalence
+        assert tytx_equivalent(
+            value, result
+        ), f"Mismatch: {value!r} -> {encoded!r} -> {result!r}"
 
 
 if __name__ == "__main__":

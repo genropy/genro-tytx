@@ -35,6 +35,7 @@ import { fromTytx, TYTX_MARKER, TYTX_PREFIX } from './decode.js';
 import { toXml, fromXml, fromXmlnode } from './xml.js';
 import { toMsgpack, fromMsgpack, HAS_MSGPACK } from './msgpack.js';
 import { datetimeEquivalent, tytxEquivalent, walk, rawEncode, rawDecode } from './utils.js';
+import { fetchTytx, getTransport, CONTENT_TYPES } from './http.js';
 
 const __version__ = '0.7.0';
 
@@ -50,6 +51,10 @@ export {
     toMsgpack,
     fromMsgpack,
     HAS_MSGPACK,
+    // HTTP
+    fetchTytx,
+    getTransport,
+    CONTENT_TYPES,
     // Registry
     SUFFIX_TO_TYPE,
     decimalLibrary,
