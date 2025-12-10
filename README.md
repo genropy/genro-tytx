@@ -16,7 +16,7 @@
 
 # genro-tytx
 
-**A lightweight, multi-transport typed data interchange system.**
+**A lightweight multi-transport typed data interchange system.**
 
 TYTX eliminates manual type conversions between Python and JavaScript, and makes switching to MessagePack for better performance as simple as changing a parameter.
 
