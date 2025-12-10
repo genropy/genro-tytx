@@ -7,72 +7,37 @@
  * - Encoders/Decoders: JSON, XML, MessagePack
  *
  * Usage:
- *     import { toTytx, fromTytx, createDecimal } from 'genro-tytx';
+ *     import { toTytx, fromTytx, fetchTytx } from 'genro-tytx';
+ *     import Big from 'big.js';
  *
  *     // Encode
- *     const data = {"price": createDecimal("100.50"), "date": new Date(Date.UTC(2025, 0, 15))};
+ *     const data = {"price": new Big("100.50"), "date": new Date(Date.UTC(2025, 0, 15))};
  *     const jsonStr = toTytx(data);
  *     // '{"price": "100.50::N", "date": "2025-01-15::D"}::JS'
  *
  *     // Decode
  *     const result = fromTytx(jsonStr);
- *     // {"price": Decimal("100.50"), "date": Date}
+ *     // {"price": Big("100.50"), "date": Date}
  */
 
-import {
-    SUFFIX_TO_TYPE,
-    decimalLibrary,
-    createDecimal,
-    isDecimal,
-    setDecimalLibrary,
-    getDecimalLibrary,
-    getDateType,
-    getTypeEntry,
-} from './registry.js';
+import { isDecimal } from './registry.js';
 
 import { toTytx } from './encode.js';
-import { fromTytx, TYTX_MARKER, TYTX_PREFIX } from './decode.js';
-import { toXml, fromXml, fromXmlnode } from './xml.js';
-import { toMsgpack, fromMsgpack, HAS_MSGPACK } from './msgpack.js';
-import { datetimeEquivalent, tytxEquivalent, walk, rawEncode, rawDecode } from './utils.js';
+import { fromTytx } from './decode.js';
 import { fetchTytx, getTransport, CONTENT_TYPES } from './http.js';
 
 const __version__ = '0.7.0';
 
 export {
-    // Unified API
+    // Core API
     toTytx,
     fromTytx,
-    // XML
-    toXml,
-    fromXml,
-    fromXmlnode,
-    // MessagePack
-    toMsgpack,
-    fromMsgpack,
-    HAS_MSGPACK,
-    // HTTP
+    // HTTP utilities
     fetchTytx,
     getTransport,
     CONTENT_TYPES,
-    // Registry
-    SUFFIX_TO_TYPE,
-    decimalLibrary,
-    createDecimal,
+    // Internal utility (needed by encode/decode)
     isDecimal,
-    setDecimalLibrary,
-    getDecimalLibrary,
-    getDateType,
-    getTypeEntry,
-    // Utilities
-    datetimeEquivalent,
-    tytxEquivalent,
-    walk,
-    rawEncode,
-    rawDecode,
-    // Constants
-    TYTX_MARKER,
-    TYTX_PREFIX,
     // Version
     __version__,
 };

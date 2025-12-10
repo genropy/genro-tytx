@@ -23,7 +23,7 @@ Encode data with special types, decode back:
 ```python
 from datetime import date, datetime, time
 from decimal import Decimal
-from genro_tytx import to_typed_text, from_text
+from genro_tytx import to_tytx, from_tytx
 
 data = {
     "price": Decimal("99.99"),
@@ -33,11 +33,11 @@ data = {
 }
 
 # Encode
-encoded = to_typed_text(data)
+encoded = to_tytx(data)
 # '{"price": "99.99::N", "due_date": "2025-01-15::D", ...}::JS'
 
 # Decode
-decoded = from_text(encoded)
+decoded = from_tytx(encoded)
 assert decoded["price"] == Decimal("99.99")
 assert decoded["due_date"] == date(2025, 1, 15)
 ```
@@ -49,123 +49,126 @@ The real power: types flow automatically between browser and server.
 ### Server (FastAPI)
 
 ```python
-from fastapi import FastAPI, Request
-from genro_tytx import TYTXMiddleware
+from fastapi import FastAPI, Request, Response
+from genro_tytx import asgi_data, to_tytx
 from decimal import Decimal
 from datetime import date, timedelta
 
 app = FastAPI()
-app = TYTXMiddleware(app)
 
 @app.post("/api/order")
 async def create_order(request: Request):
-    data = request.scope["tytx"]["body"]
+    # Decode TYTX data from request
+    data = await asgi_data(request.scope, request.receive)
+    body = data["body"]
 
     # Types are already correct!
-    price = data["price"]       # Decimal
-    quantity = data["quantity"] # int
-    ship_date = data["date"]    # date
+    price = body["price"]       # Decimal
+    quantity = body["quantity"] # int
+    ship_date = body["date"]    # date
 
     total = price * quantity * Decimal("1.22")
 
-    return {
-        "total": total,                          # Decimal
+    result = {
+        "total": total,                              # Decimal
         "ship_date": ship_date + timedelta(days=3),  # date
     }
+    return Response(
+        content=to_tytx(result),
+        media_type="application/vnd.tytx+json"
+    )
 ```
 
 ### Client (JavaScript)
 
 ```javascript
-import { tytx_fetch, createDate } from 'genro-tytx';
-import Decimal from 'decimal.js';
+import { fetchTytx } from 'genro-tytx';
+import Big from 'big.js';
 
-const result = await tytx_fetch('/api/order', {
+const result = await fetchTytx('/api/order', {
     method: 'POST',
     body: {
-        price: new Decimal('49.99'),
+        price: new Big('49.99'),
         quantity: 2,
-        date: createDate(2025, 1, 15),
+        date: new Date(Date.UTC(2025, 0, 15)),
     }
 });
 
 // Types are already correct!
-console.log(result.total.toFixed(2));  // "121.98" (Decimal)
+console.log(result.total.toFixed(2));  // "121.98" (Big)
 console.log(result.ship_date);         // Date object
 ```
 
 ### Server (Flask)
 
 ```python
-from flask import Flask, g
-from genro_tytx import TYTXWSGIMiddleware
+from flask import Flask, request, Response
+from genro_tytx import wsgi_data, to_tytx
 
 app = Flask(__name__)
-app.wsgi_app = TYTXWSGIMiddleware(app.wsgi_app)
 
 @app.route("/api/order", methods=["POST"])
 def create_order():
-    data = g.environ["tytx"]["body"]
-    return {"total": data["price"] * data["quantity"]}
+    # Decode TYTX data from request
+    data = wsgi_data(request.environ)
+    body = data["body"]
+
+    result = {"total": body["price"] * body["quantity"]}
+    return Response(
+        to_tytx(result),
+        mimetype="application/vnd.tytx+json"
+    )
 ```
 
 ## 3. TypeScript with Types
 
 ```typescript
-import { tytx_fetch, createDate } from 'genro-tytx';
-import Decimal from 'decimal.js';
+import { fetchTytx } from 'genro-tytx';
+import Big from 'big.js';
 
 interface OrderResponse {
-    total: Decimal;
+    total: Big;
     ship_date: Date;
 }
 
-const result = await tytx_fetch<OrderResponse>('/api/order', {
+const result = await fetchTytx('/api/order', {
     method: 'POST',
     body: {
-        price: new Decimal('49.99'),
+        price: new Big('49.99'),
         quantity: 2,
-        date: createDate(2025, 1, 15),
+        date: new Date(Date.UTC(2025, 0, 15)),
     }
-});
+}) as OrderResponse;
 ```
 
 ## 4. Query Parameters
 
-Types in URL query strings:
-
-```javascript
-const result = await tytx_fetch('/api/search', {
-    query: {
-        start_date: createDate(2025, 1, 1),
-        end_date: createDate(2025, 12, 31),
-        min_price: new Decimal('10.00'),
-    }
-});
-// URL: /api/search?start_date=2025-01-01::D&end_date=2025-12-31::D&min_price=10.00::N
-```
+Types in URL query strings are automatically decoded:
 
 ```python
 @app.get("/api/search")
 async def search(request: Request):
-    params = request.scope["tytx"]["query"]
-    start = params["start_date"]    # date object
-    min_price = params["min_price"] # Decimal object
+    # URL: /api/search?start_date=2025-01-01::D&min_price=10.00::N
+    data = await asgi_data(request.scope, request.receive)
+    query = data["query"]
+
+    start = query["start_date"]    # date object
+    min_price = query["min_price"] # Decimal object
 ```
 
-## Helper Functions (JavaScript)
+## Date Handling (JavaScript)
+
+JavaScript doesn't have separate Date/Time types, so use standard `Date` with UTC:
 
 ```javascript
-import { createDate, createTime, createDateTime } from 'genro-tytx';
+// Date only (midnight UTC) - use Date.UTC to avoid timezone issues
+const date = new Date(Date.UTC(2025, 0, 15));  // January 15, 2025
 
-// Date only (midnight UTC)
-const date = createDate(2025, 1, 15);
+// Full datetime (UTC)
+const datetime = new Date(Date.UTC(2025, 0, 15, 14, 30, 0));
 
-// Time only (stored as epoch date)
-const time = createTime(14, 30, 0);
-
-// Full datetime
-const datetime = createDateTime(2025, 1, 15, 14, 30, 0);
+// Time only (use epoch date: 1970-01-01)
+const time = new Date(Date.UTC(1970, 0, 1, 14, 30, 0));
 ```
 
 ## Other Formats
@@ -190,6 +193,6 @@ For legacy systems requiring XML. See [XML Format Reference](xml-format.md).
 ## Next Steps
 
 - [HTTP Integration](http-integration.md) - Complete full-stack guide
-- [Middleware API](middleware-api.md) - API reference
+- [API Reference](api-reference.md) - API reference
 - [FAQ](faq.md) - Common questions
 - [How It Works](how-it-works.md) - Wire format details

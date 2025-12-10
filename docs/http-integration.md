@@ -4,7 +4,7 @@ Complete guide to transparent type handling across browser and server.
 
 ## How It Works
 
-TYTX middleware handles encoding/decoding automatically. Your code works with native types.
+TYTX provides utility functions for encoding/decoding HTTP requests and responses. Your code works with native types.
 
 ```text
 Browser                          Server
@@ -12,142 +12,144 @@ Browser                          Server
 Decimal, Date                    Decimal, date, datetime
     │                                │
     ▼                                ▼
-tytx_fetch() ─── HTTP Request ──▶ Middleware decodes
+fetchTytx() ─── HTTP Request ──▶ asgi_data() / wsgi_data()
                                      │
                                      ▼
                                  Your handler
                                      │
                                      ▼
-fromText() ◀─── HTTP Response ─── Middleware encodes
+fromTytx() ◀─── HTTP Response ─── to_tytx()
     │
     ▼
 Decimal, Date
 ```
 
-**Key point**: Your application code never sees the wire format.
+**Key point**: Your application code works with native types, not wire format strings.
 
 ## Browser Side (JavaScript/TypeScript)
 
-### `tytx_fetch` API
+### `fetchTytx` API
 
-Drop-in replacement for `fetch()` with automatic type handling:
+Wrapper around `fetch()` with automatic type handling:
 
 ```javascript
-import { tytx_fetch, createDate } from 'genro-tytx';
-import Decimal from 'decimal.js';
+import { fetchTytx } from 'genro-tytx';
+import Big from 'big.js';
 
-const result = await tytx_fetch('/api/invoice', {
+const result = await fetchTytx('/api/invoice', {
     method: 'POST',
-
-    // Query parameters (encoded in URL)
-    query: {
-        date: createDate(2025, 1, 15),   // → date=2025-01-15::D
-        limit: 10                         // → limit=10
-    },
 
     // Request body (full TYTX encoding)
     body: {
-        price: new Decimal('100.50'),    // → "100.50::N"
-        quantity: 5                       // → 5 (native)
+        price: new Big('100.50'),           // → "100.50::N"
+        quantity: 5,                        // → 5 (native)
+        date: new Date(Date.UTC(2025, 0, 15)),
     }
 });
 
 // Response automatically decoded
-console.log(result.total);      // Decimal instance
+console.log(result.total);      // Big instance
 console.log(result.created_at); // Date instance
-```
-
-### Helper Functions
-
-```javascript
-import { createDate, createTime, createDateTime } from 'genro-tytx';
-
-// Date only (midnight UTC)
-const date = createDate(2025, 1, 15);
-
-// Time only (epoch date)
-const time = createTime(10, 30, 0);
-
-// Full datetime
-const dt = createDateTime(2025, 1, 15, 10, 30, 0);
 ```
 
 ### Options
 
 ```javascript
-// Skip body encoding (e.g., for FormData)
-await tytx_fetch('/api/upload', {
-    rawBody: true,
-    body: formData,
-});
+import Big from 'big.js';
 
-// Skip response decoding (get raw Response)
-const response = await tytx_fetch('/api/raw', {
-    rawResponse: true,
+// Standard fetch options are passed through
+await fetchTytx('/api/data', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer token' },
+    body: { price: new Big('100.50') },
 });
+```
+
+### Date Handling
+
+JavaScript uses `Date` for all temporal types. TYTX distinguishes them by format:
+
+```javascript
+// Date only (midnight UTC)
+const date = new Date(Date.UTC(2025, 0, 15));
+
+// Full datetime (UTC)
+const datetime = new Date(Date.UTC(2025, 0, 15, 10, 30, 0));
+
+// Time only (epoch date: 1970-01-01)
+const time = new Date(Date.UTC(1970, 0, 1, 10, 30, 0));
 ```
 
 ## Server Side (Python)
 
-### ASGI Middleware (FastAPI, Starlette)
+### ASGI (FastAPI, Starlette)
 
 ```python
-from fastapi import FastAPI, Request
-from genro_tytx import TYTXMiddleware
+from fastapi import FastAPI, Request, Response
+from genro_tytx import asgi_data, to_tytx
 from decimal import Decimal
 
 app = FastAPI()
-app = TYTXMiddleware(app)
 
 @app.post("/api/invoice")
 async def create_invoice(request: Request):
-    # Decoded data available in scope["tytx"]
-    body = request.scope["tytx"]["body"]
-    query = request.scope["tytx"]["query"]
+    # Decode all TYTX data from request
+    data = await asgi_data(request.scope, request.receive)
+
+    # Access decoded values
+    body = data["body"]       # Request body (dict)
+    query = data["query"]     # Query parameters (dict)
+    headers = data["headers"] # Headers (dict)
+    cookies = data["cookies"] # Cookies (dict)
 
     price = body["price"]    # Decimal
-    date = query["date"]     # date object
+    date = query.get("date") # date object (if present)
 
-    return {
-        "total": price * Decimal("1.22"),  # Decimal
-        "due_date": date,                   # date
-    }
+    result = {"total": price * Decimal("1.22")}
+
+    # Encode response
+    return Response(
+        content=to_tytx(result),
+        media_type="application/vnd.tytx+json"
+    )
 ```
 
-### WSGI Middleware (Flask, Django)
+### WSGI (Flask, Django)
 
 ```python
-from flask import Flask, g
-from genro_tytx import TYTXWSGIMiddleware
+from flask import Flask, request
+from genro_tytx import wsgi_data, to_tytx
 
 app = Flask(__name__)
-app.wsgi_app = TYTXWSGIMiddleware(app.wsgi_app)
 
 @app.route("/api/invoice", methods=["POST"])
 def create_invoice():
-    body = g.environ["tytx"]["body"]
-    return {"total": body["price"] * body["quantity"]}
+    # Decode all TYTX data from request
+    data = wsgi_data(request.environ)
+
+    body = data["body"]
+    price = body["price"]  # Decimal
+
+    result = {"total": price * body["quantity"]}
+
+    # Encode response
+    response = app.response_class(
+        response=to_tytx(result),
+        mimetype="application/vnd.tytx+json"
+    )
+    return response
 ```
 
-### Middleware Options
+### Data Structure
+
+Both `asgi_data()` and `wsgi_data()` return a dict with:
 
 ```python
-TYTXMiddleware(
-    app,
-    decode_query=True,      # Decode query parameters
-    decode_headers=True,    # Decode typed headers
-    decode_body=True,       # Decode request body
-    encode_response=True,   # Encode response body
-)
-```
-
-### Accessing Decoded Data
-
-```python
-scope["tytx"] = {
-    "query": {"date": date(2025, 1, 15), ...},
-    "headers": {"x-timestamp": time(10, 30), ...},
-    "body": {"price": Decimal("100.50"), ...},
+{
+    "query": {"date": date(2025, 1, 15), ...},   # Query string params
+    "headers": {"content-type": "...", ...},     # HTTP headers
+    "cookies": {"session": "...", ...},          # Cookies
+    "body": {"price": Decimal("100.50"), ...},   # Request body
 }
 ```
 
@@ -159,7 +161,7 @@ scope["tytx"] = {
 | TYTX XML | `application/vnd.tytx+xml` |
 | TYTX MessagePack | `application/vnd.tytx+msgpack` |
 
-The middleware sets Content-Type automatically.
+The functions detect transport format from Content-Type header.
 
 ## Type Mapping
 
@@ -170,15 +172,61 @@ The middleware sets Content-Type automatically.
 | `Date` (with time) | `"2025-01-15T10:30:00.000Z::DHZ"` | `datetime` |
 | `Date` (epoch date) | `"10:30:00.000::H"` | `time` |
 
-## Error Handling
+## Complete Example
+
+### Server (FastAPI)
 
 ```python
-from genro_tytx import TYTXDecodeError
+from fastapi import FastAPI, Request, Response
+from genro_tytx import asgi_data, to_tytx
+from decimal import Decimal
+from datetime import datetime, timezone
 
-try:
-    data = from_json(request_body)
-except TYTXDecodeError as e:
-    return {"error": str(e)}, 400
+app = FastAPI()
+
+@app.post("/api/order")
+async def create_order(request: Request):
+    data = await asgi_data(request.scope, request.receive)
+    body = data["body"]
+
+    # All types are correct
+    price = body["price"]       # Decimal
+    quantity = body["quantity"] # int
+    date = body["date"]         # date
+
+    total = price * quantity * Decimal("1.22")
+
+    result = {
+        "total": total,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    return Response(
+        content=to_tytx(result),
+        media_type="application/vnd.tytx+json"
+    )
+```
+
+### Client (JavaScript)
+
+```javascript
+import { fetchTytx } from 'genro-tytx';
+import Big from 'big.js';
+
+async function createOrder() {
+    const result = await fetchTytx('/api/order', {
+        method: 'POST',
+        body: {
+            price: new Big('49.99'),
+            quantity: 2,
+            date: new Date(Date.UTC(2025, 0, 15)),
+        }
+    });
+
+    // Types are correct
+    console.log(result.total.toFixed(2));  // "121.98"
+    console.log(result.created_at);        // Date object
+}
 ```
 
 ## Other Protocols
@@ -189,54 +237,64 @@ TYTX encoding works anywhere you can send text:
 
 ```javascript
 // Client
-ws.send(toTypedText({
+import { toTytx, fromTytx } from 'genro-tytx';
+import Big from 'big.js';
+
+ws.send(toTytx({
     event: 'trade',
-    price: new Decimal('100.50'),
+    price: new Big('100.50'),
     timestamp: new Date()
 }));
 
 ws.onmessage = (event) => {
-    const data = fromText(event.data);
-    // data.price → Decimal
+    const data = fromTytx(event.data);
+    // data.price → Big
 };
 ```
 
 ```python
 # Server
+from genro_tytx import to_tytx, from_tytx
+
 async for message in websocket:
-    data = from_text(message)
+    data = from_tytx(message)
     response = process(data)
-    await websocket.send(to_typed_text(response))
+    await websocket.send(to_tytx(response))
 ```
 
 ### Server-Sent Events
 
 ```python
+from genro_tytx import to_tytx
+from datetime import datetime, timezone
+
 async def sse_stream():
     while True:
         event = {
             "price": Decimal("100.50"),
             "updated_at": datetime.now(timezone.utc)
         }
-        yield f"data: {to_typed_text(event)}\n\n"
+        yield f"data: {to_tytx(event)}\n\n"
 ```
 
 ### Message Queues
 
 ```python
+from genro_tytx import to_tytx, from_tytx
+
 # Producer
-redis.publish('trades', to_typed_text({
+redis.publish('trades', to_tytx({
     'price': Decimal('100.50'),
     'timestamp': datetime.now(timezone.utc)
 }))
 
 # Consumer
-data = from_text(redis.subscribe('trades'))
+data = from_tytx(redis.subscribe('trades'))
 ```
 
 ## Best Practices
 
-1. **Use middleware** - Don't encode/decode manually in handlers
+1. **Use `asgi_data`/`wsgi_data`** - They decode query, headers, cookies, and body in one call
 2. **Set Content-Type** - Use `application/vnd.tytx+json` for TYTX responses
 3. **Install decimal library** - `big.js` or `decimal.js` in JavaScript
-4. **Use helper functions** - `createDate()`, `createTime()` for correct UTC handling
+4. **Use UTC for dates** - Always use `Date.UTC()` in JavaScript to avoid timezone issues

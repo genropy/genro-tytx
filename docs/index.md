@@ -43,7 +43,7 @@ return {"price": Decimal("99.99"), "due_date": date(2025, 1, 15)}
 
 ```javascript
 // Client - types arrive ready to use
-const data = await tytx_fetch('/api/order');
+const data = await fetchTytx('/api/order');
 data.price      // → Decimal (not string)
 data.due_date   // → Date (not string)
 ```
@@ -61,15 +61,15 @@ pip install genro-tytx
 ```python
 from decimal import Decimal
 from datetime import date
-from genro_tytx import to_typed_text, from_text
+from genro_tytx import to_tytx, from_tytx
 
 # Encode
 data = {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
-encoded = to_typed_text(data)
+encoded = to_tytx(data)
 # '{"price": "99.99::N", "date": "2025-01-15::D"}::JS'
 
 # Decode
-decoded = from_text(encoded)
+decoded = from_tytx(encoded)
 # {"price": Decimal("99.99"), "date": date(2025, 1, 15)}
 ```
 
@@ -80,76 +80,160 @@ npm install genro-tytx big.js
 ```
 
 ```javascript
-import { tytx_fetch } from 'genro-tytx';
+import { fetchTytx } from 'genro-tytx';
+import Big from 'big.js';
 
-const result = await tytx_fetch('/api/invoice', {
-    body: { price: new Decimal('99.99'), date: new Date() }
+const result = await fetchTytx('/api/invoice', {
+    body: { price: new Big('99.99'), date: new Date() }
 });
-// result.total → Decimal (ready to use)
+// result.total → Big (ready to use)
 ```
 
-## Real-World Impact: Before and After
+## Real-World Example: Order Processing
 
-A typical form with dates, decimals, and timestamps:
+A typical business scenario: process an order with 8 typed fields, return 6 typed results.
 
-### ❌ Without TYTX: 60+ lines of conversion code
+### 1. The Data
 
-**Server** must convert every field in and out:
-
-```python
-# Request: string → native type (8 conversions)
-amount = Decimal(data["amount"])
-start_date = date.fromisoformat(data["start_date"])
-# ... 6 more fields
-
-# Response: native type → string (8 conversions)
-return {
-    "amount": str(saved.amount),
-    "start_date": saved.start_date.isoformat(),
-    # ... 6 more fields
-}
-```
-
-**Client** must convert every field in and out:
+**JavaScript Client** has order data with proper types:
 
 ```javascript
-// Request: native → string (8 conversions)
-const payload = {
-    amount: formData.amount.toString(),
-    start_date: formData.startDate.toISOString().slice(0, 10),
-    // ... 6 more fields
+import Big from 'big.js';
+
+const orderData = {
+    unit_price: new Big('149.99'),      // Decimal
+    quantity: 3,
+    discount: new Big('10.00'),         // Decimal
+    order_date: new Date(2025, 0, 15),  // Date
+    delivery_date: new Date(2025, 0, 20),
+    express: true,
+    customer_id: 12345,
+    notes: 'Handle with care'
 };
 
-// Response: string → native (8 conversions)
-return {
-    amount: new Decimal(result.amount),
-    startDate: new Date(result.start_date),
-    // ... 6 more fields
-};
+// Expects response: { subtotal, tax, shipping, total, ship_date, arrival_date }
 ```
 
-**Total: 32 manual conversions for ONE form.**
-
-### ✅ With TYTX: Zero conversion code
-
-**Server:**
+**Python Server** has business logic expecting proper types:
 
 ```python
-data = request.scope["tytx"]["body"]  # All types correct
-contract = Contract(**data)           # Use directly
-return asdict(saved)                  # Return directly
+async def process_order(unit_price, quantity, discount, order_date,
+                        delivery_date, express, customer_id, notes):
+    """Business logic - expects Decimal and date types."""
+    subtotal = unit_price * quantity
+    tax = subtotal * Decimal('0.22')
+    shipping = Decimal('15.00') if express else Decimal('5.00')
+    total = subtotal - discount + tax + shipping
+    ship_date = order_date + timedelta(days=1 if express else 3)
+    return {
+        'subtotal': subtotal, 'tax': tax, 'shipping': shipping,
+        'total': total, 'ship_date': ship_date, 'arrival_date': delivery_date
+    }
 ```
 
-**Client:**
+---
+
+### 2. ❌ WITHOUT TYTX: 20 Manual Conversions
+
+**JavaScript** - must convert to/from strings:
 
 ```javascript
-const result = await tytx_fetch('/api/save', { body: formData });
-return result;  // All types correct
+// Send: convert types → strings
+const response = await fetch('/api/process_order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        unit_price: orderData.unit_price.toString(),           // Decimal → string
+        discount: orderData.discount.toString(),               // Decimal → string
+        order_date: orderData.order_date.toISOString().slice(0, 10),  // Date → string
+        delivery_date: orderData.delivery_date.toISOString().slice(0, 10),
+        quantity: orderData.quantity, express: orderData.express,
+        customer_id: orderData.customer_id, notes: orderData.notes
+    })
+});
+
+// Receive: convert strings → types
+const json = await response.json();
+const result = {
+    subtotal: new Big(json.subtotal),     tax: new Big(json.tax),
+    shipping: new Big(json.shipping),     total: new Big(json.total),
+    ship_date: new Date(json.ship_date),  arrival_date: new Date(json.arrival_date)
+};
+```
+
+**Python** - must convert to/from strings:
+
+```python
+@app.post("/api/process_order")
+async def handle_order(request: Request):
+    json_data = await request.json()
+
+    # Receive: convert strings → types
+    unit_price = Decimal(json_data['unit_price'])
+    discount = Decimal(json_data['discount'])
+    order_date = date.fromisoformat(json_data['order_date'])
+    delivery_date = date.fromisoformat(json_data['delivery_date'])
+
+    result = await process_order(unit_price, json_data['quantity'], discount,
+        order_date, delivery_date, json_data['express'],
+        json_data['customer_id'], json_data['notes'])
+
+    # Send: convert types → strings
+    return JSONResponse({
+        'subtotal': str(result['subtotal']), 'tax': str(result['tax']),
+        'shipping': str(result['shipping']), 'total': str(result['total']),
+        'ship_date': result['ship_date'].isoformat(),
+        'arrival_date': result['arrival_date'].isoformat()
+    })
+```
+
+**Total: 20 manual conversions** (4 JS→string + 4 string→Python + 6 Python→string + 6 string→JS).
+
+---
+
+### 3. ✅ WITH TYTX: Zero Conversions
+
+**JavaScript:**
+
+```javascript
+import { fetchTytx } from 'genro-tytx';
+
+const result = await fetchTytx('/api/process_order', { body: orderData });
+console.log(result.total.toFixed(2));  // Big, ready to use
+```
+
+**Python:**
+
+```python
+from genro_tytx import asgi_data, to_tytx
+
+@app.post("/api/process_order")
+async def handle_order(request: Request):
+    data = await asgi_data(request.scope, request.receive)
+    result = await process_order(**data['body'])
+    return Response(content=to_tytx(result), media_type='application/vnd.tytx+json')
 ```
 
 **Total: 0 conversions. Types flow naturally.**
 
-[See more real-world examples →](alternatives.md#real-world-comparison-before-and-after)
+### Bonus: Switch to MessagePack in One Line
+
+Need binary format for better performance? Just add `transport: 'msgpack'`:
+
+```javascript
+// JSON (default)
+const result = await fetchTytx('/api/process_order', { body: orderData });
+
+// MessagePack - same API, binary format
+const result = await fetchTytx('/api/process_order', { body: orderData, transport: 'msgpack' });
+```
+
+```python
+# Server auto-detects transport from Content-Type header
+# No code changes needed!
+```
+
+[See more real-world examples →](real-world-examples)
 
 ## Supported Types
 
@@ -169,7 +253,7 @@ Native JSON types (string, number, boolean, null) pass through unchanged.
 | Try it in 5 minutes | [Quickstart](quickstart.md) |
 | Use with FastAPI/Flask | [HTTP Integration](http-integration.md) |
 | Understand the wire format | [How It Works](how-it-works.md) |
-| See API reference | [Middleware API](middleware-api.md) |
+| See API reference | [API Reference](api-reference.md) |
 | Compare with alternatives | [Alternatives](alternatives.md) |
 
 ## When to Use TYTX
@@ -203,7 +287,7 @@ quickstart
 :caption: Integration
 
 http-integration
-middleware-api
+api-reference
 ```
 
 ```{toctree}
