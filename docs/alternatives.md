@@ -144,8 +144,9 @@ TYTX is ideal when you need:
 - **Transparent type handling** without conversion code
 - **Decimal precision** for financial data
 - **Date/time preservation** across client/server
-- **Minimal setup** - just add middleware
+- **Minimal setup** - just use `asgi_data`/`wsgi_data`
 - **Standard HTTP/JSON** - no special infrastructure
+- **Transport flexibility** - switch to MessagePack for better performance with a single parameter change
 
 ## When to Consider Alternatives
 
