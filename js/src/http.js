@@ -48,7 +48,10 @@ async function fetchTytx(url, options = {}) {
         ...fetchOptions
     } = options;
 
-    const requestHeaders = { ...headers };
+    const requestHeaders = {
+        'X-TYTX-Transport': transport,
+        ...headers,
+    };
 
     // Serialize body if provided
     let requestBody;

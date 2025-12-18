@@ -65,6 +65,25 @@ await fetchTytx('/api/data', {
 });
 ```
 
+### Transport Header
+
+`fetchTytx` automatically adds an `X-TYTX-Transport` header to every request, indicating the transport format being used:
+
+```javascript
+// Default transport (json)
+await fetchTytx('/api/data', { body: data });
+// Sends: X-TYTX-Transport: json
+
+// Explicit transport
+await fetchTytx('/api/data', { body: data, transport: 'msgpack' });
+// Sends: X-TYTX-Transport: msgpack
+
+await fetchTytx('/api/data', { body: data, transport: 'xml' });
+// Sends: X-TYTX-Transport: xml
+```
+
+This header allows the server to know which transport format the client is using, useful for debugging and logging.
+
 ### Date Handling
 
 JavaScript uses `Date` for all temporal types. TYTX distinguishes them by format:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genro-tytx"
-version = "0.7.0"
+version = "0.7.2"
 description = "TYTX Base - Typed text protocol for scalar types (JSON/XML/MessagePack)"
 readme = "README.md"
 license = "Apache-2.0"
