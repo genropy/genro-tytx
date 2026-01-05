@@ -34,8 +34,11 @@ class _TYTXEncoder(json.JSONEncoder):
         self.has_special = False
 
     def default(self, obj: Any) -> str:
-        self.has_special = True
-        return cast(str, to_tytx(obj))
+        encoded, result = raw_encode(obj)
+        if encoded:
+            self.has_special = True
+            return result
+        raise TypeError(f"Type is not JSON serializable: {type(obj).__name__}")
 
 
 class _OrjsonDefault:
@@ -47,8 +50,11 @@ class _OrjsonDefault:
         self.has_special = False
 
     def __call__(self, obj: Any) -> str:
-        self.has_special = True
-        return cast(str, to_tytx(obj))
+        encoded, result = raw_encode(obj)
+        if encoded:
+            self.has_special = True
+            return result
+        raise TypeError(f"Type is not JSON serializable: {type(obj).__name__}")
 
 
 def _to_json(value: Any, force_suffix: bool = False) -> str:
