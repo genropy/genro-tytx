@@ -167,7 +167,7 @@ def from_xml(data: str) -> dict[str, Any] | Any:
     # Unwrap tytx_root: lavoriamo sul contenuto interno
     if root.tag == "tytx_root":
         if not list(root):
-            return from_tytx(root.text)  # gestisce None
+            return from_tytx(root.text or "")  # empty element → empty string
         root = list(root)[0]
 
     # Da qui: root è il nodo reale

@@ -67,6 +67,10 @@ def _to_json(value: Any, force_suffix: bool = False) -> str:
     if encoded:
         return result
 
+    # String: return as-is without JSON quoting
+    if isinstance(value, str):
+        return value
+
     if USE_ORJSON:
         default_fn = _OrjsonDefault()
         # OPT_PASSTHROUGH_DATETIME forces date/datetime/time to go through default
@@ -93,10 +97,27 @@ def _to_msgpack(value: Any) -> bytes:
     return to_msgpack(value)
 
 
+def _to_raw_json(value: Any) -> str:
+    """Encode a Python value to raw JSON string (no TYTX suffix)."""
+    if USE_ORJSON:
+        return orjson.dumps(value).decode("utf-8")
+    return json.dumps(value)
+
+
+def _to_raw_msgpack(value: Any) -> bytes:
+    """Encode a Python value to raw MessagePack bytes (no TYTX processing)."""
+    try:
+        import msgpack
+    except ImportError as e:
+        raise ImportError("msgpack package required for msgpack transport") from e
+    return msgpack.packb(value)
+
+
 def to_tytx(
     value: Any,
     transport: Literal["json", "xml", "msgpack"] | None = None,
     *,
+    raw: bool = False,
     _force_suffix: bool = False,
 ) -> str | bytes:
     """
@@ -105,6 +126,7 @@ def to_tytx(
     Args:
         value: Python object to encode
         transport: Output format - "json", "xml", or "msgpack"
+        raw: If True, output raw format without TYTX type suffixes
         _force_suffix: Internal - force suffix for all types (int/bool/float)
 
     Returns:
@@ -113,9 +135,21 @@ def to_tytx(
     Example:
         >>> to_tytx({"price": Decimal("100.50")})
         '{"price": "100.50::N"}::JS'
+        >>> to_tytx({"price": 100.50}, raw=True)
+        '{"price": 100.5}'
         >>> to_tytx({"root": {"value": Decimal("100")}}, transport="xml")
         '<?xml version="1.0" ?><tytx_root><root>100::N</root></tytx_root>'
     """
+    if raw:
+        if transport is None or transport == "json":
+            return _to_raw_json(value)
+        elif transport == "msgpack":
+            return _to_raw_msgpack(value)
+        elif transport == "xml":
+            raise ValueError("raw=True is not supported for XML transport")
+        else:
+            raise ValueError(f"Unknown transport: {transport}")
+
     if transport is None or transport == "json":
         result = _to_json(value, _force_suffix)
         if transport == "json":
