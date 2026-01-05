@@ -62,6 +62,10 @@ def _serialize_float(v: float) -> str:
     return str(v)
 
 
+def _serialize_none(v: None) -> str:
+    return ""
+
+
 # Type Registry: type -> (suffix, serializer, json_native)
 # json_native=True means JSON handles it natively (no suffix needed in JSON)
 TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
@@ -72,6 +76,7 @@ TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
     bool: ("B", _serialize_bool, True),
     int: ("L", _serialize_int, True),
     float: ("R", _serialize_float, True),
+    type(None): ("NN", _serialize_none, True),
 }
 
 
@@ -115,6 +120,10 @@ def _deserialize_str(s: str) -> str:
     return s
 
 
+def _deserialize_none(s: str) -> None:
+    return None
+
+
 # Suffix -> (type, deserializer) - includes all for decoding
 # Accepts both DH (deprecated) and DHZ (canonical) for datetime
 SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
@@ -127,4 +136,5 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     "R": (float, _deserialize_float),
     "T": (str, _deserialize_str),
     "B": (bool, _deserialize_bool),
+    "NN": (type(None), _deserialize_none),
 }
