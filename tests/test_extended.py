@@ -209,6 +209,42 @@ class TestExtendedRoundtrip:
             }
         }
 
+    def test_raw_json(self):
+        """raw=True produces plain JSON without TYTX suffixes."""
+        import json
+        data = {"price": 100.50, "name": "test", "active": True}
+        result = to_tytx(data, raw=True)
+        # Verify it's valid JSON that can be parsed back to same data
+        parsed = json.loads(result)
+        assert parsed == data
+        # Verify no TYTX suffix
+        assert "::JS" not in result
+        assert "::N" not in result
+
+    def test_raw_json_with_transport(self):
+        """raw=True with transport='json' produces plain JSON."""
+        import json
+        data = {"items": [1, 2, 3]}
+        result = to_tytx(data, transport="json", raw=True)
+        # Verify it's valid JSON that can be parsed back to same data
+        parsed = json.loads(result)
+        assert parsed == data
+
+    def test_raw_msgpack(self):
+        """raw=True with msgpack produces plain msgpack without TYTX processing."""
+        import msgpack
+        data = {"count": 42, "values": [1, 2, 3]}
+        result = to_tytx(data, transport="msgpack", raw=True)
+        assert result == msgpack.packb(data)
+        # Verify it's valid msgpack
+        parsed = msgpack.unpackb(result)
+        assert parsed == data
+
+    def test_raw_xml_not_supported(self):
+        """raw=True with XML should raise ValueError."""
+        with pytest.raises(ValueError, match="raw=True is not supported for XML"):
+            to_tytx({"a": 1}, transport="xml", raw=True)
+
     @pytest.mark.parametrize(
         "value,transport,use_orjson",
         [

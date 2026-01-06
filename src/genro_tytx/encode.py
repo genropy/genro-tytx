@@ -8,7 +8,7 @@ Supports multiple transports: json, xml, msgpack.
 from __future__ import annotations
 
 import json
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from .utils import raw_encode
 

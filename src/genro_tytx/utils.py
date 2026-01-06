@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from .registry import TYPE_REGISTRY, SUFFIX_TO_TYPE
+from .registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
 
 
 def raw_encode(value: Any, force_suffix: bool = False) -> tuple[bool, str]:
@@ -143,11 +143,13 @@ def tytx_equivalent(a: Any, b: Any) -> bool:
     # dict: recursive comparison (needed to find nested datetimes)
     if isinstance(a, dict) and isinstance(b, dict):
         return set(a.keys()) == set(b.keys()) and all(
-            tytx_equivalent(a[k], b[k]) for k in a.keys()
+            tytx_equivalent(a[k], b[k]) for k in a
         )
 
     # list: recursive comparison (needed to find nested datetimes)
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(tytx_equivalent(ai, bi) for ai, bi in zip(a, b))
+        return len(a) == len(b) and all(
+            tytx_equivalent(ai, bi) for ai, bi in zip(a, b, strict=True)
+        )
 
     return False  # pragma: no cover

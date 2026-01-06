@@ -7,8 +7,9 @@ Functions to decode TYTX values from ASGI and WSGI requests.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from http.cookies import SimpleCookie
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 from urllib.parse import parse_qs
 
 from .decode import from_tytx

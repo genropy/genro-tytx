@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from .decode import is_string, walk
 from .encode import to_tytx
-from .decode import walk, is_string
 from .utils import raw_decode
 
 # Check for msgpack availability

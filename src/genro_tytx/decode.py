@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal, cast
 
-from .utils import walk, raw_decode
+from .utils import raw_decode, walk
 
 # Check for orjson availability
 try:

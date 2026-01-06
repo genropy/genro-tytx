@@ -89,11 +89,31 @@ async function _toMsgpack(value) {
 }
 
 /**
+ * Encode a JavaScript value to raw JSON string (no TYTX suffix).
+ * @param {any} value
+ * @returns {string}
+ */
+function _toRawJson(value) {
+    return JSON.stringify(value);
+}
+
+/**
+ * Encode a JavaScript value to raw MessagePack bytes (no TYTX processing).
+ * @param {any} value
+ * @returns {Uint8Array}
+ */
+function _toRawMsgpack(value) {
+    const msgpack = require('msgpack-lite');
+    return msgpack.encode(value);
+}
+
+/**
  * Encode a JavaScript value to TYTX format.
  *
  * @param {any} value - JavaScript object to encode
  * @param {string|null} transport - Output format: "json", "xml", "msgpack", or null
  * @param {Object} options - Options object
+ * @param {boolean} options.raw - If true, output raw format without TYTX type suffixes
  * @param {boolean} options._forceSuffix - Internal: force suffix for all types
  * @returns {string|Uint8Array} Encoded data (string for json/xml, Uint8Array for msgpack)
  *
@@ -101,10 +121,25 @@ async function _toMsgpack(value) {
  * toTytx({"price": createDecimal("100.50")})
  * // '{"price": "100.50::N"}::JS'
  *
+ * toTytx({"price": 100.50}, null, { raw: true })
+ * // '{"price": 100.5}'
+ *
  * toTytx({"root": {"value": createDecimal("100")}}, "xml")
  * // '<?xml version="1.0" ?><root>100::N</root>'
  */
-function toTytx(value, transport = null, { _forceSuffix = false } = {}) {
+function toTytx(value, transport = null, { raw = false, _forceSuffix = false } = {}) {
+    if (raw) {
+        if (transport === null || transport === 'json') {
+            return _toRawJson(value);
+        } else if (transport === 'msgpack') {
+            return _toRawMsgpack(value);
+        } else if (transport === 'xml') {
+            throw new Error('raw=true is not supported for XML transport');
+        } else {
+            throw new Error(`Unknown transport: ${transport}`);
+        }
+    }
+
     if (transport === null || transport === 'json') {
         const result = _toJson(value, _forceSuffix);
         if (transport === 'json') {
