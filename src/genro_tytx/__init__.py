@@ -30,7 +30,7 @@ from .registry import (
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.7.0"
+__version__ = "0.7.3"
 
 __all__ = [
     # Unified API
