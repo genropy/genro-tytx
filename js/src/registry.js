@@ -220,6 +220,12 @@ function _deserializeStr(s) {
     return s;
 }
 
+function _deserializeQs(s) {
+    // Lazy import to avoid circular dependency
+    const { fromQs } = require('./qs.js');
+    return fromQs(s);
+}
+
 // Suffix -> [type, deserializer] - includes all for decoding
 // Accepts both DH (deprecated) and DHZ (canonical) for datetime
 const SUFFIX_TO_TYPE = {
@@ -232,6 +238,7 @@ const SUFFIX_TO_TYPE = {
     'R': [Number, _deserializeFloat],
     'T': [String, _deserializeStr],
     'B': [Boolean, _deserializeBool],
+    'QS': [Object, _deserializeQs],
 };
 
 export {

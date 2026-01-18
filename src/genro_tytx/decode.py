@@ -39,7 +39,7 @@ def _from_json(data: str, *, use_orjson: bool | None = None) -> Any:
     Returns:
         Python object with typed values hydrated
     """
-    # Try raw_decode first (scalar with type suffix)
+    # Try raw_decode first (scalar with type suffix, including ::QS)
     decoded, value = raw_decode(data)
     if decoded:
         return value

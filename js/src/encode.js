@@ -114,6 +114,7 @@ function _toRawMsgpack(value) {
  * @param {string|null} transport - Output format: "json", "xml", "msgpack", or null
  * @param {Object} options - Options object
  * @param {boolean} options.raw - If true, output raw format without TYTX type suffixes
+ * @param {boolean} options.qs - If true, output as query string format (flat object or array only)
  * @param {boolean} options._forceSuffix - Internal: force suffix for all types
  * @returns {string|Uint8Array} Encoded data (string for json/xml, Uint8Array for msgpack)
  *
@@ -124,10 +125,18 @@ function _toRawMsgpack(value) {
  * toTytx({"price": 100.50}, null, { raw: true })
  * // '{"price": 100.5}'
  *
+ * toTytx({"alfa": 33, "date": new Date(Date.UTC(2025, 11, 14))}, null, { qs: true })
+ * // 'alfa=33::L&date=2025-12-14::D::QS'
+ *
  * toTytx({"root": {"value": createDecimal("100")}}, "xml")
  * // '<?xml version="1.0" ?><root>100::N</root>'
  */
-function toTytx(value, transport = null, { raw = false, _forceSuffix = false } = {}) {
+function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix = false } = {}) {
+    if (qs) {
+        const { toQs } = require('./qs.js');
+        return `${toQs(value)}::QS`;
+    }
+
     if (raw) {
         if (transport === null || transport === 'json') {
             return _toRawJson(value);

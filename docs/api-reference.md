@@ -32,12 +32,29 @@ to_tytx({"name": "test", "count": 42})
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `value` | Any | required | Value to encode |
-| `transport` | str \| None | `None` | Transport format: `None`/`"json"`, `"xml"`, `"msgpack"` |
+| Parameter   | Type         | Default    | Description                                                     |
+|-------------|--------------|------------|-----------------------------------------------------------------|
+| `value`     | Any          | required   | Value to encode                                                 |
+| `transport` | str \| None  | `None`     | Transport format: `None`/`"json"`, `"xml"`, `"msgpack"`         |
+| `raw`       | bool         | `False`    | If `True`, output raw format without TYTX type suffixes         |
+| `qs`        | bool         | `False`    | If `True`, output as query string format (flat dict or list)    |
 
-**Returns:** `str` for JSON/XML, `bytes` for MessagePack
+**Returns:** `str` for JSON/XML/QS, `bytes` for MessagePack
+
+**Query String Example:**
+
+```python
+from genro_tytx import to_tytx
+from datetime import date
+
+# Flat dict → QS format
+to_tytx({"alfa": 33, "date": date(2025, 1, 15)}, qs=True)
+# 'alfa=33::L&date=2025-01-15::D::QS'
+
+# List → QS format
+to_tytx(["alfa", "beta", "gamma"], qs=True)
+# 'alfa&beta&gamma::QS'
+```
 
 ---
 
@@ -241,12 +258,28 @@ toTytx(new Date(Date.UTC(2025, 0, 15)));
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `value` | any | required | Value to encode |
-| `transport` | string | `'json'` | Transport: `'json'`, `'xml'`, `'msgpack'` |
+| Parameter     | Type    | Default    | Description                                              |
+|---------------|---------|------------|----------------------------------------------------------|
+| `value`       | any     | required   | Value to encode                                          |
+| `transport`   | string  | `null`     | Transport: `null`/`'json'`, `'xml'`, `'msgpack'`         |
+| `options.raw` | boolean | `false`    | If `true`, output raw format without TYTX type suffixes  |
+| `options.qs`  | boolean | `false`    | If `true`, output as query string format                 |
 
-**Returns:** `string` for JSON/XML, `Uint8Array` for MessagePack
+**Returns:** `string` for JSON/XML/QS, `Uint8Array` for MessagePack
+
+**Query String Example:**
+
+```javascript
+import { toTytx } from 'genro-tytx';
+
+// Flat object → QS format
+toTytx({alfa: 33, date: new Date(Date.UTC(2025, 0, 15))}, null, {qs: true});
+// 'alfa=33::L&date=2025-01-15::D::QS'
+
+// Array → QS format
+toTytx(['alfa', 'beta', 'gamma'], null, {qs: true});
+// 'alfa&beta&gamma::QS'
+```
 
 ---
 
@@ -333,11 +366,14 @@ getTransport('application/msgpack');        // 'msgpack'
 | `R` | Float | `float` | `number` | `"3.14::R"` |
 | `B` | Boolean | `bool` | `boolean` | `"true::B"` |
 | `T` | Text | `str` | `string` | `"hello::T"` |
+| `JS` | JSON Structure | `dict`/`list` | `object`/`array` | `{"a":1}::JS` |
+| `QS` | Query String | `dict`/`list` | `object`/`array` | `a=1::L&b=2::L::QS` |
 
 **Notes:**
 - `L`, `R`, `B`, `T` are mainly used for XML (where all values are strings)
 - In JSON, native types pass through unchanged
 - `DH` is deprecated, use `DHZ` instead (still accepted on decode)
+- `QS` is used for URL query string encoding via `to_tytx(..., qs=True)`
 
 ---
 
