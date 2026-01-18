@@ -26,7 +26,7 @@ import { toTytx } from './encode.js';
 import { fromTytx } from './decode.js';
 import { fetchTytx, getTransport, CONTENT_TYPES } from './http.js';
 
-const __version__ = '0.7.0';
+const __version__ = '0.7.4';
 
 export {
     // Core API

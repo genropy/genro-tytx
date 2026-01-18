@@ -24,13 +24,14 @@ from .decode import from_tytx
 from .encode import to_tytx
 from .http import asgi_data, wsgi_data
 from .msgpack import from_msgpack, to_msgpack
+from .qs import from_qs, to_qs
 from .registry import (
     SUFFIX_TO_TYPE,
     TYPE_REGISTRY,
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 
 __all__ = [
     # Unified API
@@ -41,6 +42,8 @@ __all__ = [
     "from_xml",
     "to_msgpack",
     "from_msgpack",
+    "to_qs",
+    "from_qs",
     # HTTP
     "asgi_data",
     "wsgi_data",

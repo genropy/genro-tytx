@@ -35,8 +35,18 @@ These types ARE native to JSON but need encoding in XML (where everything is str
 | `R` | Real (Float) | Decimal floating point string | `"3.14159::R"` |
 | `B` | Boolean | "true" for true, "false" for false | `"true::B"` |
 | `T` | Text | Plain string (rarely used) | `"hello::T"` |
+| `NN` | None/Null | Explicit null value | `"::NN"` |
 
-### 2.3 Deprecated Suffixes
+### 2.3 Structure Types
+
+These suffixes indicate structured data formats:
+
+| Suffix | Type           | Format                  | Example                               |
+|--------|----------------|-------------------------|---------------------------------------|
+| `JS`   | JSON Structure | JSON with typed values  | `{"price": "100::N"}::JS`             |
+| `QS`   | Query String   | Key=value pairs or list | `alfa=33::L&date=2025-01-15::D::QS`   |
+
+### 2.4 Deprecated Suffixes
 
 | Suffix | Replacement | Notes |
 |--------|-------------|-------|
@@ -232,9 +242,82 @@ Output dict:
 }
 ```
 
-## 5. MessagePack Format
+## 5. Query String Format (QS)
 
-### 5.1 Encoding
+### 5.1 Overview
+
+The QS format provides a compact representation for flat data structures in URL query strings. It supports two modes:
+
+- **Object mode**: Key=value pairs for flat dictionaries
+- **Array mode**: Values without `=` for lists
+
+### 5.2 Object Mode
+
+When encoding a flat dictionary, each key-value pair is serialized with TYTX type suffixes:
+
+```
+alfa=33::L&date=2025-01-15::D&price=100.50::N::QS
+```
+
+Decodes to:
+
+```python
+{"alfa": 33, "date": date(2025, 1, 15), "price": Decimal("100.50")}
+```
+
+### 5.3 Array Mode
+
+When encoding a list of strings, values are joined with `&`:
+
+```
+alfa&beta&gamma::QS
+```
+
+Decodes to:
+
+```python
+["alfa", "beta", "gamma"]
+```
+
+### 5.4 Mixed Mode Error
+
+Mixing items with and without `=` is not allowed:
+
+```
+alfa&beta=2::QS  # ERROR: mixed items
+```
+
+For complex structures, use `::JS` embedded in the query string.
+
+### 5.5 Encoding
+
+```python
+# Python
+to_tytx({"alfa": 33, "date": date(2025, 1, 15)}, qs=True)
+# 'alfa=33::L&date=2025-01-15::D::QS'
+
+to_tytx(["alfa", "beta", "gamma"], qs=True)
+# 'alfa&beta&gamma::QS'
+```
+
+```javascript
+// JavaScript
+toTytx({alfa: 33, date: new Date(Date.UTC(2025, 0, 15))}, null, {qs: true});
+// 'alfa=33::L&date=2025-01-15::D::QS'
+```
+
+### 5.6 Decoding
+
+The `::QS` suffix is automatically detected by `from_tytx`:
+
+```python
+from_tytx("alfa=33::L&date=2025-01-15::D::QS")
+# {"alfa": 33, "date": date(2025, 1, 15)}
+```
+
+## 6. MessagePack Format
+
+### 6.1 Encoding
 
 Typed values are serialized as strings with type suffix (same as JSON inner values):
 

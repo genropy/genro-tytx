@@ -124,6 +124,7 @@ def to_tytx(
     transport: Literal["json", "xml", "msgpack"] | None = None,
     *,
     raw: bool = False,
+    qs: bool = False,
     _force_suffix: bool = False,
 ) -> str | bytes:
     """
@@ -133,6 +134,7 @@ def to_tytx(
         value: Python object to encode
         transport: Output format - "json", "xml", or "msgpack"
         raw: If True, output raw format without TYTX type suffixes
+        qs: If True, output as query string format (flat dict or list only)
         _force_suffix: Internal - force suffix for all types (int/bool/float)
 
     Returns:
@@ -143,9 +145,16 @@ def to_tytx(
         '{"price": "100.50::N"}::JS'
         >>> to_tytx({"price": 100.50}, raw=True)
         '{"price": 100.5}'
+        >>> to_tytx({"alfa": 33, "date": date(2025, 12, 14)}, qs=True)
+        'alfa=33::L&date=2025-12-14::D::QS'
         >>> to_tytx({"root": {"value": Decimal("100")}}, transport="xml")
         '<?xml version="1.0" ?><tytx_root><root>100::N</root></tytx_root>'
     """
+    if qs:
+        from .qs import to_qs
+
+        return f"{to_qs(value)}::QS"
+
     if raw:
         if transport is None or transport == "json":
             return _to_raw_json(value)

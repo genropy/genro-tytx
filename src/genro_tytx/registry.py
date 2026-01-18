@@ -123,6 +123,12 @@ def _deserialize_none(s: str) -> None:
     return None
 
 
+def _deserialize_qs(s: str) -> dict | list:
+    from .qs import from_qs
+
+    return from_qs(s)
+
+
 # Suffix -> (type, deserializer) - includes all for decoding
 # Accepts both DH (deprecated) and DHZ (canonical) for datetime
 SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
@@ -136,4 +142,5 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     "T": (str, _deserialize_str),
     "B": (bool, _deserialize_bool),
     "NN": (type(None), _deserialize_none),
+    "QS": (dict, _deserialize_qs),
 }
