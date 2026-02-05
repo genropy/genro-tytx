@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TYTX Browser Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .pass { color: green; }
+        .fail { color: red; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>TYTX Browser Bundle Test</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        import { toTytx, fromTytx, createDecimal, setDecimalLibrary } from './tytx.browser.js';
+
+        const results = document.getElementById('results');
+
+        function log(msg, isPass = true) {
+            const div = document.createElement('div');
+            div.className = isPass ? 'pass' : 'fail';
+            div.textContent = (isPass ? '✓ ' : '✗ ') + msg;
+            results.appendChild(div);
+        }
+
+        function logPre(label, value) {
+            const pre = document.createElement('pre');
+            pre.textContent = label + ': ' + JSON.stringify(value, null, 2);
+            results.appendChild(pre);
+        }
+
+        try {
+            // Test 1: Basic JSON roundtrip
+            const obj1 = { name: 'test', count: 42 };
+            const encoded1 = toTytx(obj1);
+            const decoded1 = fromTytx(encoded1);
+            log('Basic JSON roundtrip: ' + (JSON.stringify(obj1) === JSON.stringify(decoded1)));
+            logPre('Encoded', encoded1);
+
+            // Test 2: Date roundtrip
+            const date = new Date(Date.UTC(2025, 0, 15, 0, 0, 0, 0));
+            const obj2 = { created: date };
+            const encoded2 = toTytx(obj2);
+            const decoded2 = fromTytx(encoded2);
+            const dateMatch = decoded2.created.getTime() === date.getTime();
+            log('Date roundtrip: ' + dateMatch);
+            logPre('Encoded', encoded2);
+
+            // Test 3: Decimal (falls back to Number in browser without decimal.js)
+            setDecimalLibrary('number');
+            const obj3 = { price: 100.50 };
+            const encoded3 = toTytx(obj3);
+            const decoded3 = fromTytx(encoded3);
+            log('Number roundtrip: ' + (decoded3.price === 100.5));
+            logPre('Encoded', encoded3);
+
+            // Test 4: Array with mixed types
+            const obj4 = [1, 'hello', true, null];
+            const encoded4 = toTytx(obj4);
+            const decoded4 = fromTytx(encoded4);
+            log('Mixed array roundtrip: ' + (JSON.stringify(obj4) === JSON.stringify(decoded4)));
+            logPre('Encoded', encoded4);
+
+            // Test 5: Nested object
+            const obj5 = { user: { name: 'Alice', active: true } };
+            const encoded5 = toTytx(obj5);
+            const decoded5 = fromTytx(encoded5);
+            log('Nested object roundtrip: ' + (decoded5.user.name === 'Alice' && decoded5.user.active === true));
+            logPre('Encoded', encoded5);
+
+            log('');
+            log('All browser tests completed!');
+
+        } catch (err) {
+            log('ERROR: ' + err.message, false);
+            console.error(err);
+        }
+    </script>
+</body>
+</html>
