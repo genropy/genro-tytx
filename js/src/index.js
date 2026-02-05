@@ -20,7 +20,7 @@
  *     // {"price": Big("100.50"), "date": Date}
  */
 
-import { isDecimal } from './registry.js';
+import { isDecimal, createDecimal, setDecimalLibrary, getDecimalLibrary } from './registry.js';
 
 import { toTytx } from './encode.js';
 import { fromTytx } from './decode.js';
@@ -36,8 +36,11 @@ export {
     fetchTytx,
     getTransport,
     CONTENT_TYPES,
-    // Internal utility (needed by encode/decode)
+    // Decimal utilities
     isDecimal,
+    createDecimal,
+    setDecimalLibrary,
+    getDecimalLibrary,
     // Version
     __version__,
 };

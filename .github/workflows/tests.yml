@@ -70,3 +70,42 @@ jobs:
       - name: Run JS tests
         run: |
           cd js && npm test
+
+  build-browser-bundle:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [python-tests, js-tests]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: cd js && npm install
+
+      - name: Build browser bundle
+        run: cd js && npm run build
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet js/dist/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit browser bundle
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add js/dist/
+          git commit -m "chore: rebuild browser bundle [skip ci]"
+          git push
