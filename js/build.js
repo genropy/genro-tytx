@@ -37,7 +37,8 @@ await esbuild.build({
     entryPoints: ['src/index.js'],
     bundle: true,
     outfile: 'dist/tytx.browser.js',
-    format: 'esm',
+    format: 'iife',
+    globalName: 'TYTX',
     platform: 'browser',
     target: ['es2020'],
     minify: false,
@@ -49,3 +50,5 @@ await esbuild.build({
 });
 
 console.log('Browser bundle created: dist/tytx.browser.js');
+console.log('Usage: <script src="tytx.browser.js"></script>');
+console.log('       TYTX.toTytx(...), TYTX.fromTytx(...)');
