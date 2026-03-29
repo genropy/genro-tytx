@@ -440,3 +440,73 @@ def test_wsgi_data_missing_wsgi_input():
 
     result = wsgi_data(environ)
     assert result["body"] is None
+
+
+# Plain JSON body tests (non-TYTX clients)
+
+
+PLAIN_JSON_BODIES = [
+    (
+        "plain dict",
+        b'{"key": "value", "count": 42}',
+        {"key": "value", "count": 42},
+    ),
+    (
+        "plain list",
+        b'[1, 2, 3]',
+        [1, 2, 3],
+    ),
+    (
+        "nested dict",
+        b'{"jsonrpc": "2.0", "id": 1, "method": "initialize"}',
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize"},
+    ),
+    (
+        "plain string value",
+        b'{"name": "hello"}',
+        {"name": "hello"},
+    ),
+]
+
+
+def plain_json_ids():
+    return [d[0] for d in PLAIN_JSON_BODIES]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "description,body_bytes,expected",
+    PLAIN_JSON_BODIES,
+    ids=plain_json_ids(),
+)
+async def test_asgi_data_plain_json_body(description, body_bytes, expected):
+    """Plain JSON body (non-TYTX) should parse correctly via ASGI."""
+    scope = {
+        "type": "http",
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/json")],
+    }
+
+    result = await asgi_data(scope, MockReceive(body_bytes))
+    assert result["body"] == expected, (
+        f"Plain JSON body corrupted: {expected!r} != {result['body']!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "description,body_bytes,expected",
+    PLAIN_JSON_BODIES,
+    ids=plain_json_ids(),
+)
+def test_wsgi_data_plain_json_body(description, body_bytes, expected):
+    """Plain JSON body (non-TYTX) should parse correctly via WSGI."""
+    environ = {
+        "CONTENT_TYPE": "application/json",
+        "CONTENT_LENGTH": str(len(body_bytes)),
+        "wsgi.input": BytesIO(body_bytes),
+    }
+
+    result = wsgi_data(environ)
+    assert result["body"] == expected, (
+        f"Plain JSON body corrupted: {expected!r} != {result['body']!r}"
+    )

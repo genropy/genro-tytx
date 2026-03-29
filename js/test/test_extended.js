@@ -241,6 +241,34 @@ describe('TestExtendedRoundtrip', () => {
     }
 });
 
+describe('TestPlainJsonDecode', () => {
+    test('plain JSON dict with transport=json', () => {
+        const result = fromTytx('{"key": "value", "count": 42}', 'json');
+        assert.deepStrictEqual(result, { key: 'value', count: 42 });
+    });
+
+    test('plain JSON list with transport=json', () => {
+        const result = fromTytx('[1, 2, 3]', 'json');
+        assert.deepStrictEqual(result, [1, 2, 3]);
+    });
+
+    test('plain JSON nested dict with transport=json', () => {
+        const result = fromTytx('{"jsonrpc": "2.0", "id": 1, "method": "initialize"}', 'json');
+        assert.deepStrictEqual(result, { jsonrpc: '2.0', id: 1, method: 'initialize' });
+    });
+
+    test('TYTX-wrapped JSON still works with transport=json', () => {
+        setDecimalLibrary('decimal.js');
+        const data = { price: createDecimal('99.99') };
+        const encoded = toTytx(data, 'json');
+        const result = fromTytx(encoded, 'json');
+        assert.ok(
+            tytxEquivalent(data, result),
+            `TYTX-wrapped mismatch: ${JSON.stringify(data)} -> ${encoded} -> ${JSON.stringify(result)}`
+        );
+    });
+});
+
 // CLI runner
 if (process.argv[1] && process.argv[1].endsWith('test_extended.js')) {
     const fails = runTests();

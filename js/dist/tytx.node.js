@@ -238,7 +238,7 @@ function fromTytx(data, transport = null) {
   }
   if (transport === null || transport === "json") {
     let jsonData = data;
-    if (transport === "json") {
+    if (transport === "json" && data.startsWith('"') && data.endsWith('"')) {
       jsonData = data.slice(1, -1);
     }
     return _fromJson(jsonData);

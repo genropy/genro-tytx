@@ -107,9 +107,10 @@ def from_tytx(
         return None
 
     if transport is None or transport == "json":
-        if transport == "json":
-            data = data[1:-1]  # Remove surrounding quotes
-        return _from_json(cast(str, data), **kwargs)
+        s = cast(str, data)
+        if transport == "json" and s.startswith('"') and s.endswith('"'):
+            s = s[1:-1]  # Remove surrounding quotes (TYTX-wrapped)
+        return _from_json(s, **kwargs)
     elif transport == "xml":
         return _from_xml(cast(str, data))
     elif transport == "msgpack":

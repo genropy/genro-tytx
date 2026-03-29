@@ -106,8 +106,8 @@ function fromTytx(data, transport = null) {
 
     if (transport === null || transport === 'json') {
         let jsonData = data;
-        if (transport === 'json') {
-            jsonData = data.slice(1, -1);  // Remove surrounding quotes
+        if (transport === 'json' && data.startsWith('"') && data.endsWith('"')) {
+            jsonData = data.slice(1, -1);  // Remove surrounding quotes (TYTX-wrapped)
         }
         return _fromJson(jsonData);
     } else if (transport === 'xml') {
