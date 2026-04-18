@@ -5,10 +5,13 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
+import { createRequire } from 'module';
 
 import { toTytx, fromTytx } from '../src/index.js';
 import { createDecimal, setDecimalLibrary } from '../src/registry.js';
 import { tytxEquivalent } from '../src/utils.js';
+
+const require = createRequire(import.meta.url);
 
 // Helper to create Date for date only (midnight UTC)
 const date = (y, m, d) => new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
@@ -265,6 +268,43 @@ describe('TestPlainJsonDecode', () => {
         assert.ok(
             tytxEquivalent(data, result),
             `TYTX-wrapped mismatch: ${JSON.stringify(data)} -> ${encoded} -> ${JSON.stringify(result)}`
+        );
+    });
+});
+
+describe('TestRawEncoding', () => {
+    test('raw=true with JSON produces plain JSON without TYTX suffixes', () => {
+        const data = { price: 100.50, name: 'test', active: true };
+        const result = toTytx(data, null, { raw: true });
+        const parsed = JSON.parse(result);
+        assert.deepStrictEqual(parsed, data);
+        assert.ok(!result.includes('::JS'));
+        assert.ok(!result.includes('::N'));
+    });
+
+    test('raw=true with transport=json produces plain JSON', () => {
+        const data = { items: [1, 2, 3] };
+        const result = toTytx(data, 'json', { raw: true });
+        const parsed = JSON.parse(result);
+        assert.deepStrictEqual(parsed, data);
+    });
+
+    test('raw=true with msgpack produces plain msgpack without TYTX processing', () => {
+        const mp = require('@msgpack/msgpack');
+        const data = { count: 42, values: [1, 2, 3] };
+        const result = toTytx(data, 'msgpack', { raw: true });
+        // Verify it equals plain msgpack encoding (no TYTX suffix strings)
+        const expected = mp.encode(data);
+        assert.deepStrictEqual(result, expected);
+        // Verify it decodes back to original data
+        const parsed = mp.decode(result);
+        assert.deepStrictEqual(parsed, data);
+    });
+
+    test('raw=true with XML raises an error', () => {
+        assert.throws(
+            () => toTytx({ a: 1 }, 'xml', { raw: true }),
+            /raw=true is not supported for XML/
         );
     });
 });

@@ -79,16 +79,6 @@ function _toJson(value, forceSuffix = false) {
 }
 
 /**
- * Encode a JavaScript value to TYTX MessagePack bytes (internal).
- * @param {any} value
- * @returns {Uint8Array}
- */
-async function _toMsgpack(value) {
-    const { toMsgpack } = await import('./msgpack.js');
-    return toMsgpack(value);
-}
-
-/**
  * Encode a JavaScript value to raw JSON string (no TYTX suffix).
  * @param {any} value
  * @returns {string}
@@ -103,8 +93,8 @@ function _toRawJson(value) {
  * @returns {Uint8Array}
  */
 function _toRawMsgpack(value) {
-    const msgpack = require('msgpack-lite');
-    return msgpack.encode(value);
+    const { encode } = require('@msgpack/msgpack');
+    return encode(value);
 }
 
 /**
@@ -172,5 +162,4 @@ function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix
 export {
     toTytx,
     _toJson,
-    _toMsgpack,
 };

@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TYTX for Dummies</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2d3140;
+    --text: #e1e4ed;
+    --text-dim: #8b90a0;
+    --accent: #6c9eff;
+    --accent2: #a78bfa;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --red: #f87171;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 1.2rem 2rem 0;
+    background: linear-gradient(180deg, #161926 0%, var(--bg) 100%);
+    flex-shrink: 0;
+    text-align: center;
+    position: relative;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse 500px 200px at 50% 20%, rgba(108,158,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.2rem;
+  }
+  header .subtitle {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    flex-shrink: 0;
+    overflow-x: auto;
+    background: var(--bg);
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 0.7rem 1.2rem;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Tab content ── */
+  .tab-panels { flex: 1; overflow: hidden; position: relative; }
+  .tab-panel {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    padding: 2rem;
+    display: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .tab-panel.active { display: block; }
+  .tab-panel .content { max-width: 860px; margin: 0 auto; }
+
+  /* ── Typography ── */
+  h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.2rem; letter-spacing: -0.02em; }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 2rem 0 0.8rem; color: var(--accent); }
+  h3:first-child { margin-top: 0; }
+  p { margin-bottom: 1rem; }
+  p.dim { color: var(--text-dim); }
+  ul { color: var(--text-dim); margin: 1rem 0; padding-left: 1.5rem; }
+  li { margin-bottom: 0.3rem; }
+
+  /* ── SVG diagrams ── */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+  }
+  .diagram svg { max-width: 100%; height: auto; }
+
+  /* ── Code ── */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    padding-right: 3.5rem;
+    overflow-x: auto;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    position: relative;
+  }
+  code { font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.85rem; }
+  pre code { color: var(--text); }
+  .kw { color: var(--accent2); }
+  .fn { color: var(--accent); }
+  .str { color: var(--green); }
+  .cmt { color: var(--text-dim); font-style: italic; }
+  .dec { color: var(--orange); }
+  .cls { color: var(--cyan); }
+  .num { color: var(--orange); }
+  code.il {
+    background: var(--surface2);
+    padding: 0.15em 0.45em;
+    border-radius: 5px;
+    font-size: 0.83em;
+  }
+
+  /* ── Copy button ── */
+  .copy-btn {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    z-index: 1;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  /* ── Cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .card p { font-size: 0.85rem; color: var(--text-dim); margin: 0; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.88rem; }
+  th, td { padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Callout ── */
+  .callout {
+    background: rgba(108,158,255,0.06);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 0.9rem 1.2rem;
+    margin: 1.2rem 0;
+  }
+  .callout p { margin: 0; font-size: 0.9rem; }
+  .callout.warn {
+    background: rgba(251,146,60,0.06);
+    border-left-color: var(--orange);
+  }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .b-py { background: rgba(108,158,255,0.15); color: var(--accent); }
+  .b-js { background: rgba(251,146,60,0.15); color: var(--orange); }
+  .b-wire { background: rgba(74,222,128,0.15); color: var(--green); }
+
+  /* ── Footer ── */
+  .tab-footer {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    margin-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+  .tab-footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    header h1 { font-size: 1.4rem; }
+    .tab-btn { padding: 0.6rem 0.8rem; font-size: 0.8rem; }
+    .tab-panel { padding: 1.2rem; }
+    pre { font-size: 0.78rem; padding: 0.9rem; white-space: pre-wrap; word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TYTX for Dummies</h1>
+  <p class="subtitle">Typed Text eXchange &mdash; send a Decimal from Python, receive a Decimal in JavaScript. Zero boilerplate.</p>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="why">Why</button>
+  <button class="tab-btn" data-tab="quickstart">Quick Start</button>
+  <button class="tab-btn" data-tab="types">Type System</button>
+  <button class="tab-btn" data-tab="json">JSON</button>
+  <button class="tab-btn" data-tab="xml">XML</button>
+  <button class="tab-btn" data-tab="msgpack">MessagePack</button>
+  <button class="tab-btn" data-tab="qs">Query String</button>
+  <button class="tab-btn" data-tab="http">HTTP</button>
+  <button class="tab-btn" data-tab="compose">How It Works</button>
+  <button class="tab-btn" data-tab="cheat">Cheat Sheet</button>
+</nav>
+
+<div class="tab-panels">
+
+<!-- ═══════════════════════ WHY ═══════════════════════ -->
+<div class="tab-panel active" id="tab-why">
+<div class="content">
+
+<h2>The Type Problem Nobody Talks About</h2>
+
+<p>You build a web app. Your Python backend calculates a price: <code class="il">Decimal("99.99")</code>. You serialize it to JSON.
+JSON has no Decimal type. Your <code class="il">99.99</code> arrives in JavaScript as a <code class="il">float</code> &mdash; and
+<code class="il">0.1 + 0.2 === 0.30000000000000004</code>. Your invoice is wrong. Your accountant is angry.</p>
+
+<p>So you convert Decimal to string before sending. Now the frontend needs to know which strings are "actually numbers" and convert them back. You add a schema. Or a convention. Or a separate metadata field. For every type. In every endpoint.</p>
+
+<p>Dates? Same story. <code class="il">datetime(2025, 1, 15, 10, 30)</code> becomes <code class="il">"2025-01-15T10:30:00"</code> &mdash; is that UTC? Local? The frontend guesses. Half your bug tracker is timezone issues.</p>
+
+<div class="callout">
+<p><strong>TYTX solves this by embedding type information directly in the value.</strong> <code class="il">"99.99::N"</code> is a Decimal. <code class="il">"2025-01-15::D"</code> is a date.
+The sender tags, the receiver hydrates. No schema negotiation, no out-of-band metadata, no guessing.</p>
+</div>
+
+<div class="diagram">
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8b90a0"/></marker></defs>
+
+  <!-- Python box -->
+  <rect x="40" y="30" width="200" height="70" rx="10" fill="#232733" stroke="#6c9eff" stroke-width="1.5"/>
+  <text x="140" y="57" text-anchor="middle" fill="#6c9eff" font-size="12" font-weight="600">PYTHON</text>
+  <text x="140" y="78" text-anchor="middle" fill="#8b90a0" font-size="10">Decimal, date, datetime, time</text>
+
+  <!-- JS box -->
+  <rect x="480" y="30" width="200" height="70" rx="10" fill="#232733" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="580" y="57" text-anchor="middle" fill="#fb923c" font-size="12" font-weight="600">JAVASCRIPT</text>
+  <text x="580" y="78" text-anchor="middle" fill="#8b90a0" font-size="10">Big.js, Date, Date, Date</text>
+
+  <!-- TYTX box -->
+  <rect x="255" y="35" width="210" height="60" rx="10" fill="#232733" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="360" y="58" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="600">TYTX WIRE FORMAT</text>
+  <text x="360" y="76" text-anchor="middle" fill="#8b90a0" font-size="10">"99.99::N" &bull; "2025-01-15::D"</text>
+
+  <!-- Arrows top -->
+  <line x1="240" y1="55" x2="255" y2="55" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <line x1="465" y1="55" x2="480" y2="55" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+
+  <!-- Without TYTX -->
+  <text x="360" y="135" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">WITHOUT TYTX</text>
+
+  <rect x="40" y="155" width="200" height="50" rx="8" fill="#232733" stroke="#2d3140" stroke-width="1"/>
+  <text x="140" y="178" text-anchor="middle" fill="#8b90a0" font-size="10">Decimal("99.99")</text>
+  <text x="140" y="196" text-anchor="middle" fill="#f87171" font-size="9">→ JSON float 99.99</text>
+
+  <rect x="260" y="155" width="200" height="50" rx="8" fill="#232733" stroke="#2d3140" stroke-width="1"/>
+  <text x="360" y="178" text-anchor="middle" fill="#8b90a0" font-size="10">99.99 (float)</text>
+  <text x="360" y="196" text-anchor="middle" fill="#f87171" font-size="9">precision lost</text>
+
+  <rect x="480" y="155" width="200" height="50" rx="8" fill="#232733" stroke="#2d3140" stroke-width="1"/>
+  <text x="580" y="178" text-anchor="middle" fill="#8b90a0" font-size="10">99.99000000000001</text>
+  <text x="580" y="196" text-anchor="middle" fill="#f87171" font-size="9">wrong invoice</text>
+
+  <line x1="240" y1="180" x2="260" y2="180" stroke="#f87171" stroke-width="1" marker-end="url(#a1)"/>
+  <line x1="460" y1="180" x2="480" y2="180" stroke="#f87171" stroke-width="1" marker-end="url(#a1)"/>
+
+  <!-- With TYTX -->
+  <text x="360" y="235" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">WITH TYTX</text>
+
+  <rect x="40" y="248" width="200" height="30" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="140" y="268" text-anchor="middle" fill="#4ade80" font-size="10">Decimal("99.99")</text>
+
+  <rect x="260" y="248" width="200" height="30" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="360" y="268" text-anchor="middle" fill="#4ade80" font-size="10">"99.99::N"</text>
+
+  <rect x="480" y="248" width="200" height="30" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="580" y="268" text-anchor="middle" fill="#4ade80" font-size="10">Big("99.99")</text>
+
+  <line x1="240" y1="263" x2="260" y2="263" stroke="#4ade80" stroke-width="1" marker-end="url(#a1)"/>
+  <line x1="460" y1="263" x2="480" y2="263" stroke="#4ade80" stroke-width="1" marker-end="url(#a1)"/>
+</svg>
+</div>
+
+<h3>When does this actually matter?</h3>
+
+<div class="cards">
+  <div class="card"><h4>Financial data</h4><p>Prices, invoices, tax calculations &mdash; <code class="il">Decimal</code> roundtrips without floating-point surprises. <code class="il">"999.99::N"</code> stays <code class="il">999.99</code>, always.</p></div>
+  <div class="card"><h4>Date/time across timezones</h4><p>Dates stay dates, datetimes are always UTC with explicit <code class="il">::DHZ</code> suffix. No more "is this local or UTC?" bugs.</p></div>
+  <div class="card"><h4>Multiple transports</h4><p>Same typed data over JSON, XML, MessagePack, or query strings. Switch transport, keep types.</p></div>
+  <div class="card"><h4>Multi-language apps</h4><p>Python backend, JavaScript frontend. Types survive the round trip. Same library on both sides.</p></div>
+  <div class="card"><h4>Zero-config</h4><p>No schema files, no code generation, no build step. <code class="il">pip install genro-tytx</code> and go.</p></div>
+  <div class="card"><h4>Backward compatible</h4><p>TYTX values are valid JSON strings. Any JSON parser can read them. Type-unaware code just sees strings.</p></div>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ QUICK START ═══════════════════════ -->
+<div class="tab-panel" id="tab-quickstart">
+<div class="content">
+
+<h2>Quick Start</h2>
+
+<h3>Install</h3>
+<pre><code><span class="cmt"># Python</span>
+pip install genro-tytx              <span class="cmt"># Core</span>
+pip install genro-tytx[fast]        <span class="cmt"># With orjson (faster JSON)</span>
+pip install genro-tytx[msgpack]     <span class="cmt"># With MessagePack support</span>
+pip install genro-tytx[all]         <span class="cmt"># Everything</span>
+
+<span class="cmt"># JavaScript (from GitHub)</span>
+npm install genropy/genro-tytx</code></pre>
+
+<h3>Encode &amp; Decode (Python)</h3>
+<pre><code><span class="kw">from</span> <span class="cls">decimal</span> <span class="kw">import</span> Decimal
+<span class="kw">from</span> <span class="cls">datetime</span> <span class="kw">import</span> date, datetime
+<span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_tytx, from_tytx
+
+<span class="cmt"># Encode a Python dict with typed values</span>
+order = {
+    <span class="str">"product"</span>: <span class="str">"Widget"</span>,
+    <span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>),
+    <span class="str">"date"</span>: date(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>),
+}
+
+wire = <span class="fn">to_tytx</span>(order)
+<span class="cmt"># '{"product": "Widget", "price": "99.99::N", "date": "2025-01-15::D"}::JS'</span>
+
+<span class="cmt"># Decode back &mdash; types are automatically restored</span>
+result = <span class="fn">from_tytx</span>(wire)
+<span class="cmt"># {"product": "Widget", "price": Decimal("99.99"), "date": date(2025, 1, 15)}</span></code></pre>
+
+<h3>Encode &amp; Decode (JavaScript)</h3>
+<pre><code><span class="kw">import</span> { toTytx, fromTytx } <span class="kw">from</span> <span class="str">'genro-tytx'</span>;
+<span class="kw">import</span> { createDecimal, setDecimalLibrary } <span class="kw">from</span> <span class="str">'genro-tytx/src/registry.js'</span>;
+
+<span class="fn">setDecimalLibrary</span>(<span class="str">'big.js'</span>);
+
+<span class="kw">const</span> order = {
+    product: <span class="str">"Widget"</span>,
+    price: <span class="fn">createDecimal</span>(<span class="str">"99.99"</span>),
+    date: <span class="kw">new</span> <span class="cls">Date</span>(Date.<span class="fn">UTC</span>(<span class="num">2025</span>, <span class="num">0</span>, <span class="num">15</span>)),
+};
+
+<span class="kw">const</span> wire = <span class="fn">toTytx</span>(order);
+<span class="cmt">// '{"product":"Widget","price":"99.99::N","date":"2025-01-15::D"}::JS'</span>
+
+<span class="kw">const</span> result = <span class="fn">fromTytx</span>(wire);
+<span class="cmt">// { product: "Widget", price: Big("99.99"), date: Date(2025-01-15) }</span></code></pre>
+
+<h3>HTTP Integration (Python ASGI)</h3>
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> asgi_data, to_tytx
+
+<span class="kw">async def</span> <span class="fn">handle_request</span>(scope, receive, send):
+    <span class="cmt"># Automatically decodes TYTX from query, headers, cookies, body</span>
+    data = <span class="kw">await</span> <span class="fn">asgi_data</span>(scope, receive)
+
+    price = data[<span class="str">"body"</span>][<span class="str">"price"</span>]   <span class="cmt"># Already a Decimal!</span>
+    total = price * <span class="num">3</span>
+
+    response = <span class="fn">to_tytx</span>({<span class="str">"total"</span>: total})
+    <span class="cmt"># Send response...</span></code></pre>
+
+<h3>HTTP Integration (JavaScript)</h3>
+<pre><code><span class="kw">import</span> { fetchTytx } <span class="kw">from</span> <span class="str">'genro-tytx'</span>;
+
+<span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">fetchTytx</span>(<span class="str">'/api/order'</span>, {
+    body: { price: <span class="fn">createDecimal</span>(<span class="str">"99.99"</span>), qty: <span class="num">3</span> },
+    transport: <span class="str">'json'</span>,
+});
+<span class="cmt">// result.total is a Big (Decimal), ready to use</span></code></pre>
+
+<div class="callout">
+<p><strong>Key insight:</strong> You never write type-conversion code. Tag on one side, hydrate on the other. Every value keeps its real type through the entire roundtrip.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ TYPE SYSTEM ═══════════════════════ -->
+<div class="tab-panel" id="tab-types">
+<div class="content">
+
+<h2>The Type System</h2>
+
+<p>TYTX adds a <code class="il">::SUFFIX</code> to values that JSON can't represent natively. The suffix tells the receiver how to reconstruct the original type.</p>
+
+<h3>Non-Native Types (always suffixed)</h3>
+<p>These types have no JSON equivalent. Without the suffix, the receiver has no way to know what they are.</p>
+
+<table>
+  <tr><th>Suffix</th><th>Meaning</th><th>Python</th><th>JavaScript</th><th>Wire Example</th></tr>
+  <tr><td><code class="il">::N</code></td><td>Decimal</td><td><code class="il">Decimal</code></td><td><code class="il">Big</code> / <code class="il">Decimal</code></td><td><code class="il">"99.99::N"</code></td></tr>
+  <tr><td><code class="il">::D</code></td><td>Date</td><td><code class="il">date</code></td><td><code class="il">Date</code> (midnight UTC)</td><td><code class="il">"2025-01-15::D"</code></td></tr>
+  <tr><td><code class="il">::DHZ</code></td><td>DateTime (UTC)</td><td><code class="il">datetime</code></td><td><code class="il">Date</code></td><td><code class="il">"2025-01-15T10:30:00.000Z::DHZ"</code></td></tr>
+  <tr><td><code class="il">::H</code></td><td>Time</td><td><code class="il">time</code></td><td><code class="il">Date</code> (epoch 1970-01-01)</td><td><code class="il">"14:30:00.000::H"</code></td></tr>
+</table>
+
+<h3>JSON-Native Types (suffixed only in XML/QS)</h3>
+<p>These types exist natively in JSON. Suffixes are added only when the transport doesn't have native support (XML, query strings).</p>
+
+<table>
+  <tr><th>Suffix</th><th>Meaning</th><th>Type</th><th>Wire Example</th></tr>
+  <tr><td><code class="il">::L</code></td><td>Integer (Long)</td><td><code class="il">int</code> / <code class="il">number</code></td><td><code class="il">"42::L"</code></td></tr>
+  <tr><td><code class="il">::R</code></td><td>Float (Real)</td><td><code class="il">float</code> / <code class="il">number</code></td><td><code class="il">"3.14::R"</code></td></tr>
+  <tr><td><code class="il">::B</code></td><td>Boolean</td><td><code class="il">bool</code> / <code class="il">boolean</code></td><td><code class="il">"true::B"</code></td></tr>
+  <tr><td><code class="il">::T</code></td><td>Text (explicit)</td><td><code class="il">str</code> / <code class="il">string</code></td><td><code class="il">"hello::T"</code></td></tr>
+  <tr><td><code class="il">::NN</code></td><td>Null</td><td><code class="il">None</code> / <code class="il">null</code></td><td><code class="il">"::NN"</code></td></tr>
+</table>
+
+<h3>Structure Markers</h3>
+<table>
+  <tr><th>Suffix</th><th>Meaning</th><th>Example</th></tr>
+  <tr><td><code class="il">::JS</code></td><td>JSON structure with typed values</td><td><code class="il">{"price": "99.99::N"}::JS</code></td></tr>
+  <tr><td><code class="il">::QS</code></td><td>Query string format</td><td><code class="il">price=99.99::N&amp;qty=3::L::QS</code></td></tr>
+</table>
+
+<div class="callout">
+<p><strong>The <code class="il">::JS</code> suffix is the signal.</strong> When a JSON string ends with <code class="il">::JS</code>, the decoder knows to parse it and walk the tree looking for typed values. Without <code class="il">::JS</code>, it's just a regular JSON string &mdash; no processing needed.</p>
+</div>
+
+<h3>DateTime Precision</h3>
+
+<p>JavaScript <code class="il">Date</code> has <strong>millisecond</strong> precision. TYTX truncates Python microseconds to milliseconds during encoding to ensure perfect roundtrips.</p>
+
+<pre><code><span class="cmt"># Python: microseconds truncated to milliseconds</span>
+<span class="fn">to_tytx</span>(datetime(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>, <span class="num">10</span>, <span class="num">30</span>, <span class="num">45</span>, <span class="num">123456</span>))
+<span class="cmt"># "2025-01-15T10:30:45.123Z::DHZ"  (123456 &mu;s &rarr; 123 ms)</span>
+
+<span class="cmt"># Naive datetimes are treated as UTC</span>
+<span class="fn">to_tytx</span>(datetime(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>, <span class="num">10</span>, <span class="num">30</span>))
+<span class="cmt"># "2025-01-15T10:30:00.000Z::DHZ"</span></code></pre>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ JSON ═══════════════════════ -->
+<div class="tab-panel" id="tab-json">
+<div class="content">
+
+<h2>JSON Transport</h2>
+
+<p>JSON is the default transport. When your data contains typed values (Decimal, date, etc.), TYTX wraps them as strings with type suffixes and marks the whole structure with <code class="il">::JS</code>.</p>
+
+<h3>How encoding works</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">decimal</span> <span class="kw">import</span> Decimal
+<span class="kw">from</span> <span class="cls">datetime</span> <span class="kw">import</span> date
+<span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_tytx
+
+<span class="cmt"># Dict with typed values &rarr; ::JS suffix</span>
+<span class="fn">to_tytx</span>({<span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>), <span class="str">"date"</span>: date(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>)})
+<span class="cmt"># '{"price": "99.99::N", "date": "2025-01-15::D"}::JS'</span>
+
+<span class="cmt"># Dict with only native JSON types &rarr; no suffix</span>
+<span class="fn">to_tytx</span>({<span class="str">"name"</span>: <span class="str">"Widget"</span>, <span class="str">"count"</span>: <span class="num">42</span>})
+<span class="cmt"># '{"name": "Widget", "count": 42}'</span>
+
+<span class="cmt"># Scalar typed value &rarr; quoted with suffix, no ::JS</span>
+<span class="fn">to_tytx</span>(Decimal(<span class="str">"100.50"</span>))
+<span class="cmt"># '"100.50::N"'</span>
+
+<span class="cmt"># Plain scalar &rarr; quoted JSON</span>
+<span class="fn">to_tytx</span>(<span class="str">"hello"</span>)
+<span class="cmt"># '"hello"'</span></code></pre>
+
+<h3>How decoding works</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> from_tytx
+
+<span class="cmt"># TYTX structure &rarr; types restored</span>
+<span class="fn">from_tytx</span>(<span class="str">'{"price": "99.99::N", "date": "2025-01-15::D"}::JS'</span>)
+<span class="cmt"># {"price": Decimal("99.99"), "date": date(2025, 1, 15)}</span>
+
+<span class="cmt"># Scalar with suffix</span>
+<span class="fn">from_tytx</span>(<span class="str">'"100.50::N"'</span>)
+<span class="cmt"># Decimal("100.50")</span>
+
+<span class="cmt"># Plain JSON (no TYTX suffixes) &rarr; parsed as standard JSON</span>
+<span class="fn">from_tytx</span>(<span class="str">'{"name": "Widget", "count": 42}'</span>)
+<span class="cmt"># {"name": "Widget", "count": 42}</span></code></pre>
+
+<h3>With explicit transport</h3>
+
+<p>When receiving data from HTTP (via <code class="il">asgi_data</code> / <code class="il">wsgi_data</code>), the transport is set to <code class="il">"json"</code> based on the Content-Type. This tells <code class="il">from_tytx</code> to expect JSON-encoded data.</p>
+
+<pre><code><span class="cmt"># to_tytx with transport="json" wraps output in quotes</span>
+<span class="fn">to_tytx</span>({<span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>)}, transport=<span class="str">"json"</span>)
+<span class="cmt"># '"{\\"price\\": \\"99.99::N\\"}::JS"'</span>
+
+<span class="cmt"># from_tytx with transport="json" strips the outer quotes</span>
+<span class="fn">from_tytx</span>(<span class="str">'"{\\"price\\": \\"99.99::N\\"}::JS"'</span>, transport=<span class="str">"json"</span>)
+<span class="cmt"># {"price": Decimal("99.99")}</span></code></pre>
+
+<h3>orjson acceleration</h3>
+
+<p>If <code class="il">orjson</code> is installed, TYTX uses it automatically for faster JSON parsing. No code changes needed.</p>
+
+<pre><code>pip install genro-tytx[fast]   <span class="cmt"># installs orjson</span></code></pre>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ XML ═══════════════════════ -->
+<div class="tab-panel" id="tab-xml">
+<div class="content">
+
+<h2>XML Transport</h2>
+
+<p>When you need XML (SOAP, legacy integrations, config files), TYTX embeds type suffixes directly in text content and attribute values.</p>
+
+<h3>Data structure convention</h3>
+
+<p>XML elements map to Python dicts with a fixed structure:</p>
+
+<pre><code>{<span class="str">"tag_name"</span>: {<span class="str">"attrs"</span>: {...}, <span class="str">"value"</span>: ...}}</code></pre>
+
+<h3>Encoding</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_tytx
+
+data = {
+    <span class="str">"order"</span>: {
+        <span class="str">"attrs"</span>: {<span class="str">"id"</span>: <span class="num">123</span>, <span class="str">"created"</span>: date(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>)},
+        <span class="str">"value"</span>: {
+            <span class="str">"total"</span>: {<span class="str">"attrs"</span>: {}, <span class="str">"value"</span>: Decimal(<span class="str">"299.97"</span>)}
+        }
+    }
+}
+
+<span class="fn">to_tytx</span>(data, transport=<span class="str">"xml"</span>)</code></pre>
+
+<p>Produces:</p>
+
+<pre><code><span class="kw">&lt;order</span> <span class="fn">id</span>=<span class="str">"123::L"</span> <span class="fn">created</span>=<span class="str">"2025-01-15::D"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;total&gt;</span><span class="dec">299.97::N</span><span class="kw">&lt;/total&gt;</span>
+<span class="kw">&lt;/order&gt;</span></code></pre>
+
+<h3>Decoding</h3>
+
+<pre><code>xml_data = <span class="str">'&lt;order id="123::L"&gt;&lt;total&gt;299.97::N&lt;/total&gt;&lt;/order&gt;'</span>
+
+<span class="fn">from_tytx</span>(xml_data, transport=<span class="str">"xml"</span>)
+<span class="cmt"># {"order": {"attrs": {"id": 123}, "value": {"total": {"attrs": {}, "value": Decimal("299.97")}}}}</span></code></pre>
+
+<h3>Configuration</h3>
+
+<table>
+  <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code class="il">transport</code></td><td><code class="il">str</code></td><td><code class="il">None</code></td><td>Set to <code class="il">"xml"</code> for XML transport</td></tr>
+</table>
+
+<div class="callout">
+<p><strong>All type suffixes are active in XML</strong> &mdash; including <code class="il">::L</code>, <code class="il">::R</code>, <code class="il">::B</code> for native JSON types. Since XML is all text, every type needs an explicit suffix.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ MSGPACK ═══════════════════════ -->
+<div class="tab-panel" id="tab-msgpack">
+<div class="content">
+
+<h2>MessagePack Transport</h2>
+
+<p>When you need compact binary encoding (WebSocket, IoT, high-throughput APIs), TYTX uses MessagePack <strong>native extension types</strong> &mdash; no string wrapping, zero overhead.</p>
+
+<table>
+  <tr><th>Ext code</th><th>Type</th><th>Payload</th></tr>
+  <tr><td>Timestamp (built-in)</td><td>datetime</td><td>Native msgpack Timestamp (UTC)</td></tr>
+  <tr><td><code class="il">1</code></td><td>Decimal</td><td>UTF-8 string (e.g. <code class="il">"99.99"</code>)</td></tr>
+  <tr><td><code class="il">2</code></td><td>date</td><td>ISO string <code class="il">"YYYY-MM-DD"</code></td></tr>
+  <tr><td><code class="il">3</code></td><td>time</td><td>ISO string <code class="il">"HH:MM:SS.ffffff"</code></td></tr>
+</table>
+
+<h3>Install</h3>
+
+<pre><code><span class="cmt"># Python</span>
+pip install genro-tytx[msgpack]
+
+<span class="cmt"># JavaScript</span>
+npm install @msgpack/msgpack</code></pre>
+
+<h3>Usage</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_tytx, from_tytx
+
+<span class="cmt"># Encode &rarr; bytes (compact binary with ext types)</span>
+data = {<span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>), <span class="str">"date"</span>: date(<span class="num">2025</span>, <span class="num">1</span>, <span class="num">15</span>)}
+packed = <span class="fn">to_tytx</span>(data, transport=<span class="str">"msgpack"</span>)
+<span class="cmt"># b'...'  binary payload: Decimal as ext 1, date as ext 2</span>
+
+<span class="cmt"># Decode &rarr; dict with real types</span>
+result = <span class="fn">from_tytx</span>(packed, transport=<span class="str">"msgpack"</span>)
+<span class="cmt"># {"price": Decimal("99.99"), "date": date(2025, 1, 15)}</span></code></pre>
+
+<h3>Direct functions</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_msgpack, from_msgpack
+
+packed = <span class="fn">to_msgpack</span>({<span class="str">"total"</span>: Decimal(<span class="str">"500"</span>)})
+result = <span class="fn">from_msgpack</span>(packed)
+<span class="cmt"># {"total": Decimal("500")}</span></code></pre>
+
+<div class="callout">
+<p><strong>MessagePack is ~30-50% smaller than JSON</strong> on typical payloads, and faster to parse. Using native ext types (no string tagging) keeps the payload lean and parsing direct.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ QS ═══════════════════════ -->
+<div class="tab-panel" id="tab-qs">
+<div class="content">
+
+<h2>Query String Transport</h2>
+
+<p>When you need to pass typed data in URLs (query parameters, form data), TYTX encodes key-value pairs with type suffixes.</p>
+
+<h3>Object mode (key=value)</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_tytx, from_tytx
+<span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> to_qs, from_qs
+
+<span class="cmt"># Encode with qs=True</span>
+<span class="fn">to_tytx</span>({<span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>), <span class="str">"date"</span>: date(<span class="num">2025</span>, <span class="num">12</span>, <span class="num">14</span>)}, qs=<span class="kw">True</span>)
+<span class="cmt"># 'price=99.99::N&amp;date=2025-12-14::D::QS'</span>
+
+<span class="cmt"># Or use direct functions</span>
+<span class="fn">to_qs</span>({<span class="str">"price"</span>: Decimal(<span class="str">"99.99"</span>), <span class="str">"active"</span>: <span class="kw">True</span>})
+<span class="cmt"># 'price=99.99::N&amp;active=true::B'</span>
+
+<span class="cmt"># Decode</span>
+<span class="fn">from_qs</span>(<span class="str">'price=99.99::N&amp;active=true::B'</span>)
+<span class="cmt"># {"price": Decimal("99.99"), "active": True}</span></code></pre>
+
+<h3>Array mode (no keys)</h3>
+
+<pre><code><span class="fn">to_qs</span>([<span class="str">"alpha"</span>, <span class="str">"beta"</span>, <span class="str">"gamma"</span>])
+<span class="cmt"># 'alpha&amp;beta&amp;gamma'</span>
+
+<span class="fn">from_qs</span>(<span class="str">'alpha&amp;beta&amp;gamma'</span>)
+<span class="cmt"># ["alpha", "beta", "gamma"]</span></code></pre>
+
+<div class="callout warn">
+<p><strong>Object and array modes can't be mixed.</strong> If some items have <code class="il">=</code> and some don't, <code class="il">to_qs</code> raises <code class="il">ValueError</code>.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ HTTP ═══════════════════════ -->
+<div class="tab-panel" id="tab-http">
+<div class="content">
+
+<h2>HTTP Integration</h2>
+
+<p>TYTX provides ready-made utilities to decode typed data from HTTP requests &mdash; query parameters, headers, cookies, and body &mdash; in both ASGI and WSGI applications.</p>
+
+<h3>ASGI (async)</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> asgi_data
+
+<span class="kw">async def</span> <span class="fn">app</span>(scope, receive, send):
+    data = <span class="kw">await</span> <span class="fn">asgi_data</span>(scope, receive)
+
+    data[<span class="str">"query"</span>]    <span class="cmt"># dict &mdash; decoded query parameters</span>
+    data[<span class="str">"headers"</span>]  <span class="cmt"># dict &mdash; decoded headers</span>
+    data[<span class="str">"cookies"</span>]  <span class="cmt"># dict &mdash; decoded cookies</span>
+    data[<span class="str">"body"</span>]     <span class="cmt"># any  &mdash; decoded body (based on Content-Type)</span></code></pre>
+
+<h3>WSGI (sync)</h3>
+
+<pre><code><span class="kw">from</span> <span class="cls">genro_tytx</span> <span class="kw">import</span> wsgi_data
+
+<span class="kw">def</span> <span class="fn">app</span>(environ, start_response):
+    data = <span class="fn">wsgi_data</span>(environ)
+
+    data[<span class="str">"query"</span>]    <span class="cmt"># same structure as ASGI</span>
+    data[<span class="str">"headers"</span>]
+    data[<span class="str">"cookies"</span>]
+    data[<span class="str">"body"</span>]</code></pre>
+
+<h3>Auto-detection</h3>
+
+<p>Transport is detected automatically from <code class="il">Content-Type</code>:</p>
+
+<table>
+  <tr><th>Content-Type</th><th>Transport</th></tr>
+  <tr><td><code class="il">application/json</code></td><td><code class="il">"json"</code></td></tr>
+  <tr><td><code class="il">application/xml</code></td><td><code class="il">"xml"</code></td></tr>
+  <tr><td><code class="il">application/msgpack</code></td><td><code class="il">"msgpack"</code></td></tr>
+</table>
+
+<h3>JavaScript: fetchTytx</h3>
+
+<pre><code><span class="kw">import</span> { fetchTytx } <span class="kw">from</span> <span class="str">'genro-tytx'</span>;
+
+<span class="cmt">// POST with automatic TYTX encoding</span>
+<span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">fetchTytx</span>(<span class="str">'/api/order'</span>, {
+    body: { price: <span class="fn">createDecimal</span>(<span class="str">"99.99"</span>), qty: <span class="num">3</span> },
+    transport: <span class="str">'json'</span>,     <span class="cmt">// default</span>
+});
+<span class="cmt">// result is already decoded with real types</span>
+
+<span class="cmt">// GET (no body &rarr; auto GET)</span>
+<span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">fetchTytx</span>(<span class="str">'/api/products'</span>);</code></pre>
+
+<h3>Configuration</h3>
+
+<table>
+  <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code class="il">body</code></td><td><code class="il">any</code></td><td><code class="il">undefined</code></td><td>Data to send (auto-encoded)</td></tr>
+  <tr><td><code class="il">transport</code></td><td><code class="il">string</code></td><td><code class="il">"json"</code></td><td><code class="il">"json"</code>, <code class="il">"xml"</code>, or <code class="il">"msgpack"</code></td></tr>
+  <tr><td><code class="il">method</code></td><td><code class="il">string</code></td><td>auto</td><td>HTTP method (auto: GET if no body, POST if body)</td></tr>
+  <tr><td><code class="il">headers</code></td><td><code class="il">object</code></td><td><code class="il">{}</code></td><td>Additional headers (merged with Content-Type)</td></tr>
+</table>
+
+<div class="callout">
+<p><strong>Plain JSON works too.</strong> If a non-TYTX client sends standard JSON like <code class="il">{"key": "value"}</code>, it's parsed correctly. TYTX decoding is backward-compatible &mdash; it only activates type hydration when it detects TYTX suffixes.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ HOW IT WORKS ═══════════════════════ -->
+<div class="tab-panel" id="tab-compose">
+<div class="content">
+
+<h2>How It All Fits Together</h2>
+
+<h3>The encode/decode flow</h3>
+
+<div class="diagram">
+<svg viewBox="0 0 740 340" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8b90a0"/></marker></defs>
+
+  <text x="370" y="24" text-anchor="middle" fill="#6c9eff" font-size="13" font-weight="700">ENCODING (to_tytx)</text>
+
+  <!-- Step 1: Input -->
+  <rect x="20" y="40" width="160" height="55" rx="8" fill="#232733" stroke="#6c9eff" stroke-width="1.5"/>
+  <text x="100" y="62" text-anchor="middle" fill="#6c9eff" font-size="10" font-weight="600">1. INPUT</text>
+  <text x="100" y="80" text-anchor="middle" fill="#8b90a0" font-size="9">Python/JS object</text>
+  <text x="100" y="90" text-anchor="middle" fill="#8b90a0" font-size="8">Decimal, date, dict, list...</text>
+
+  <!-- Step 2: Walk tree -->
+  <rect x="205" y="40" width="160" height="55" rx="8" fill="#232733" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="285" y="62" text-anchor="middle" fill="#a78bfa" font-size="10" font-weight="600">2. WALK TREE</text>
+  <text x="285" y="80" text-anchor="middle" fill="#8b90a0" font-size="9">Serialize each value</text>
+  <text x="285" y="90" text-anchor="middle" fill="#8b90a0" font-size="8">Decimal &rarr; "99.99::N"</text>
+
+  <!-- Step 3: Transport -->
+  <rect x="390" y="40" width="160" height="55" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="470" y="62" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">3. TRANSPORT</text>
+  <text x="470" y="80" text-anchor="middle" fill="#8b90a0" font-size="9">JSON / XML / MsgPack</text>
+  <text x="470" y="90" text-anchor="middle" fill="#8b90a0" font-size="8">Serialize structure</text>
+
+  <!-- Step 4: Wire -->
+  <rect x="575" y="40" width="145" height="55" rx="8" fill="#232733" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="647" y="62" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">4. WIRE</text>
+  <text x="647" y="80" text-anchor="middle" fill="#8b90a0" font-size="9">str / bytes</text>
+  <text x="647" y="90" text-anchor="middle" fill="#8b90a0" font-size="8">'{"p":"99::N"}::JS'</text>
+
+  <line x1="180" y1="67" x2="205" y2="67" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="365" y1="67" x2="390" y2="67" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="550" y1="67" x2="575" y2="67" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+
+  <!-- Divider -->
+  <line x1="20" y1="120" x2="720" y2="120" stroke="#2d3140" stroke-width="1" stroke-dasharray="6,4"/>
+
+  <text x="370" y="150" text-anchor="middle" fill="#fb923c" font-size="13" font-weight="700">DECODING (from_tytx)</text>
+
+  <!-- Step 1: Wire input -->
+  <rect x="20" y="165" width="145" height="55" rx="8" fill="#232733" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="92" y="187" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">1. WIRE</text>
+  <text x="92" y="205" text-anchor="middle" fill="#8b90a0" font-size="9">str / bytes</text>
+
+  <!-- Step 2: Parse -->
+  <rect x="190" y="165" width="160" height="55" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="270" y="187" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">2. PARSE</text>
+  <text x="270" y="205" text-anchor="middle" fill="#8b90a0" font-size="9">Strip ::JS, parse JSON</text>
+
+  <!-- Step 3: Hydrate -->
+  <rect x="375" y="165" width="160" height="55" rx="8" fill="#232733" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="455" y="187" text-anchor="middle" fill="#a78bfa" font-size="10" font-weight="600">3. HYDRATE</text>
+  <text x="455" y="205" text-anchor="middle" fill="#8b90a0" font-size="9">Walk tree, find ::SUFFIX</text>
+  <text x="455" y="215" text-anchor="middle" fill="#8b90a0" font-size="8">"99.99::N" &rarr; Decimal</text>
+
+  <!-- Step 4: Output -->
+  <rect x="560" y="165" width="160" height="55" rx="8" fill="#232733" stroke="#6c9eff" stroke-width="1.5"/>
+  <text x="640" y="187" text-anchor="middle" fill="#6c9eff" font-size="10" font-weight="600">4. OUTPUT</text>
+  <text x="640" y="205" text-anchor="middle" fill="#8b90a0" font-size="9">Python/JS object</text>
+  <text x="640" y="215" text-anchor="middle" fill="#8b90a0" font-size="8">Real types restored</text>
+
+  <line x1="165" y1="192" x2="190" y2="192" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="350" y1="192" x2="375" y2="192" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="535" y1="192" x2="560" y2="192" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+
+  <!-- Divider -->
+  <line x1="20" y1="245" x2="720" y2="245" stroke="#2d3140" stroke-width="1" stroke-dasharray="6,4"/>
+
+  <text x="370" y="275" text-anchor="middle" fill="#22d3ee" font-size="13" font-weight="700">TRANSPORT SELECTION</text>
+
+  <rect x="60" y="290" width="120" height="36" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="120" y="313" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">JSON (default)</text>
+
+  <rect x="220" y="290" width="120" height="36" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="280" y="313" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">XML</text>
+
+  <rect x="380" y="290" width="120" height="36" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="440" y="313" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">MessagePack</text>
+
+  <rect x="540" y="290" width="140" height="36" rx="8" fill="#232733" stroke="#4ade80" stroke-width="1"/>
+  <text x="610" y="313" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">Query String</text>
+</svg>
+</div>
+
+<h3>Module architecture</h3>
+
+<div class="cards">
+  <div class="card"><h4>registry</h4><p>Type registry mapping Python/JS types to suffixes and serializers. The single source of truth for type encoding.</p></div>
+  <div class="card"><h4>encode</h4><p><code class="il">to_tytx()</code> &mdash; walks data, serializes typed values with suffixes, wraps in chosen transport.</p></div>
+  <div class="card"><h4>decode</h4><p><code class="il">from_tytx()</code> &mdash; parses transport, walks tree, hydrates string values back to native types.</p></div>
+  <div class="card"><h4>utils</h4><p>Low-level helpers: <code class="il">raw_encode</code>, <code class="il">raw_decode</code>, <code class="il">walk</code>, <code class="il">tytx_equivalent</code>.</p></div>
+  <div class="card"><h4>http</h4><p>ASGI/WSGI request decoders, JS <code class="il">fetchTytx</code> wrapper. Auto-detects transport from Content-Type.</p></div>
+  <div class="card"><h4>xml / msgpack / qs</h4><p>Transport-specific encoders and decoders. Same typed values, different wire formats.</p></div>
+</div>
+
+<h3>JavaScript decimal libraries</h3>
+
+<p>JavaScript has no built-in Decimal. TYTX lets you choose your library:</p>
+
+<pre><code><span class="kw">import</span> { setDecimalLibrary } <span class="kw">from</span> <span class="str">'genro-tytx/src/registry.js'</span>;
+
+<span class="fn">setDecimalLibrary</span>(<span class="str">'decimal.js'</span>);  <span class="cmt">// Full-featured, larger bundle</span>
+<span class="fn">setDecimalLibrary</span>(<span class="str">'big.js'</span>);      <span class="cmt">// Lightweight, recommended</span>
+<span class="fn">setDecimalLibrary</span>(<span class="str">'number'</span>);     <span class="cmt">// Native Number fallback (loses precision)</span></code></pre>
+
+<div class="callout">
+<p><strong>Auto-detection:</strong> TYTX tries <code class="il">decimal.js</code> first, then <code class="il">big.js</code>, then falls back to <code class="il">Number</code>. If you install one of the libraries, it just works.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ CHEAT SHEET ═══════════════════════ -->
+<div class="tab-panel" id="tab-cheat">
+<div class="content">
+
+<h2>Cheat Sheet</h2>
+
+<h3>Python</h3>
+
+<table>
+  <tr><th>I want to&hellip;</th><th>How</th></tr>
+  <tr><td>Encode any value to TYTX</td><td><code class="il">to_tytx(value)</code></td></tr>
+  <tr><td>Decode TYTX back to Python</td><td><code class="il">from_tytx(data)</code></td></tr>
+  <tr><td>Encode to XML</td><td><code class="il">to_tytx(value, transport="xml")</code></td></tr>
+  <tr><td>Encode to MessagePack</td><td><code class="il">to_tytx(value, transport="msgpack")</code></td></tr>
+  <tr><td>Encode to query string</td><td><code class="il">to_tytx(value, qs=True)</code></td></tr>
+  <tr><td>Encode without TYTX suffixes</td><td><code class="il">to_tytx(value, raw=True)</code></td></tr>
+  <tr><td>Decode an ASGI request</td><td><code class="il">await asgi_data(scope, receive)</code></td></tr>
+  <tr><td>Decode a WSGI request</td><td><code class="il">wsgi_data(environ)</code></td></tr>
+  <tr><td>Use XML functions directly</td><td><code class="il">to_xml(value)</code> / <code class="il">from_xml(data)</code></td></tr>
+  <tr><td>Use MessagePack directly</td><td><code class="il">to_msgpack(value)</code> / <code class="il">from_msgpack(data)</code></td></tr>
+  <tr><td>Use QS directly</td><td><code class="il">to_qs(value)</code> / <code class="il">from_qs(data)</code></td></tr>
+  <tr><td>Encode a single scalar</td><td><code class="il">raw_encode(value)</code> &rarr; <code class="il">(True, "99.99::N")</code></td></tr>
+  <tr><td>Decode a single scalar</td><td><code class="il">raw_decode("99.99::N")</code> &rarr; <code class="il">(True, Decimal("99.99"))</code></td></tr>
+  <tr><td>Enable orjson acceleration</td><td><code class="il">pip install genro-tytx[fast]</code></td></tr>
+</table>
+
+<h3>JavaScript</h3>
+
+<table>
+  <tr><th>I want to&hellip;</th><th>How</th></tr>
+  <tr><td>Encode any value to TYTX</td><td><code class="il">toTytx(value)</code></td></tr>
+  <tr><td>Decode TYTX back to JS</td><td><code class="il">fromTytx(data)</code></td></tr>
+  <tr><td>Encode to XML</td><td><code class="il">toTytx(value, "xml")</code></td></tr>
+  <tr><td>Encode to MessagePack</td><td><code class="il">toTytx(value, "msgpack")</code></td></tr>
+  <tr><td>Encode to query string</td><td><code class="il">toTytx(value, null, {qs: true})</code></td></tr>
+  <tr><td>Fetch with TYTX (auto encode/decode)</td><td><code class="il">await fetchTytx(url, {body, transport})</code></td></tr>
+  <tr><td>Create a Decimal value</td><td><code class="il">createDecimal("99.99")</code></td></tr>
+  <tr><td>Check if value is Decimal</td><td><code class="il">isDecimal(value)</code></td></tr>
+  <tr><td>Choose decimal library</td><td><code class="il">setDecimalLibrary("big.js")</code></td></tr>
+  <tr><td>Detect transport from Content-Type</td><td><code class="il">getTransport("application/json")</code> &rarr; <code class="il">"json"</code></td></tr>
+</table>
+
+<h3>Type suffixes</h3>
+
+<table>
+  <tr><th>Suffix</th><th>Type</th><th>Example</th></tr>
+  <tr><td><code class="il">::N</code></td><td>Decimal</td><td><code class="il">"99.99::N"</code></td></tr>
+  <tr><td><code class="il">::D</code></td><td>Date</td><td><code class="il">"2025-01-15::D"</code></td></tr>
+  <tr><td><code class="il">::DHZ</code></td><td>DateTime (UTC)</td><td><code class="il">"2025-01-15T10:30:00.000Z::DHZ"</code></td></tr>
+  <tr><td><code class="il">::H</code></td><td>Time</td><td><code class="il">"14:30:00.000::H"</code></td></tr>
+  <tr><td><code class="il">::L</code></td><td>Integer</td><td><code class="il">"42::L"</code></td></tr>
+  <tr><td><code class="il">::R</code></td><td>Float</td><td><code class="il">"3.14::R"</code></td></tr>
+  <tr><td><code class="il">::B</code></td><td>Boolean</td><td><code class="il">"true::B"</code></td></tr>
+  <tr><td><code class="il">::T</code></td><td>Text</td><td><code class="il">"hello::T"</code></td></tr>
+  <tr><td><code class="il">::NN</code></td><td>Null</td><td><code class="il">"::NN"</code></td></tr>
+  <tr><td><code class="il">::JS</code></td><td>JSON Structure</td><td><code class="il">{"p":"99::N"}::JS</code></td></tr>
+  <tr><td><code class="il">::QS</code></td><td>Query String</td><td><code class="il">p=99::N::QS</code></td></tr>
+</table>
+
+<div class="tab-footer">
+  <p>genro-tytx v0.9.0 &mdash; <a href="https://github.com/genropy/genro-tytx">GitHub</a> &mdash; <a href="https://pypi.org/project/genro-tytx/">PyPI</a></p>
+</div>
+
+</div>
+</div>
+
+</div><!-- /tab-panels -->
+
+<script>
+// Tab navigation
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Copy buttons on all pre blocks
+document.querySelectorAll('pre').forEach(pre => {
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'Copy';
+  btn.addEventListener('click', () => {
+    const text = pre.querySelector('code').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  });
+  pre.appendChild(btn);
+});
+</script>
+</body>
+</html>

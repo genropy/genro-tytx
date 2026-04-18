@@ -9,6 +9,8 @@
 import http from 'node:http';
 import { fromTytx, toTytx } from '../src/index.js';
 
+// Port 3456 for JS echo server (Python echo server uses 3457)
+// Cross-language tests start the OTHER language's server
 const PORT = process.env.PORT || 3456;
 
 const server = http.createServer((req, res) => {

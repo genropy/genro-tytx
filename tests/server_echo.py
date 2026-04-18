@@ -93,6 +93,8 @@ class EchoHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+# Port 3457 for Python echo server (JS echo server uses 3456)
+# Cross-language tests start the OTHER language's server
 def run_server(port: int = 3457) -> None:
     """Run the echo server."""
     with socketserver.TCPServer(("", port), EchoHandler) as httpd:

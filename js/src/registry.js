@@ -148,6 +148,9 @@ function _serializeFloat(v) {
  * @returns {[string, function, boolean]|null} [suffix, serializer, jsonNative] or null
  */
 function getTypeEntry(value) {
+    if (value === null) {
+        return ['NN', () => '', true];
+    }
     if (isDecimal(value)) {
         return ['N', _serializeDecimal, false];
     }
@@ -189,11 +192,6 @@ function _deserializeDate(s) {
 }
 
 function _deserializeDatetime(s) {
-    // Handle Z suffix
-    let str = s;
-    if (str.endsWith('Z')) {
-        str = str.slice(0, -1) + '+00:00';
-    }
     return new Date(s);
 }
 
@@ -220,6 +218,10 @@ function _deserializeStr(s) {
     return s;
 }
 
+function _deserializeNone(s) {
+    return null;
+}
+
 function _deserializeQs(s) {
     // Lazy import to avoid circular dependency
     const { fromQs } = require('./qs.js');
@@ -239,6 +241,7 @@ const SUFFIX_TO_TYPE = {
     'T': [String, _deserializeStr],
     'B': [Boolean, _deserializeBool],
     'QS': [Object, _deserializeQs],
+    'NN': [null, _deserializeNone],
 };
 
 export {
@@ -270,4 +273,5 @@ export {
     _deserializeInt,
     _deserializeFloat,
     _deserializeStr,
+    _deserializeNone,
 };
