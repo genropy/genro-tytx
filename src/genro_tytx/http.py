@@ -16,14 +16,20 @@ from .decode import from_tytx
 
 
 def _get_transport(content_type: str) -> Literal["json", "xml", "msgpack"] | None:
-    """Get TYTX transport from content-type header."""
-    if "json" in content_type:
-        return "json"
-    elif "xml" in content_type:
-        return "xml"
-    elif "msgpack" in content_type:
-        return "msgpack"
-    return None
+    """Get the TYTX transport from a content-type header.
+
+    Returns None for any content-type TYTX cannot hydrate; such a body is handed
+    back raw by ``_decode_body`` rather than dropped.
+    """
+    match content_type:
+        case _ if "json" in content_type:
+            return "json"
+        case _ if "xml" in content_type:
+            return "xml"
+        case _ if "msgpack" in content_type:
+            return "msgpack"
+        case _:
+            return None
 
 
 def _decode_qs(query_string: str) -> dict[str, Any]:
@@ -55,11 +61,18 @@ def _decode_cookies(cookie_header: str) -> dict[str, Any]:
 
 
 def _decode_body(body: bytes, content_type: str) -> Any:
-    """Decode body bytes based on content-type."""
-    transport = _get_transport(content_type)
-    if not transport or not body:
-        return None
+    """Decode body bytes based on content-type.
 
+    A body in a content-type TYTX knows (json/xml/msgpack) is hydrated. A body in
+    any other content-type is returned raw — the decoder never drops a payload it
+    cannot hydrate, it hands the opaque bytes back to the caller. An empty body is
+    None.
+    """
+    if not body:
+        return None
+    transport = _get_transport(content_type)
+    if transport is None:
+        return body
     if transport == "msgpack":
         return from_tytx(body, transport=transport)
     return from_tytx(body.decode("utf-8"), transport=transport)

@@ -420,6 +420,48 @@ async def test_asgi_data_msgpack_body():
     assert result["body"]["price"] == Decimal("100.50")
 
 
+@pytest.mark.asyncio
+async def test_asgi_data_raw_body_passthrough():
+    """A body TYTX cannot hydrate is handed back raw, not dropped (octet-stream)."""
+    blob = b"\x80\x04\x95not-json-at-all\x00\xff"
+    scope = {
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/octet-stream")],
+    }
+
+    result = await asgi_data(scope, MockReceive(blob))
+
+    assert result["body"] == blob
+
+
+@pytest.mark.asyncio
+async def test_asgi_data_unknown_content_type_passthrough():
+    """Any unknown content-type with a body is handed back raw (general rule)."""
+    blob = b"\x89PNG\r\n\x1a\n binary image bytes"
+    scope = {
+        "query_string": b"",
+        "headers": [(b"content-type", b"image/png")],
+    }
+
+    result = await asgi_data(scope, MockReceive(blob))
+
+    assert result["body"] == blob
+
+
+def test_wsgi_data_raw_body_passthrough():
+    """WSGI body TYTX cannot hydrate is handed back raw too."""
+    blob = b"\x80\x04\x95binary\x00\xff"
+    environ = {
+        "CONTENT_TYPE": "application/octet-stream",
+        "CONTENT_LENGTH": str(len(blob)),
+        "wsgi.input": BytesIO(blob),
+    }
+
+    result = wsgi_data(environ)
+
+    assert result["body"] == blob
+
+
 def test_wsgi_data_invalid_content_length():
     """Invalid CONTENT_LENGTH should be handled."""
     environ = {
