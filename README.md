@@ -101,6 +101,19 @@ const result = await fetchTytx('/api/invoice', {
 // result.total → Big (ready to use)
 ```
 
+## Untyped JSON codec
+
+Besides the typed `to_tytx` / `from_tytx` API, TYTX exposes a plain JSON codec for the untyped path — no type suffixes, just fast JSON (orjson when available, stdlib otherwise):
+
+```python
+from genro_tytx import json_dumps, json_loads
+
+json_dumps({"a": 1})        # -> b'{"a":1}'   (UTF-8 bytes)
+json_loads('{"a": 1}')      # accepts str or bytes -> {"a": 1}
+```
+
+`json_dumps` returns UTF-8 `bytes` (ready for ASGI/WebSocket send), `json_loads` accepts `str` or `bytes`. Use these when you want plain JSON; use `to_tytx` / `from_tytx` when you want typed values to flow.
+
 ## Installation
 
 ```bash

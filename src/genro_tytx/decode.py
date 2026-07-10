@@ -23,6 +23,16 @@ except ImportError:  # pragma: no cover
 TYTX_MARKER = "::JS"
 
 
+def _loads(data: str | bytes) -> Any:
+    """Raw JSON loads: orjson or stdlib json."""
+    return orjson.loads(data) if HAS_ORJSON else json.loads(data)
+
+
+def json_loads(data: str | bytes) -> Any:
+    """Parse JSON from str or bytes (untyped path)."""
+    return _loads(data)
+
+
 def is_string(v):
     """Filter for string values."""
     return isinstance(v, str)
@@ -44,14 +54,13 @@ def _from_json(data: str, *, use_orjson: bool | None = None) -> Any:
     if decoded:
         return value
 
-    if use_orjson is None:
-        use_orjson = HAS_ORJSON
-    jsloader = orjson.loads if use_orjson else json.loads
-
     if data.endswith("::JS"):
         data = data[:-4]
     try:
-        parsed = jsloader(data)
+        if use_orjson is None:
+            parsed = _loads(data)
+        else:
+            parsed = orjson.loads(data) if use_orjson else json.loads(data)
     except (json.JSONDecodeError, orjson.JSONDecodeError):
         return data
     return walk(parsed, _decode_item, is_string)

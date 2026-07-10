@@ -20,8 +20,8 @@ Usage:
     # {"price": Decimal("100.50"), "date": date(2025, 1, 15)}
 """
 
-from .decode import from_tytx
-from .encode import to_tytx
+from .decode import from_tytx, json_loads
+from .encode import json_dumps, to_tytx
 from .http import asgi_data, wsgi_data
 from .msgpack import from_msgpack, to_msgpack
 from .qs import from_qs, to_qs
@@ -31,12 +31,15 @@ from .registry import (
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.7.4"
+__version__ = "0.9.2"
 
 __all__ = [
     # Unified API
     "to_tytx",
     "from_tytx",
+    # Untyped JSON codec
+    "json_dumps",
+    "json_loads",
     # Transport-specific
     "to_xml",
     "from_xml",

@@ -103,11 +103,21 @@ def _to_msgpack(value: Any) -> bytes:
     return to_msgpack(value)
 
 
+def _dumps_bytes(value: Any) -> bytes:
+    """Raw JSON engine: orjson bytes, or stdlib with ensure_ascii=False."""
+    if USE_ORJSON:
+        return orjson.dumps(value)
+    return json.dumps(value, ensure_ascii=False).encode("utf-8")
+
+
+def json_dumps(data: Any) -> bytes:
+    """Serialize data to UTF-8 JSON bytes (untyped path, no TYTX suffixes)."""
+    return _dumps_bytes(data)
+
+
 def _to_raw_json(value: Any) -> str:
     """Encode a Python value to raw JSON string (no TYTX suffix)."""
-    if USE_ORJSON:
-        return orjson.dumps(value).decode("utf-8")
-    return json.dumps(value)
+    return _dumps_bytes(value).decode("utf-8")
 
 
 def _to_raw_msgpack(value: Any) -> bytes:
