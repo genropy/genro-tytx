@@ -20,6 +20,13 @@ try:
 except ImportError:  # pragma: no cover
     HAS_ORJSON = False
 
+# Build the JSON-decode error tuple once, guarded by HAS_ORJSON: referencing
+# orjson.JSONDecodeError directly in the except clause would NameError when
+# orjson is not installed (it is an optional dependency).
+_JSON_ERRORS = (
+    (json.JSONDecodeError, orjson.JSONDecodeError) if HAS_ORJSON else (json.JSONDecodeError,)
+)
+
 TYTX_MARKER = "::JS"
 
 
@@ -61,7 +68,7 @@ def _from_json(data: str, *, use_orjson: bool | None = None) -> Any:
             parsed = _loads(data)
         else:
             parsed = orjson.loads(data) if use_orjson else json.loads(data)
-    except (json.JSONDecodeError, orjson.JSONDecodeError):
+    except _JSON_ERRORS:
         return data
     return walk(parsed, _decode_item, is_string)
 

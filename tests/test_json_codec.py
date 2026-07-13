@@ -5,8 +5,9 @@ import json
 
 import pytest
 
+from genro_tytx import decode as decode_module
 from genro_tytx import encode as encode_module
-from genro_tytx import json_dumps, json_loads
+from genro_tytx import from_tytx, json_dumps, json_loads
 
 
 @pytest.fixture(params=[True, False], ids=["orjson", "stdlib"])
@@ -80,3 +81,34 @@ class TestRoundtrip:
     @pytest.mark.parametrize("value", ROUNDTRIP_VALUES)
     def test_roundtrip(self, value, orjson_toggle):
         assert json_loads(json_dumps(value)) == value
+
+
+@pytest.fixture
+def no_orjson():
+    """Simulate orjson not installed: HAS_ORJSON False and the name unbound.
+
+    Removing the module-level ``orjson`` name is what reproduces issue #37 —
+    flipping HAS_ORJSON alone leaves ``orjson`` importable, so the ``except``
+    tuple still resolves.
+    """
+    had_orjson = decode_module.HAS_ORJSON
+    orjson_mod = getattr(decode_module, "orjson", None)
+    decode_module.HAS_ORJSON = False
+    if orjson_mod is not None:
+        del decode_module.orjson
+    yield
+    decode_module.HAS_ORJSON = had_orjson
+    if orjson_mod is not None:
+        decode_module.orjson = orjson_mod
+
+
+class TestNoOrjsonDecode:
+    """Without orjson, decoding non-JSON must not raise NameError (issue #37)."""
+
+    def test_non_json_returns_string(self, no_orjson):
+        """A non-JSON input falls back to the raw string, not a NameError."""
+        assert from_tytx("*/*") == "*/*"
+
+    def test_valid_json_still_decodes(self, no_orjson):
+        """Valid JSON still decodes through the stdlib path."""
+        assert from_tytx('{"a": 1}') == {"a": 1}
