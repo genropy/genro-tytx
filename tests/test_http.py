@@ -599,3 +599,61 @@ def test_get_transport_unknown_returns_none():
 
     assert get_transport("application/octet-stream") is None
     assert get_transport("") is None
+
+
+# x-www-form-urlencoded body decoding (issue #39)
+
+
+@pytest.mark.asyncio
+async def test_asgi_data_form_urlencoded_body():
+    """A form-urlencoded body is hydrated via from_qs (ASGI)."""
+    scope = {
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/x-www-form-urlencoded")],
+    }
+
+    result = await asgi_data(scope, MockReceive(b"a=1&b=hello"))
+
+    assert result["body"] == {"a": 1, "b": "hello"}
+
+
+@pytest.mark.asyncio
+async def test_asgi_data_form_urlencoded_typed_values():
+    """TYTX type suffixes in a form body are hydrated (ASGI)."""
+    scope = {
+        "query_string": b"",
+        "headers": [(b"content-type", b"application/x-www-form-urlencoded")],
+    }
+
+    result = await asgi_data(scope, MockReceive(b"price=100.50::N&date=2025-01-15::D"))
+
+    assert result["body"]["price"] == Decimal("100.50")
+    assert result["body"]["date"] == date(2025, 1, 15)
+
+
+def test_wsgi_data_form_urlencoded_body():
+    """A form-urlencoded body is hydrated via from_qs (WSGI)."""
+    body = b"a=1&b=hello"
+    environ = {
+        "CONTENT_TYPE": "application/x-www-form-urlencoded",
+        "CONTENT_LENGTH": str(len(body)),
+        "wsgi.input": BytesIO(body),
+    }
+
+    result = wsgi_data(environ)
+
+    assert result["body"] == {"a": 1, "b": "hello"}
+
+
+@pytest.mark.asyncio
+async def test_asgi_data_multipart_stays_raw():
+    """multipart/form-data is out of scope: the body is handed back raw."""
+    blob = b"--boundary\r\nContent-Disposition: form-data; name=\"f\"\r\n\r\nv\r\n--boundary--"
+    scope = {
+        "query_string": b"",
+        "headers": [(b"content-type", b"multipart/form-data; boundary=boundary")],
+    }
+
+    result = await asgi_data(scope, MockReceive(blob))
+
+    assert result["body"] == blob

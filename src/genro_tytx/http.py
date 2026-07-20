@@ -13,6 +13,7 @@ from typing import Any, Literal
 from urllib.parse import parse_qs
 
 from .decode import from_tytx
+from .qs import from_qs
 
 TRANSPORT_MIME: dict[str, str] = {
     "json": "application/vnd.tytx+json",
@@ -72,15 +73,18 @@ def _decode_cookies(cookie_header: str) -> dict[str, Any]:
 def _decode_body(body: bytes, content_type: str) -> Any:
     """Decode body bytes based on content-type.
 
-    A body in a content-type TYTX knows (json/xml/msgpack) is hydrated. A body in
-    any other content-type is returned raw — the decoder never drops a payload it
-    cannot hydrate, it hands the opaque bytes back to the caller. An empty body is
-    None.
+    A body in a content-type TYTX knows (json/xml/msgpack) is hydrated. An
+    ``application/x-www-form-urlencoded`` body is hydrated via ``from_qs`` (TYTX-QS
+    syntax, no URL-decoding). ``multipart/form-data`` is out of scope and returned
+    raw, as is any other content-type — the decoder never drops a payload it cannot
+    hydrate, it hands the opaque bytes back to the caller. An empty body is None.
     """
     if not body:
         return None
     transport = get_transport(content_type)
     if transport is None:
+        if "x-www-form-urlencoded" in content_type:
+            return from_qs(body.decode("latin-1"))
         return body
     if transport == "msgpack":
         return from_tytx(body, transport=transport)
@@ -91,7 +95,11 @@ def _decode_body(body: bytes, content_type: str) -> Any:
 
 
 async def asgi_data(scope: dict[str, Any], receive: Callable) -> dict[str, Any]:
-    """Decode ASGI request into a dict with query, headers, cookies and body."""
+    """Decode ASGI request into a dict with query, headers, cookies and body.
+
+    The body is hydrated for json/xml/msgpack and x-www-form-urlencoded
+    content-types; multipart/form-data and any other content-type come back raw.
+    """
     # Extract headers
     headers = {}
     cookie_header = ""
@@ -127,7 +135,11 @@ async def asgi_data(scope: dict[str, Any], receive: Callable) -> dict[str, Any]:
 
 
 def wsgi_data(environ: dict[str, Any]) -> dict[str, Any]:
-    """Decode WSGI environ into a dict with query, headers, cookies and body."""
+    """Decode WSGI environ into a dict with query, headers, cookies and body.
+
+    The body is hydrated for json/xml/msgpack and x-www-form-urlencoded
+    content-types; multipart/form-data and any other content-type come back raw.
+    """
     # Extract headers
     headers = {}
     content_type = ""
