@@ -552,3 +552,50 @@ def test_wsgi_data_plain_json_body(description, body_bytes, expected):
     assert result["body"] == expected, (
         f"Plain JSON body corrupted: {expected!r} != {result['body']!r}"
     )
+
+
+# Transport <-> MIME mapping (issue #38)
+
+
+def test_transport_mime_matches_spec():
+    """TRANSPORT_MIME carries the exact MIME strings from the spec (§9.6)."""
+    from genro_tytx import TRANSPORT_MIME
+
+    assert TRANSPORT_MIME == {
+        "json": "application/vnd.tytx+json",
+        "xml": "application/vnd.tytx+xml",
+        "msgpack": "application/vnd.tytx+msgpack",
+    }
+
+
+def test_mime_transport_is_inverse():
+    """MIME_TRANSPORT is the exact inverse of TRANSPORT_MIME."""
+    from genro_tytx import MIME_TRANSPORT, TRANSPORT_MIME
+
+    assert MIME_TRANSPORT == {v: k for k, v in TRANSPORT_MIME.items()}
+    assert MIME_TRANSPORT["application/vnd.tytx+msgpack"] == "msgpack"
+
+
+def test_get_transport_matches_tytx_mime():
+    """get_transport resolves the TYTX MIME strings to their transport."""
+    from genro_tytx import get_transport
+
+    assert get_transport("application/vnd.tytx+json") == "json"
+    assert get_transport("application/vnd.tytx+xml") == "xml"
+    assert get_transport("application/vnd.tytx+msgpack") == "msgpack"
+
+
+def test_get_transport_matches_standard_mime():
+    """get_transport uses substring matching, so standard MIME resolves too."""
+    from genro_tytx import get_transport
+
+    assert get_transport("application/json") == "json"
+    assert get_transport("application/xml") == "xml"
+
+
+def test_get_transport_unknown_returns_none():
+    """An unrelated content-type resolves to None."""
+    from genro_tytx import get_transport
+
+    assert get_transport("application/octet-stream") is None
+    assert get_transport("") is None

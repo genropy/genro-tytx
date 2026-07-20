@@ -114,6 +114,18 @@ json_loads('{"a": 1}')      # accepts str or bytes -> {"a": 1}
 
 `json_dumps` returns UTF-8 `bytes` (ready for ASGI/WebSocket send), `json_loads` accepts `str` or `bytes`. Use these when you want plain JSON; use `to_tytx` / `from_tytx` when you want typed values to flow.
 
+## Transport MIME types
+
+The TYTX media types and the content-type resolver are available as package constants, so HTTP layers do not hardcode the strings:
+
+```python
+from genro_tytx import TRANSPORT_MIME, MIME_TRANSPORT, get_transport
+
+TRANSPORT_MIME["json"]                       # 'application/vnd.tytx+json'
+MIME_TRANSPORT["application/vnd.tytx+xml"]   # 'xml'
+get_transport("application/vnd.tytx+json")   # 'json'  (substring match, standard MIME resolves too)
+```
+
 ## Installation
 
 ```bash

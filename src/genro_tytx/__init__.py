@@ -22,7 +22,13 @@ Usage:
 
 from .decode import from_tytx, json_loads
 from .encode import json_dumps, to_tytx
-from .http import asgi_data, wsgi_data
+from .http import (
+    MIME_TRANSPORT,
+    TRANSPORT_MIME,
+    asgi_data,
+    get_transport,
+    wsgi_data,
+)
 from .msgpack import from_msgpack, to_msgpack
 from .qs import from_qs, to_qs
 from .registry import (
@@ -50,6 +56,9 @@ __all__ = [
     # HTTP
     "asgi_data",
     "wsgi_data",
+    "get_transport",
+    "TRANSPORT_MIME",
+    "MIME_TRANSPORT",
     # Registry (for extensibility)
     "SUFFIX_TO_TYPE",
     "TYPE_REGISTRY",

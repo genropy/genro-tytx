@@ -14,10 +14,19 @@ from urllib.parse import parse_qs
 
 from .decode import from_tytx
 
+TRANSPORT_MIME: dict[str, str] = {
+    "json": "application/vnd.tytx+json",
+    "xml": "application/vnd.tytx+xml",
+    "msgpack": "application/vnd.tytx+msgpack",
+}
+MIME_TRANSPORT: dict[str, str] = {mime: transport for transport, mime in TRANSPORT_MIME.items()}
 
-def _get_transport(content_type: str) -> Literal["json", "xml", "msgpack"] | None:
-    """Get the TYTX transport from a content-type header.
 
+def get_transport(content_type: str) -> Literal["json", "xml", "msgpack"] | None:
+    """Resolve the TYTX transport from a content-type header.
+
+    Substring matching, so both the standard MIME (``application/json``) and the
+    TYTX MIME (``application/vnd.tytx+json``) resolve to the same transport.
     Returns None for any content-type TYTX cannot hydrate; such a body is handed
     back raw by ``_decode_body`` rather than dropped.
     """
@@ -70,7 +79,7 @@ def _decode_body(body: bytes, content_type: str) -> Any:
     """
     if not body:
         return None
-    transport = _get_transport(content_type)
+    transport = get_transport(content_type)
     if transport is None:
         return body
     if transport == "msgpack":
