@@ -104,10 +104,15 @@ def _to_msgpack(value: Any) -> bytes:
 
 
 def _dumps_bytes(value: Any) -> bytes:
-    """Raw JSON engine: orjson bytes, or stdlib with ensure_ascii=False."""
+    """Raw JSON engine: orjson bytes, or a byte-identical stdlib fallback.
+
+    Compact separators keep the two engines byte-for-byte equal on plain
+    payloads: whether the optional accelerator is installed must never change
+    what goes on the wire.
+    """
     if USE_ORJSON:
         return orjson.dumps(value)
-    return json.dumps(value, ensure_ascii=False).encode("utf-8")
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def json_dumps(data: Any) -> bytes:

@@ -112,3 +112,23 @@ class TestNoOrjsonDecode:
     def test_valid_json_still_decodes(self, no_orjson):
         """Valid JSON still decodes through the stdlib path."""
         assert from_tytx('{"a": 1}') == {"a": 1}
+
+
+class TestEngineParity:
+    """The optional accelerator must never change what goes on the wire."""
+
+    @pytest.mark.skipif(not encode_module.HAS_ORJSON, reason="orjson not installed")
+    @pytest.mark.parametrize("value", ROUNDTRIP_VALUES)
+    def test_both_engines_emit_identical_bytes(self, value):
+        """orjson and the stdlib fallback are byte-for-byte equal (issue: 11
+        downstream tests flipped red in a venv without orjson — the fallback
+        used the stdlib's spaced separators)."""
+        original = encode_module.USE_ORJSON
+        try:
+            encode_module.USE_ORJSON = True
+            fast = json_dumps(value)
+            encode_module.USE_ORJSON = False
+            fallback = json_dumps(value)
+        finally:
+            encode_module.USE_ORJSON = original
+        assert fast == fallback
