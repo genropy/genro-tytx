@@ -28,6 +28,8 @@ var TYTX = (() => {
     getDecimalLibrary: () => getDecimalLibrary,
     getTransport: () => getTransport,
     isDecimal: () => isDecimal,
+    registerClass: () => registerClass,
+    registerType: () => registerType,
     setDecimalLibrary: () => setDecimalLibrary,
     toTytx: () => toTytx
   });
@@ -113,6 +115,7 @@ var TYTX = (() => {
   function _serializeFloat(v) {
     return v.toString();
   }
+  var CUSTOM_TYPES = [];
   function getTypeEntry(value) {
     if (value === null) {
       return ["NN", () => "", true];
@@ -138,6 +141,13 @@ var TYTX = (() => {
         return ["L", _serializeInt, true];
       } else {
         return ["R", _serializeFloat, true];
+      }
+    }
+    if (typeof value === "object") {
+      for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+        if (value instanceof cls) {
+          return [suffix, serializer, jsonNative];
+        }
       }
     }
     return null;
@@ -192,6 +202,23 @@ var TYTX = (() => {
     "QS": [Object, _deserializeQs],
     "NN": [null, _deserializeNone]
   };
+  function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    CUSTOM_TYPES.push([cls, suffix, serializer, jsonNative]);
+    SUFFIX_TO_TYPE[suffix] = [cls, deserializer];
+  }
+  function registerClass(cls) {
+    if (!cls.tytxSuffix) {
+      throw new Error(`registerClass: ${cls.name} is missing a static tytxSuffix`);
+    }
+    registerType(
+      cls,
+      cls.tytxSuffix,
+      (obj) => obj.toTytx(),
+      (s) => cls.fromTytx(s),
+      cls.tytxJsonNative || false
+    );
+    return cls;
+  }
 
   // src/utils.js
   function rawEncode(value, forceSuffix = false) {
