@@ -142,6 +142,10 @@ function _serializeFloat(v) {
 // Type detection and serialization
 // For JS we need functions to detect types since we can't use type() like Python
 
+// Custom types registered at runtime: [cls, suffix, serializer, jsonNative].
+// Encode has the instance in hand, so it is matched by `instanceof`.
+let CUSTOM_TYPES = [];
+
 /**
  * Get type entry for a value.
  * @param {any} value
@@ -172,6 +176,13 @@ function getTypeEntry(value) {
             return ['L', _serializeInt, true];
         } else {
             return ['R', _serializeFloat, true];
+        }
+    }
+    if (typeof value === 'object') {
+        for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+            if (value instanceof cls) {
+                return [suffix, serializer, jsonNative];
+            }
         }
     }
     return null;
@@ -244,6 +255,65 @@ const SUFFIX_TO_TYPE = {
     'NN': [null, _deserializeNone],
 };
 
+// =============================================================================
+// CUSTOM TYPE REGISTRATION
+// =============================================================================
+
+/**
+ * Register a custom type for TYTX serialization.
+ *
+ * Lets external code extend TYTX with its own types. The encode side matches
+ * instances by `instanceof cls`; the decode side maps the suffix back via
+ * SUFFIX_TO_TYPE.
+ *
+ * @param {Function} cls - the class/constructor to register
+ * @param {string} suffix - the TYTX suffix (e.g. "X")
+ * @param {function(any): string} serializer - instance -> string
+ * @param {function(string): any} deserializer - string -> instance
+ * @param {boolean} [jsonNative=false] - if true, skip suffix when JSON-native
+ */
+function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    CUSTOM_TYPES.push([cls, suffix, serializer, jsonNative]);
+    SUFFIX_TO_TYPE[suffix] = [cls, deserializer];
+}
+
+/**
+ * Register a class that declares its own TYTX hooks.
+ *
+ * Reads from the class:
+ *   static tytxSuffix: the TYTX suffix (e.g. "X")
+ *   toTytx(): instance -> string
+ *   static fromTytx(s): string -> instance (must be static: decode starts
+ *     from the suffix and rebuilds the instance from scratch)
+ *   static tytxJsonNative: optional boolean, default false
+ *
+ * @param {Function} cls
+ * @returns {Function} the class, so it can be used as a decorator
+ */
+function registerClass(cls) {
+    if (!cls.tytxSuffix) {
+        throw new Error(`registerClass: ${cls.name} is missing a static tytxSuffix`);
+    }
+    registerType(
+        cls,
+        cls.tytxSuffix,
+        obj => obj.toTytx(),
+        s => cls.fromTytx(s),
+        cls.tytxJsonNative || false,
+    );
+    return cls;
+}
+
+/**
+ * Remove all custom type registrations (test helper).
+ */
+function _resetCustomTypes() {
+    for (const [, suffix] of CUSTOM_TYPES) {
+        delete SUFFIX_TO_TYPE[suffix];
+    }
+    CUSTOM_TYPES = [];
+}
+
 export {
     // Decimal utilities
     decimalLibrary,
@@ -256,6 +326,10 @@ export {
     // Type registry
     getTypeEntry,
     SUFFIX_TO_TYPE,
+    // Custom type registration
+    registerType,
+    registerClass,
+    _resetCustomTypes,
     // Serializers (exported for testing)
     _serializeDecimal,
     _serializeDate,
