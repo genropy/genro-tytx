@@ -126,6 +126,25 @@ MIME_TRANSPORT["application/vnd.tytx+xml"]   # 'xml'
 get_transport("application/vnd.tytx+json")   # 'json'  (substring match, standard MIME resolves too)
 ```
 
+## Custom types
+
+`register_type` lets an external package teach TYTX a new type — a serialize hook (object → string) and a deserialize hook (string → object) under a custom suffix. The package registers at its own import time, so TYTX gains no dependency on it:
+
+```python
+from genro_tytx import register_type, to_tytx, from_tytx
+
+class Point:
+    def __init__(self, x, y): self.x, self.y = x, y
+
+register_type(Point, "PT", lambda p: f"{p.x},{p.y}",
+              lambda s: Point(*map(int, s.split(","))))
+
+to_tytx([1, Point(5, 6), "k"])   # '[1,"5,6::PT","k"]::JS'
+from_tytx('5,6::PT')             # Point(5, 6)
+```
+
+The custom type flows like any built-in scalar, including nested inside dicts and lists.
+
 ## Installation
 
 ```bash

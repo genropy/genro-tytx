@@ -144,3 +144,31 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     "NN": (type(None), _deserialize_none),
     "QS": (dict, _deserialize_qs),
 }
+
+
+# =============================================================================
+# CUSTOM TYPE REGISTRATION
+# =============================================================================
+
+
+def register_type(
+    cls: type,
+    suffix: str,
+    serializer: Callable[[Any], str],
+    deserializer: Callable[[str], Any],
+    json_native: bool = False,
+) -> None:
+    """Register a custom type for TYTX serialization.
+
+    Lets an external package (e.g. genro-bag) extend TYTX without creating a
+    circular dependency: the package calls this at its own import time.
+
+    Args:
+        cls: The Python type to register
+        suffix: The TYTX suffix (e.g. "X" for Bag)
+        serializer: Pre-JSON hook - converts obj to string
+        deserializer: Post-JSON hook - converts string back to obj
+        json_native: If True, skip suffix when value is JSON-native
+    """
+    TYPE_REGISTRY[cls] = (suffix, serializer, json_native)
+    SUFFIX_TO_TYPE[suffix] = (cls, deserializer)
