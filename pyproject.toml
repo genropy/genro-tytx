@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genro-tytx"
-version = "0.11.0"
+version = "0.12.0"
 description = "TYTX Base - Typed text protocol for scalar types (JSON/XML/MessagePack)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -104,3 +104,10 @@ files = ["src/genro_tytx"]
 [[tool.mypy.overrides]]
 module = "msgpack"
 ignore_missing_imports = true
+
+# register_class reads TYTX hooks by convention (__tytx_suffix__, to_tytx,
+# from_tytx) from arbitrary classes; the generic `type` annotation cannot
+# express these attributes, so attr-defined is expected here.
+[[tool.mypy.overrides]]
+module = "genro_tytx.registry"
+disable_error_code = ["attr-defined"]

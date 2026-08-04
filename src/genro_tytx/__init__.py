@@ -34,11 +34,12 @@ from .qs import from_qs, to_qs
 from .registry import (
     SUFFIX_TO_TYPE,
     TYPE_REGISTRY,
+    register_class,
     register_type,
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 __all__ = [
     # Unified API
@@ -64,6 +65,7 @@ __all__ = [
     "SUFFIX_TO_TYPE",
     "TYPE_REGISTRY",
     "register_type",
+    "register_class",
     # Version
     "__version__",
 ]

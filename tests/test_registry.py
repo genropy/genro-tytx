@@ -3,7 +3,7 @@
 
 import pytest
 
-from genro_tytx import from_tytx, register_type, to_tytx
+from genro_tytx import from_tytx, register_class, register_type, to_tytx
 from genro_tytx.registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
 
 
@@ -84,3 +84,87 @@ class TestRegisterType:
         """The clean_registry fixture must leave no trace of Point."""
         assert Point not in TYPE_REGISTRY
         assert "PT" not in SUFFIX_TO_TYPE
+
+
+class TestRegisterClass:
+    """register_class derives the registration from class-level hooks."""
+
+    def test_decorator_registers(self, clean_registry):
+        @register_class
+        class Vec:
+            __tytx_suffix__ = "VC"
+
+            def __init__(self, a, b):
+                self.a, self.b = a, b
+
+            def __eq__(self, other):
+                return isinstance(other, Vec) and (self.a, self.b) == (other.a, other.b)
+
+            def to_tytx(self):
+                return f"{self.a}|{self.b}"
+
+            @classmethod
+            def from_tytx(cls, s):
+                a, b = s.split("|")
+                return cls(int(a), int(b))
+
+        assert TYPE_REGISTRY[Vec][0] == "VC"
+        assert SUFFIX_TO_TYPE["VC"][0] is Vec
+        # decorator returns the class unchanged
+        assert Vec.__tytx_suffix__ == "VC"
+
+        encoded = to_tytx([1, Vec(3, 4), "k"])
+        assert "::VC" in encoded
+        assert from_tytx(encoded) == [1, Vec(3, 4), "k"]
+
+    def test_from_tytx_is_classmethod(self, clean_registry):
+        """The deserializer stored is the bound classmethod (one string arg)."""
+
+        @register_class
+        class Vec:
+            __tytx_suffix__ = "VC"
+
+            def __init__(self, a):
+                self.a = a
+
+            def to_tytx(self):
+                return str(self.a)
+
+            @classmethod
+            def from_tytx(cls, s):
+                return cls(int(s))
+
+        _, deserializer = SUFFIX_TO_TYPE["VC"]
+        rebuilt = deserializer("7")
+        assert isinstance(rebuilt, Vec)
+        assert rebuilt.a == 7
+
+    def test_json_native_flag_read_from_class(self, clean_registry):
+        @register_class
+        class Tag(str):
+            __tytx_suffix__ = "TG"
+            __tytx_json_native__ = True
+
+            def to_tytx(self):
+                return str(self)
+
+            @classmethod
+            def from_tytx(cls, s):
+                return cls(s)
+
+        assert TYPE_REGISTRY[Tag][2] is True
+        # json_native emitted bare without force_suffix
+        assert to_tytx(Tag("hello")) == "hello"
+
+    def test_missing_suffix_raises(self, clean_registry):
+        """A class without __tytx_suffix__ cannot be registered."""
+        with pytest.raises(AttributeError):
+
+            @register_class
+            class Broken:
+                def to_tytx(self):
+                    return ""
+
+                @classmethod
+                def from_tytx(cls, s):
+                    return cls()

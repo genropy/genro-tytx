@@ -172,3 +172,24 @@ def register_type(
     """
     TYPE_REGISTRY[cls] = (suffix, serializer, json_native)
     SUFFIX_TO_TYPE[suffix] = (cls, deserializer)
+
+
+def register_class(cls: type) -> type:
+    """Register a class that declares its own TYTX hooks. Usable as a decorator.
+
+    Reads from the class:
+        __tytx_suffix__: the TYTX suffix (e.g. "X")
+        to_tytx(self) -> str: instance to string
+        from_tytx(cls, s) -> obj: classmethod, string to instance
+        __tytx_json_native__: optional bool, default False
+
+    Returns the class unchanged so it can be used as a decorator.
+    """
+    register_type(
+        cls,
+        cls.__tytx_suffix__,
+        lambda obj: obj.to_tytx(),
+        cls.from_tytx,
+        getattr(cls, "__tytx_json_native__", False),
+    )
+    return cls

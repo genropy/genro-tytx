@@ -145,6 +145,20 @@ from_tytx('5,6::PT')             # Point(5, 6)
 
 The custom type flows like any built-in scalar, including nested inside dicts and lists.
 
+When the type owns its serialization, `register_class` reads the hooks from the class itself — usable as a decorator. It needs `__tytx_suffix__`, an instance `to_tytx()` and a `from_tytx` classmethod (`from_tytx` must be a classmethod: decoding starts from the suffix and rebuilds the instance from scratch):
+
+```python
+from genro_tytx import register_class
+
+@register_class
+class Point:
+    __tytx_suffix__ = "PT"
+    def __init__(self, x, y): self.x, self.y = x, y
+    def to_tytx(self): return f"{self.x},{self.y}"
+    @classmethod
+    def from_tytx(cls, s): return cls(*map(int, s.split(",")))
+```
+
 ## Installation
 
 ```bash
