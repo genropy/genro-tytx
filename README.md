@@ -143,7 +143,7 @@ to_tytx([1, Point(5, 6), "k"])   # '[1,"5,6::PT","k"]::JS'
 from_tytx('5,6::PT')             # Point(5, 6)
 ```
 
-The custom type flows like any built-in scalar, including nested inside dicts and lists.
+The custom type flows like any built-in scalar, including nested inside dicts and lists. Matching is by exact type — subclasses must be registered explicitly. Re-registering the same class replaces its hooks; reusing a suffix owned by a different type raises an error. The same semantics apply to the JavaScript client (`registerType` / `registerClass`).
 
 When the type owns its serialization, `register_class` reads the hooks from the class itself — usable as a decorator. It needs `__tytx_suffix__`, an instance `to_tytx()` and a `from_tytx` classmethod (`from_tytx` must be a classmethod: decoding starts from the suffix and rebuilds the instance from scratch):
 

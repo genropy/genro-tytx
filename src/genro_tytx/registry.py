@@ -163,13 +163,25 @@ def register_type(
     Lets an external package (e.g. genro-bag) extend TYTX without creating a
     circular dependency: the package calls this at its own import time.
 
+    Matching is by exact type: subclasses are not matched. Re-registering the
+    same class replaces its hooks; reusing a suffix owned by a different type
+    is an error.
+
     Args:
         cls: The Python type to register
         suffix: The TYTX suffix (e.g. "X" for Bag)
         serializer: Pre-JSON hook - converts obj to string
         deserializer: Post-JSON hook - converts string back to obj
         json_native: If True, skip suffix when value is JSON-native
+
+    Raises:
+        ValueError: if the suffix is already registered for a different type
     """
+    existing = SUFFIX_TO_TYPE.get(suffix)
+    if existing is not None and existing[0] is not cls:
+        raise ValueError(
+            f"TYTX suffix {suffix!r} is already registered for {existing[0].__name__}"
+        )
     TYPE_REGISTRY[cls] = (suffix, serializer, json_native)
     SUFFIX_TO_TYPE[suffix] = (cls, deserializer)
 
@@ -184,7 +196,12 @@ def register_class(cls: type) -> type:
         __tytx_json_native__: optional bool, default False
 
     Returns the class unchanged so it can be used as a decorator.
+
+    Raises:
+        AttributeError: if __tytx_suffix__, to_tytx or from_tytx is missing
     """
+    if not callable(getattr(cls, "to_tytx", None)):
+        raise AttributeError(f"{cls.__name__} is missing a to_tytx method")
     register_type(
         cls,
         cls.__tytx_suffix__,

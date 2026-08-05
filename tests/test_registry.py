@@ -85,6 +85,44 @@ class TestRegisterType:
         assert Point not in TYPE_REGISTRY
         assert "PT" not in SUFFIX_TO_TYPE
 
+    def test_suffix_collision_raises(self, clean_registry):
+        """A suffix owned by a different type cannot be silently clobbered."""
+        with pytest.raises(ValueError, match="already registered"):
+            register_type(Point, "N", _serialize_point, _deserialize_point)
+
+    def test_custom_suffix_collision_raises(self, clean_registry):
+        """Two different custom classes cannot share a suffix."""
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+
+        class Other:
+            pass
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_type(Other, "PT", str, lambda s: Other())
+
+    def test_same_class_reregistration_replaces(self, clean_registry):
+        """Re-registering the same class replaces both hooks coherently."""
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+        register_type(
+            Point,
+            "PT",
+            lambda p: f"{p.x};{p.y}",
+            lambda s: Point(*map(int, s.split(";"))),
+        )
+        encoded = to_tytx(Point(1, 2))
+        assert encoded == "1;2::PT"
+        assert from_tytx(encoded) == Point(1, 2)
+
+    def test_subclass_not_matched(self, clean_registry):
+        """Matching is by exact type: a subclass is not serialized."""
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+
+        class Point3(Point):
+            pass
+
+        with pytest.raises(TypeError, match="not JSON serializable"):
+            to_tytx({"p": Point3(1, 2)})
+
 
 class TestRegisterClass:
     """register_class derives the registration from class-level hooks."""
@@ -168,3 +206,26 @@ class TestRegisterClass:
                 @classmethod
                 def from_tytx(cls, s):
                     return cls()
+
+    def test_missing_to_tytx_raises(self, clean_registry):
+        """register_class fails fast when to_tytx is missing."""
+        with pytest.raises(AttributeError, match="to_tytx"):
+
+            @register_class
+            class Broken:
+                __tytx_suffix__ = "BK"
+
+                @classmethod
+                def from_tytx(cls, s):
+                    return cls()
+
+    def test_missing_from_tytx_raises(self, clean_registry):
+        """register_class fails fast when from_tytx is missing."""
+        with pytest.raises(AttributeError, match="from_tytx"):
+
+            @register_class
+            class Broken:
+                __tytx_suffix__ = "BK"
+
+                def to_tytx(self):
+                    return ""
