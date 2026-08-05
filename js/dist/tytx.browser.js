@@ -145,7 +145,7 @@ var TYTX = (() => {
     }
     if (typeof value === "object") {
       for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-        if (value instanceof cls) {
+        if (value.constructor === cls) {
           return [suffix, serializer, jsonNative];
         }
       }
@@ -203,12 +203,24 @@ var TYTX = (() => {
     "NN": [null, _deserializeNone]
   };
   function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    const existing = SUFFIX_TO_TYPE[suffix];
+    if (existing !== void 0 && existing[0] !== cls) {
+      const owner = existing[0] === null ? "null" : existing[0].name;
+      throw new Error(`TYTX suffix '${suffix}' is already registered for ${owner}`);
+    }
+    CUSTOM_TYPES = CUSTOM_TYPES.filter(([c]) => c !== cls);
     CUSTOM_TYPES.push([cls, suffix, serializer, jsonNative]);
     SUFFIX_TO_TYPE[suffix] = [cls, deserializer];
   }
   function registerClass(cls) {
     if (!cls.tytxSuffix) {
       throw new Error(`registerClass: ${cls.name} is missing a static tytxSuffix`);
+    }
+    if (typeof cls.prototype?.toTytx !== "function") {
+      throw new Error(`registerClass: ${cls.name} is missing a toTytx method`);
+    }
+    if (typeof cls.fromTytx !== "function") {
+      throw new Error(`registerClass: ${cls.name} is missing a static fromTytx method`);
     }
     registerType(
       cls,
