@@ -24,8 +24,8 @@ echo "  ✅ PASSED: ruff"
 echo "  [2/2] Running mypy (advisory)..."
 if ! mypy src/ --ignore-missing-imports; then
     echo "  ⚠️  mypy reported findings (advisory - not blocking)"
+    echo "✅ Pre-commit checks passed (mypy advisory findings above)"
 else
     echo "  ✅ PASSED: mypy"
+    echo "✅ All pre-commit checks passed!"
 fi
-
-echo "✅ All pre-commit checks passed!"
