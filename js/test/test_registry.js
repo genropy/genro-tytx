@@ -53,6 +53,38 @@ describe('registerType', () => {
         const decoded = fromTytx(toTytx({ p: { x: 1, y: 2 } }));
         assert.ok(!(decoded.p instanceof Point));
     });
+
+    test('re-registration replaces both hooks coherently', () => {
+        registerType(Point, 'PT', p => `${p.x},${p.y}`,
+            s => { const [x, y] = s.split(',').map(Number); return new Point(x, y); });
+        registerType(Point, 'PT', p => `${p.x};${p.y}`,
+            s => { const [x, y] = s.split(';').map(Number); return new Point(x, y); });
+        const encoded = toTytx(new Point(1, 2));
+        assert.strictEqual(encoded, '1;2::PT');
+        assert.ok(fromTytx(encoded).equals(new Point(1, 2)));
+    });
+
+    test('suffix collision with a different type throws', () => {
+        // 'N' is the builtin Decimal suffix
+        assert.throws(
+            () => registerType(Point, 'N', p => '', () => null),
+            /already registered/,
+        );
+        registerType(Point, 'PT', p => `${p.x},${p.y}`, () => null);
+        class Other {}
+        assert.throws(
+            () => registerType(Other, 'PT', () => '', () => null),
+            /already registered/,
+        );
+    });
+
+    test('subclass is not matched (exact constructor)', () => {
+        registerType(Point, 'PT', p => `${p.x},${p.y}`,
+            s => { const [x, y] = s.split(',').map(Number); return new Point(x, y); });
+        class Point3 extends Point {}
+        const encoded = toTytx({ p: new Point3(1, 2) });
+        assert.ok(!encoded.includes('::PT'));
+    });
 });
 
 describe('registerClass', () => {
@@ -88,5 +120,21 @@ describe('registerClass', () => {
             static fromTytx(s) { return new Broken(); }
         }
         assert.throws(() => registerClass(Broken), /tytxSuffix/);
+    });
+
+    test('missing toTytx throws at registration', () => {
+        class Broken {
+            static tytxSuffix = 'BK';
+            static fromTytx(s) { return new Broken(); }
+        }
+        assert.throws(() => registerClass(Broken), /toTytx/);
+    });
+
+    test('missing fromTytx throws at registration', () => {
+        class Broken {
+            static tytxSuffix = 'BK';
+            toTytx() { return ''; }
+        }
+        assert.throws(() => registerClass(Broken), /fromTytx/);
     });
 });

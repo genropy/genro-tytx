@@ -180,7 +180,9 @@ function getTypeEntry(value) {
     }
     if (typeof value === 'object') {
         for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-            if (value instanceof cls) {
+            // Exact-constructor match, mirroring Python's exact-type lookup:
+            // subclasses are not matched on either side.
+            if (value.constructor === cls) {
                 return [suffix, serializer, jsonNative];
             }
         }
@@ -263,16 +265,27 @@ const SUFFIX_TO_TYPE = {
  * Register a custom type for TYTX serialization.
  *
  * Lets external code extend TYTX with its own types. The encode side matches
- * instances by `instanceof cls`; the decode side maps the suffix back via
- * SUFFIX_TO_TYPE.
+ * instances by exact constructor (subclasses are not matched, mirroring the
+ * Python exact-type lookup); the decode side maps the suffix back via
+ * SUFFIX_TO_TYPE. Re-registering the same class replaces its hooks; reusing
+ * a suffix owned by a different type throws.
  *
  * @param {Function} cls - the class/constructor to register
  * @param {string} suffix - the TYTX suffix (e.g. "X")
  * @param {function(any): string} serializer - instance -> string
  * @param {function(string): any} deserializer - string -> instance
  * @param {boolean} [jsonNative=false] - if true, skip suffix when JSON-native
+ * @throws {Error} if the suffix is already registered for a different type
  */
 function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    const existing = SUFFIX_TO_TYPE[suffix];
+    if (existing !== undefined && existing[0] !== cls) {
+        const owner = existing[0] === null ? 'null' : existing[0].name;
+        throw new Error(`TYTX suffix '${suffix}' is already registered for ${owner}`);
+    }
+    // Replace semantics: drop any previous entry for the same class so the
+    // encode loop cannot keep serving stale hooks.
+    CUSTOM_TYPES = CUSTOM_TYPES.filter(([c]) => c !== cls);
     CUSTOM_TYPES.push([cls, suffix, serializer, jsonNative]);
     SUFFIX_TO_TYPE[suffix] = [cls, deserializer];
 }
@@ -293,6 +306,12 @@ function registerType(cls, suffix, serializer, deserializer, jsonNative = false)
 function registerClass(cls) {
     if (!cls.tytxSuffix) {
         throw new Error(`registerClass: ${cls.name} is missing a static tytxSuffix`);
+    }
+    if (typeof cls.prototype?.toTytx !== 'function') {
+        throw new Error(`registerClass: ${cls.name} is missing a toTytx method`);
+    }
+    if (typeof cls.fromTytx !== 'function') {
+        throw new Error(`registerClass: ${cls.name} is missing a static fromTytx method`);
     }
     registerType(
         cls,
