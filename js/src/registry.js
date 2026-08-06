@@ -143,8 +143,28 @@ function _serializeFloat(v) {
 // For JS we need functions to detect types since we can't use type() like Python
 
 // Custom types registered at runtime: [cls, suffix, serializer, jsonNative].
-// Encode has the instance in hand, so it is matched by `instanceof`.
 let CUSTOM_TYPES = [];
+
+/**
+ * Get the registered custom-type entry for a value, or null.
+ *
+ * Exact-constructor match, mirroring Python's exact-type lookup: subclasses
+ * are not matched on either side.
+ *
+ * @param {any} value
+ * @returns {[string, function, boolean]|null} [suffix, serializer, jsonNative] or null
+ */
+function getCustomTypeEntry(value) {
+    if (value === null || typeof value !== 'object') {
+        return null;
+    }
+    for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+        if (value.constructor === cls) {
+            return [suffix, serializer, jsonNative];
+        }
+    }
+    return null;
+}
 
 /**
  * Get type entry for a value.
@@ -178,16 +198,7 @@ function getTypeEntry(value) {
             return ['R', _serializeFloat, true];
         }
     }
-    if (typeof value === 'object') {
-        for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-            // Exact-constructor match, mirroring Python's exact-type lookup:
-            // subclasses are not matched on either side.
-            if (value.constructor === cls) {
-                return [suffix, serializer, jsonNative];
-            }
-        }
-    }
-    return null;
+    return getCustomTypeEntry(value);
 }
 
 // =============================================================================
@@ -344,6 +355,7 @@ export {
     getDateType,
     // Type registry
     getTypeEntry,
+    getCustomTypeEntry,
     SUFFIX_TO_TYPE,
     // Custom type registration
     registerType,

@@ -7,9 +7,18 @@
  * - Ext  1: Decimal  (payload: UTF-8 string, e.g. "100.50")
  * - Ext  2: date     (payload: ISO "YYYY-MM-DD")
  * - Ext  3: time     (payload: ISO "HH:MM:SS.mmm")
+ * - Ext  4: registered custom type (payload: UTF-8 "SUFFIX:serialized",
+ *           split at the first ":"; unknown suffixes on the receiving side
+ *           degrade to the string "serialized::SUFFIX", like the json path)
  */
 
-import { getDateType, createDecimal, isDecimal } from './registry.js';
+import {
+    getDateType,
+    createDecimal,
+    isDecimal,
+    getCustomTypeEntry,
+    SUFFIX_TO_TYPE,
+} from './registry.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -114,6 +123,33 @@ function _buildCodec() {
             // Truncate fractional part to 3 digits (milliseconds)
             const ms = Math.round(+fracStr.substring(0, 3));
             return new Date(Date.UTC(1970, 0, 1, +h, +m, +s, ms));
+        },
+    });
+
+    // Ext 4: registered custom type ("SUFFIX:serialized", first-colon split)
+    codec.register({
+        type: 4,
+        encode: (v) => {
+            const entry = getCustomTypeEntry(v);
+            if (entry !== null) {
+                const [suffix, serializer] = entry;
+                return enc.encode(`${suffix}:${serializer(v)}`);
+            }
+            return null;
+        },
+        decode: (data) => {
+            const str = dec.decode(data);
+            const idx = str.indexOf(':');
+            const suffix = str.slice(0, idx);
+            const payload = str.slice(idx + 1);
+            const entry = SUFFIX_TO_TYPE[suffix];
+            if (entry !== undefined) {
+                const [, deserializer] = entry;
+                return deserializer(payload);
+            }
+            // Unknown suffix on the receiving side: degrade to the same
+            // pass-through string rawDecode gives on the json path.
+            return `${payload}::${suffix}`;
         },
     });
 

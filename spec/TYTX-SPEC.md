@@ -317,18 +317,31 @@ from_tytx("alfa=33::L&date=2025-01-15::D::QS")
 
 ## 6. MessagePack Format
 
-### 6.1 Encoding
+Typed values are carried as MessagePack **extension types** — no type suffixes,
+no string walk on decode. Native JSON types (string, int, float, bool, null,
+arrays, maps) travel as native MessagePack types.
 
-Typed values are serialized as strings with type suffix (same as JSON inner values):
+### 6.1 Extension Types
 
-```
-Decimal("100.50") -> "100.50::N"
-date(2025, 1, 15) -> "2025-01-15::D"
-```
+| Ext code | Type | Payload (UTF-8) |
+|----------|------|-----------------|
+| `-1` | datetime | MessagePack native Timestamp (tz-aware UTC) |
+| `1` | Decimal | decimal string, e.g. `"100.50"` |
+| `2` | date | ISO `"YYYY-MM-DD"` |
+| `3` | time | ISO `"HH:MM:SS.ffffff"` |
+| `4` | registered custom type | `"SUFFIX:serialized"`, split at the **first** `:` |
 
-### 5.2 Decoding
+### 6.2 Custom Types (ext 4)
 
-After MessagePack unpacking, recursively hydrate all string values using the same algorithm as JSON.
+A type registered via `register_type` / `register_class` is packed as ext 4
+with payload `f"{suffix}:{serializer(obj)}"`. On decode, the suffix is looked
+up in the receiver's registry; if the receiver does not know the suffix, the
+value degrades to the string `"serialized::SUFFIX"` — the same pass-through
+an unknown suffix gets on the JSON path.
+
+Limitation: the packer only consults the type hooks for values it cannot
+serialize natively, so a registered custom type subclassing dict/list/str is
+carried natively and loses its type (same limitation as the JSON path).
 
 ## 6. Value Serialization
 

@@ -7,7 +7,13 @@ import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert';
 
 import { toTytx, fromTytx } from '../src/index.js';
-import { registerType, registerClass, _resetCustomTypes } from '../src/registry.js';
+import {
+    registerType,
+    registerClass,
+    _resetCustomTypes,
+    SUFFIX_TO_TYPE,
+    createDecimal,
+} from '../src/registry.js';
 
 // A minimal custom type local to the test (no external dependency).
 class Point {
@@ -136,5 +142,50 @@ describe('registerClass', () => {
             toTytx() { return ''; }
         }
         assert.throws(() => registerClass(Broken), /fromTytx/);
+    });
+});
+
+describe('msgpack custom types (ext code 4)', () => {
+    afterEach(() => _resetCustomTypes());
+
+    const registerPoint = () => registerType(Point, 'PT', p => `${p.x},${p.y}`,
+        s => { const [x, y] = s.split(',').map(Number); return new Point(x, y); });
+
+    test('roundtrip scalar and nested', () => {
+        registerPoint();
+        const scalar = fromTytx(toTytx(new Point(3, 4), 'msgpack'), 'msgpack');
+        assert.ok(scalar.equals(new Point(3, 4)));
+
+        const value = { origin: new Point(0, 0), path: [new Point(1, 2), 'k', 5] };
+        const decoded = fromTytx(toTytx(value, 'msgpack'), 'msgpack');
+        assert.ok(decoded.origin.equals(new Point(0, 0)));
+        assert.ok(decoded.path[0].equals(new Point(1, 2)));
+        assert.strictEqual(decoded.path[1], 'k');
+        assert.strictEqual(decoded.path[2], 5);
+    });
+
+    test('unknown suffix degrades to "<payload>::<suffix>" string', () => {
+        registerPoint();
+        const packed = toTytx({ p: new Point(3, 4) }, 'msgpack');
+        delete SUFFIX_TO_TYPE.PT;  // simulate a receiver without the registration
+        const decoded = fromTytx(packed, 'msgpack');
+        assert.deepStrictEqual(decoded, { p: '3,4::PT' });
+    });
+
+    test('payload containing colons splits at the first ":" only', () => {
+        class Clockish {
+            constructor(text) { this.text = text; }
+        }
+        registerType(Clockish, 'CK', c => c.text, s => new Clockish(s));
+        const decoded = fromTytx(toTytx({ t: new Clockish('12:30:45') }, 'msgpack'), 'msgpack');
+        assert.strictEqual(decoded.t.text, '12:30:45');
+    });
+
+    test('builtin ext types keep working alongside code 4', () => {
+        registerPoint();
+        const value = { price: createDecimal('100.50'), p: new Point(1, 2) };
+        const decoded = fromTytx(toTytx(value, 'msgpack'), 'msgpack');
+        assert.strictEqual(decoded.price.toString(), '100.5');
+        assert.ok(decoded.p.equals(new Point(1, 2)));
     });
 });

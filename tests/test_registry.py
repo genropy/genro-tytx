@@ -1,6 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - Licensed under Apache License 2.0
 """Tests for custom type registration hooks (register_type)."""
 
+from datetime import date, time
+from decimal import Decimal
+
 import pytest
 
 from genro_tytx import from_tytx, register_class, register_type, to_tytx
@@ -229,3 +232,59 @@ class TestRegisterClass:
 
                 def to_tytx(self):
                     return ""
+
+
+class TestMsgpackCustomTypes:
+    """Registered custom types travel over the msgpack transport (ext code 4)."""
+
+    def test_scalar_roundtrip(self, clean_registry):
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+        packed = to_tytx(Point(3, 4), transport="msgpack")
+        assert isinstance(packed, bytes)
+        assert from_tytx(packed, transport="msgpack") == Point(3, 4)
+
+    def test_nested_in_dict_and_list(self, clean_registry):
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+        value = {"origin": Point(0, 0), "path": [Point(1, 2), "k", 5]}
+        packed = to_tytx(value, transport="msgpack")
+        assert from_tytx(packed, transport="msgpack") == value
+
+    def test_unknown_suffix_degrades_to_string(self, clean_registry):
+        """A receiver that does not know the suffix gets '<payload>::<suffix>'."""
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+        packed = to_tytx({"p": Point(3, 4)}, transport="msgpack")
+        del SUFFIX_TO_TYPE["PT"]  # simulate a receiver without the registration
+        result = from_tytx(packed, transport="msgpack")
+        assert result == {"p": "3,4::PT"}
+
+    def test_payload_containing_colons(self, clean_registry):
+        """The ext payload splits at the FIRST ':' only."""
+
+        class Clockish:
+            def __init__(self, text):
+                self.text = text
+
+            def __eq__(self, other):
+                return isinstance(other, Clockish) and other.text == self.text
+
+        register_type(Clockish, "CK", lambda c: c.text, Clockish)
+        value = Clockish("12:30:45")
+        packed = to_tytx({"t": value}, transport="msgpack")
+        assert from_tytx(packed, transport="msgpack") == {"t": value}
+
+    def test_builtin_ext_types_unchanged(self, clean_registry):
+        """Ext codes 1/2/3 (Decimal, date, time) keep working alongside code 4."""
+        register_type(Point, "PT", _serialize_point, _deserialize_point)
+        value = {
+            "price": Decimal("100.50"),
+            "day": date(2025, 1, 15),
+            "at": time(10, 30, 0),
+            "p": Point(1, 2),
+        }
+        packed = to_tytx(value, transport="msgpack")
+        assert from_tytx(packed, transport="msgpack") == value
+
+    def test_unregistered_type_still_raises(self):
+        """Without registration msgpack still refuses the unknown type."""
+        with pytest.raises(TypeError):
+            to_tytx({"p": Point(1, 2)}, transport="msgpack")

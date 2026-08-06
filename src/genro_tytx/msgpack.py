@@ -7,6 +7,13 @@ Uses MessagePack extension types to carry TYTX type information directly in the 
 - Ext  1: Decimal  (payload: UTF-8 string, e.g. "100.50")
 - Ext  2: date     (payload: ISO "YYYY-MM-DD")
 - Ext  3: time     (payload: ISO "HH:MM:SS.ffffff")
+- Ext  4: registered custom type (payload: UTF-8 "SUFFIX:serialized",
+          split at the first ":"; unknown suffixes on the receiving side
+          degrade to the string "serialized::SUFFIX", like the json path)
+
+Known limitation: packb only calls the default hook for types it cannot
+serialize natively, so a registered custom type that subclasses dict/list/str
+is carried natively and loses its type (same limitation as the json path).
 """
 
 from __future__ import annotations
@@ -14,6 +21,8 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
+
+from .registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
 
 # Check for msgpack availability
 try:
@@ -45,6 +54,10 @@ def _default(obj: Any) -> Any:
         return msgpack.ExtType(2, obj.isoformat().encode("utf-8"))
     if isinstance(obj, time):
         return msgpack.ExtType(3, obj.isoformat().encode("utf-8"))
+    entry = TYPE_REGISTRY.get(type(obj))  # exact type, same as utils.raw_encode
+    if entry is not None:
+        suffix, serializer, _ = entry
+        return msgpack.ExtType(4, f"{suffix}:{serializer(obj)}".encode())
     raise TypeError(f"Unknown type: {type(obj)}")
 
 
@@ -56,6 +69,15 @@ def _ext_hook(code: int, data: bytes) -> Any:
         return date.fromisoformat(data.decode("utf-8"))
     if code == 3:
         return time.fromisoformat(data.decode("utf-8"))
+    if code == 4:
+        suffix, _, payload = data.decode("utf-8").partition(":")
+        entry = SUFFIX_TO_TYPE.get(suffix)
+        if entry is not None:
+            _, deserializer = entry
+            return deserializer(payload)
+        # Unknown suffix on the receiving side: degrade to the same
+        # pass-through string raw_decode gives on the json path.
+        return f"{payload}::{suffix}"
     return msgpack.ExtType(code, data)
 
 
