@@ -116,6 +116,17 @@ var TYTX = (() => {
     return v.toString();
   }
   var CUSTOM_TYPES = [];
+  function getCustomTypeEntry(value) {
+    if (value === null || typeof value !== "object") {
+      return null;
+    }
+    for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+      if (value.constructor === cls) {
+        return [suffix, serializer, jsonNative];
+      }
+    }
+    return null;
+  }
   function getTypeEntry(value) {
     if (value === null) {
       return ["NN", () => "", true];
@@ -143,14 +154,7 @@ var TYTX = (() => {
         return ["R", _serializeFloat, true];
       }
     }
-    if (typeof value === "object") {
-      for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-        if (value.constructor === cls) {
-          return [suffix, serializer, jsonNative];
-        }
-      }
-    }
-    return null;
+    return getCustomTypeEntry(value);
   }
   function _deserializeDecimal(s) {
     return createDecimal(s);
