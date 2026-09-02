@@ -144,7 +144,6 @@ TYTX is ideal when you need:
 - **Transparent type handling** without conversion code
 - **Decimal precision** for financial data
 - **Date/time preservation** across client/server
-- **Minimal setup** - just use `asgi_data`/`wsgi_data`
 - **Standard HTTP/JSON** - no special infrastructure
 - **Transport flexibility** - switch to MessagePack for better performance with a single parameter change
 
@@ -448,18 +447,6 @@ async def update_transactions(request: Request):
 async def get_transactions():
     rows = await db.fetch_all("SELECT * FROM transactions LIMIT 500")
     return {"rows": [dict(row) for row in rows]}  # Types preserved automatically
-
-@app.put("/api/transactions")
-async def update_transactions(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    for row in data["body"]["rows"]:
-        await db.execute(
-            "UPDATE transactions SET date=?, amount=?, ... WHERE id=?",
-            row["date"], row["amount"], row["tax"], row["total"],
-            row["due_date"], row["paid_at"], row["rate"],
-            row["quantity"], row["unit_price"], row["discount_pct"],
-            row["id"],
-        )
 ```
 
 **Client**:
@@ -523,21 +510,6 @@ async def list_orders(request: Request):
 
 ```
 /api/orders?start_date=2025-01-01::D&end_date=2025-12-31::D&min_price=100.00::N&max_price=500.00::N
-```
-
-**Server**:
-
-```python
-@app.get("/api/orders")
-async def list_orders(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    params = data["query"]
-
-    # Already typed!
-    start_date = params["start_date"]    # date
-    end_date = params["end_date"]        # date
-    min_price = params["min_price"]      # Decimal
-    max_price = params["max_price"]      # Decimal
 ```
 
 ---

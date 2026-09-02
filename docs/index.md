@@ -195,25 +195,11 @@ async def handle_order(request: Request):
 
 ### 3. ✅ WITH TYTX: Zero Conversions
 
-**JavaScript:**
-
 ```javascript
 import { fetchTytx } from 'genro-tytx';
 
 const result = await fetchTytx('/api/process_order', { body: orderData });
 console.log(result.total.toFixed(2));  // Big, ready to use
-```
-
-**Python:**
-
-```python
-from genro_tytx import asgi_data, to_tytx
-
-@app.post("/api/process_order")
-async def handle_order(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    result = await process_order(**data['body'])
-    return Response(content=to_tytx(result), media_type='application/vnd.tytx+json')
 ```
 
 **Total: 0 conversions. Types flow naturally.**
@@ -228,11 +214,6 @@ const result = await fetchTytx('/api/process_order', { body: orderData });
 
 // MessagePack - same API, binary format
 const result = await fetchTytx('/api/process_order', { body: orderData, transport: 'msgpack' });
-```
-
-```python
-# Server auto-detects transport from Content-Type header
-# No code changes needed!
 ```
 
 [See more real-world examples →](real-world-examples)
@@ -253,7 +234,7 @@ Native JSON types (string, number, boolean, null) pass through unchanged.
 | I want to... | Go to... |
 |--------------|----------|
 | Try it in 5 minutes | [Quickstart](quickstart.md) |
-| Use with FastAPI/Flask | [HTTP Integration](http-integration.md) |
+| Use it over HTTP | [HTTP Integration](http-integration.md) |
 | Understand the wire format | [How It Works](how-it-works.md) |
 | See API reference | [API Reference](api-reference.md) |
 | Compare with alternatives | [Alternatives](alternatives.md) |

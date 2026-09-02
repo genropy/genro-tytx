@@ -20,23 +20,6 @@ npm install big.js  # Recommended
 npm install decimal.js
 ```
 
-### Does TYTX work with my framework?
-
-TYTX provides HTTP utilities for:
-
-- **ASGI** (FastAPI, Starlette, Quart) - use `asgi_data()`
-- **WSGI** (Flask, Django, Bottle) - use `wsgi_data()`
-
-Example:
-
-```python
-from genro_tytx import asgi_data, to_tytx
-
-# In your request handler (FastAPI/Starlette)
-data = await asgi_data(request.scope, request.receive)
-response = to_tytx(result)
-```
-
 ## Types and Conversion
 
 ### How does TYTX handle timezones?
@@ -118,20 +101,6 @@ const data = fromTytx(await response.text());
 
 `fetchTytx` does this automatically.
 
-### How do I pass typed values in query strings?
-
-Query strings with TYTX suffixes are automatically decoded on the server:
-
-```python
-# URL: /api/search?start_date=2025-01-01::D&min_price=10.00::N
-
-@app.get("/api/search")
-async def search(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    start_date = data["query"]["start_date"]  # date object
-    min_price = data["query"]["min_price"]    # Decimal object
-```
-
 ## Troubleshooting
 
 ### My Decimal values are becoming floats
@@ -162,7 +131,6 @@ Check that:
 
 1. The Content-Type header is set correctly (`application/json` or `application/vnd.tytx+json`)
 2. The request body is valid JSON
-3. You're using `asgi_data()` or `wsgi_data()` to decode the request
 
 ### I'm getting "unknown type code" warnings
 

@@ -12,10 +12,7 @@ Browser                          Server
 Decimal, Date                    Decimal, date, datetime
     │                                │
     ▼                                ▼
-fetchTytx() ─── HTTP Request ──▶ asgi_data() / wsgi_data()
-                                     │
-                                     ▼
-                                 Your handler
+fetchTytx() ─── HTTP Request ──▶ Your handler
                                      │
                                      ▼
 fromTytx() ◀─── HTTP Response ─── to_tytx()
@@ -99,79 +96,6 @@ const datetime = new Date(Date.UTC(2025, 0, 15, 10, 30, 0));
 const time = new Date(Date.UTC(1970, 0, 1, 10, 30, 0));
 ```
 
-## Server Side (Python)
-
-### ASGI (FastAPI, Starlette)
-
-```python
-from fastapi import FastAPI, Request, Response
-from genro_tytx import asgi_data, to_tytx
-from decimal import Decimal
-
-app = FastAPI()
-
-@app.post("/api/invoice")
-async def create_invoice(request: Request):
-    # Decode all TYTX data from request
-    data = await asgi_data(request.scope, request.receive)
-
-    # Access decoded values
-    body = data["body"]       # Request body (dict)
-    query = data["query"]     # Query parameters (dict)
-    headers = data["headers"] # Headers (dict)
-    cookies = data["cookies"] # Cookies (dict)
-
-    price = body["price"]    # Decimal
-    date = query.get("date") # date object (if present)
-
-    result = {"total": price * Decimal("1.22")}
-
-    # Encode response
-    return Response(
-        content=to_tytx(result),
-        media_type="application/vnd.tytx+json"
-    )
-```
-
-### WSGI (Flask, Django)
-
-```python
-from flask import Flask, request
-from genro_tytx import wsgi_data, to_tytx
-
-app = Flask(__name__)
-
-@app.route("/api/invoice", methods=["POST"])
-def create_invoice():
-    # Decode all TYTX data from request
-    data = wsgi_data(request.environ)
-
-    body = data["body"]
-    price = body["price"]  # Decimal
-
-    result = {"total": price * body["quantity"]}
-
-    # Encode response
-    response = app.response_class(
-        response=to_tytx(result),
-        mimetype="application/vnd.tytx+json"
-    )
-    return response
-```
-
-### Data Structure
-
-Both `asgi_data()` and `wsgi_data()` return a dict with:
-
-```python
-{
-    "query": {"date": date(2025, 1, 15), ...},   # Query string params
-    "headers": {"content-type": "...", ...},     # HTTP headers
-    "cookies": {"session": "...", ...},          # Cookies
-    "body": {"price": Decimal("100.50"), ...},   # Request body
-}
-```
-
 ## Content Types
 
 | Format | Content-Type |
@@ -179,8 +103,6 @@ Both `asgi_data()` and `wsgi_data()` return a dict with:
 | TYTX JSON | `application/vnd.tytx+json` |
 | TYTX XML | `application/vnd.tytx+xml` |
 | TYTX MessagePack | `application/vnd.tytx+msgpack` |
-
-The functions detect transport format from Content-Type header.
 
 ## Type Mapping
 
@@ -192,39 +114,6 @@ The functions detect transport format from Content-Type header.
 | `Date` (epoch date) | `"10:30:00.000::H"` | `time` |
 
 ## Complete Example
-
-### Server (FastAPI)
-
-```python
-from fastapi import FastAPI, Request, Response
-from genro_tytx import asgi_data, to_tytx
-from decimal import Decimal
-from datetime import datetime, timezone
-
-app = FastAPI()
-
-@app.post("/api/order")
-async def create_order(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    body = data["body"]
-
-    # All types are correct
-    price = body["price"]       # Decimal
-    quantity = body["quantity"] # int
-    date = body["date"]         # date
-
-    total = price * quantity * Decimal("1.22")
-
-    result = {
-        "total": total,
-        "created_at": datetime.now(timezone.utc),
-    }
-
-    return Response(
-        content=to_tytx(result),
-        media_type="application/vnd.tytx+json"
-    )
-```
 
 ### Client (JavaScript)
 
@@ -313,7 +202,6 @@ data = from_tytx(redis.subscribe('trades'))
 
 ## Best Practices
 
-1. **Use `asgi_data`/`wsgi_data`** - They decode query, headers, cookies, and body in one call
-2. **Set Content-Type** - Use `application/vnd.tytx+json` for TYTX responses
-3. **Install decimal library** - `big.js` or `decimal.js` in JavaScript
-4. **Use UTC for dates** - Always use `Date.UTC()` in JavaScript to avoid timezone issues
+1. **Set Content-Type** - Use `application/vnd.tytx+json` for TYTX responses
+2. **Install decimal library** - `big.js` or `decimal.js` in JavaScript
+3. **Use UTC for dates** - Always use `Date.UTC()` in JavaScript to avoid timezone issues

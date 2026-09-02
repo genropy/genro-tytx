@@ -3,6 +3,14 @@
 Notable changes to genro-tytx. Started at 0.12.2; earlier releases are
 documented by their git tags and commit history.
 
+## [0.13.0] - 2026-09-02
+
+### Removed
+
+- The HTTP request adapters (`asgi_data`, `wsgi_data`, `get_transport`,
+  `TRANSPORT_MIME`, `MIME_TRANSPORT`) and the `genro_tytx.http` module.
+  genro-tytx serializes and deserializes values; it does not read requests.
+
 ## [0.12.2] - 2026-08-06
 
 ### Fixed

@@ -454,13 +454,6 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 ### 7.3 HTTP Utilities (language-specific)
 
-**Python:**
-
-| Function | Description |
-|----------|-------------|
-| `asgi_data(scope, receive)` | Extract TYTX data from ASGI request |
-| `wsgi_data(environ)` | Extract TYTX data from WSGI request |
-
 **JavaScript:**
 
 | Function | Description |

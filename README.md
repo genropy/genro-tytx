@@ -114,18 +114,6 @@ json_loads('{"a": 1}')      # accepts str or bytes -> {"a": 1}
 
 `json_dumps` returns UTF-8 `bytes` (ready for ASGI/WebSocket send), `json_loads` accepts `str` or `bytes`. Use these when you want plain JSON; use `to_tytx` / `from_tytx` when you want typed values to flow.
 
-## Transport MIME types
-
-The TYTX media types and the content-type resolver are available as package constants, so HTTP layers do not hardcode the strings:
-
-```python
-from genro_tytx import TRANSPORT_MIME, MIME_TRANSPORT, get_transport
-
-TRANSPORT_MIME["json"]                       # 'application/vnd.tytx+json'
-MIME_TRANSPORT["application/vnd.tytx+xml"]   # 'xml'
-get_transport("application/vnd.tytx+json")   # 'json'  (substring match, standard MIME resolves too)
-```
-
 ## Custom types
 
 `register_type` lets an external package teach TYTX a new type — a serialize hook (object → string) and a deserialize hook (string → object) under a custom suffix. The package registers at its own import time, so TYTX gains no dependency on it:
@@ -277,25 +265,11 @@ async def handle_order(request: Request):
 
 ### 3. ✅ WITH TYTX: Zero Conversions
 
-**JavaScript:**
-
 ```javascript
 import { fetchTytx } from 'genro-tytx';
 
 const result = await fetchTytx('/api/process_order', { body: orderData });
 console.log(result.total.toFixed(2));  // Big, ready to use
-```
-
-**Python:**
-
-```python
-from genro_tytx import asgi_data, to_tytx
-
-@app.post("/api/process_order")
-async def handle_order(request: Request):
-    data = await asgi_data(request.scope, request.receive)
-    result = await process_order(**data['body'])
-    return Response(content=to_tytx(result), media_type='application/vnd.tytx+json')
 ```
 
 **Total: 0 conversions. Types flow naturally.**
@@ -310,11 +284,6 @@ const result = await fetchTytx('/api/process_order', { body: orderData });
 
 // MessagePack - same API, binary format
 const result = await fetchTytx('/api/process_order', { body: orderData, transport: 'msgpack' });
-```
-
-```python
-# Server auto-detects transport from Content-Type header
-# No code changes needed!
 ```
 
 ## Supported Types
@@ -348,7 +317,7 @@ Native JSON types (string, number, boolean, null) pass through unchanged.
 | I want to... | Go to... |
 |--------------|----------|
 | Try it in 5 minutes | [Quick Start](docs/quickstart.md) |
-| Use with FastAPI/Flask | [HTTP Integration](docs/http-integration.md) |
+| Use it over HTTP | [HTTP Integration](docs/http-integration.md) |
 | Understand the wire format | [How It Works](docs/how-it-works.md) |
 | See API reference | [API Reference](docs/api-reference.md) |
 | Compare with alternatives | [Alternatives](docs/alternatives.md) |

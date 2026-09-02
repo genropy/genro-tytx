@@ -5,7 +5,6 @@ TYTX Base - Typed Text Protocol for Scalar Types
 Minimal implementation supporting:
 - Scalar types: Decimal, date, datetime, time, bool, int
 - Encoders/Decoders: JSON, XML, MessagePack
-- HTTP utilities
 
 Usage:
     from genro_tytx import to_tytx, from_tytx
@@ -22,13 +21,6 @@ Usage:
 
 from .decode import from_tytx, json_loads
 from .encode import json_dumps, to_tytx
-from .http import (
-    MIME_TRANSPORT,
-    TRANSPORT_MIME,
-    asgi_data,
-    get_transport,
-    wsgi_data,
-)
 from .msgpack import from_msgpack, to_msgpack
 from .qs import from_qs, to_qs
 from .registry import (
@@ -39,7 +31,7 @@ from .registry import (
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.12.2"
+__version__ = "0.13.0"
 
 __all__ = [
     # Unified API
@@ -55,12 +47,6 @@ __all__ = [
     "from_msgpack",
     "to_qs",
     "from_qs",
-    # HTTP
-    "asgi_data",
-    "wsgi_data",
-    "get_transport",
-    "TRANSPORT_MIME",
-    "MIME_TRANSPORT",
     # Registry (for extensibility)
     "SUFFIX_TO_TYPE",
     "TYPE_REGISTRY",

@@ -9,8 +9,65 @@ import json
 import asyncio
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
+from http.cookies import SimpleCookie
+from urllib.parse import parse_qs
 
-from genro_tytx import asgi_data, to_tytx
+from genro_tytx import from_qs, from_tytx, to_tytx
+
+
+def _decode_qs(query_string):
+    """Decode a query string, hydrating each value with TYTX."""
+    parsed = parse_qs(query_string, keep_blank_values=True)
+    return {
+        key: from_tytx(values[0]) if len(values) == 1 else [from_tytx(v) for v in values]
+        for key, values in parsed.items()
+    }
+
+
+def _decode_body(body, content_type):
+    """Hydrate a body according to its content-type; unknown types stay raw."""
+    if not body:
+        return None
+    if "json" in content_type:
+        return from_tytx(body.decode("utf-8"), transport="json")
+    if "xml" in content_type:
+        return from_tytx(body.decode("utf-8"), transport="xml")
+    if "msgpack" in content_type:
+        return from_tytx(body, transport="msgpack")
+    if "x-www-form-urlencoded" in content_type:
+        return from_qs(body.decode("latin-1"))
+    return body
+
+
+async def _request_data(scope, receive):
+    """Read an ASGI request into a dict with query, headers, cookies and body."""
+    headers = {}
+    cookies = SimpleCookie()
+    content_type = ""
+    for name, value in scope.get("headers", []):
+        key = name.decode("latin-1").lower()
+        text = value.decode("latin-1")
+        if key == "cookie":
+            cookies.load(text)
+            continue
+        headers[key] = from_tytx(text)
+        if key == "content-type":
+            content_type = text.lower()
+
+    chunks = []
+    if content_type:
+        while True:
+            message = await receive()
+            chunks.append(message.get("body", b""))
+            if not message.get("more_body", False):
+                break
+
+    return {
+        "query": _decode_qs(scope.get("query_string", b"").decode("latin-1")),
+        "headers": headers,
+        "cookies": {key: from_tytx(morsel.value) for key, morsel in cookies.items()},
+        "body": _decode_body(b"".join(chunks), content_type),
+    }
 
 
 async def app(scope, receive, send):
@@ -53,9 +110,9 @@ async def app(scope, receive, send):
         return value
 
     # Decode request data using TYTX
-    # asgi_data consumes the body, so we don't need to read it manually
+    # _request_data consumes the body, so we don't need to read it manually
     try:
-        tytx = await asgi_data(scope, receive)
+        tytx = await _request_data(scope, receive)
     except Exception as e:
         await _send_json({"error": str(e)}, status=400)
         return
