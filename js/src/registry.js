@@ -261,7 +261,14 @@ function _deserializeNone(s) {
     return null;
 }
 
+// Standard base64 with padding, whole string: atob alone accepts missing
+// padding and whitespace, which Python's strict decoder refuses.
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
 function _deserializeRaw(s) {
+    if (!BASE64_PATTERN.test(s)) {
+        throw new Error(`RAW payload is not standard padded base64: '${s}'`);
+    }
     const binary = atob(s);
     const out = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {

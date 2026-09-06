@@ -204,8 +204,11 @@ function deserializeDecimal(s) {
 
 A `Uint8Array` is detected with `instanceof Uint8Array`, so Node's `Buffer`
 qualifies too. On JSON and XML it is serialized as standard base64 with
-padding (`btoa` over a binary string, built in chunks) and decoded back with
-`atob` into a fresh `Uint8Array`; on MessagePack it is the native `bin` type
+padding (`btoa` over a binary string, built in chunks) and decoded back into a
+fresh `Uint8Array`. Decoding first checks the whole payload against the
+standard padded alphabet and refuses anything else (missing padding,
+whitespace, characters outside the alphabet), because `atob` alone tolerates
+them while Python's strict decoder does not; on MessagePack it is the native `bin` type
 and never touches base64. Decoding always yields a `Uint8Array`, never a
 `Buffer`.
 

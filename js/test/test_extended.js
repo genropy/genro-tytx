@@ -361,7 +361,15 @@ describe('RAW bytes', () => {
     });
 
     test('invalid base64 is an error', () => {
-        assert.throws(() => fromTytx('not base64!::RAW'));
+        assert.throws(() => fromTytx('not base64!::RAW'), /not standard padded base64/);
+    });
+
+    test('lenient base64 is refused like Python does', () => {
+        // Missing padding, inner space, character outside the alphabet,
+        // trailing newline, padding too short.
+        for (const bad of ['YQ::RAW', 'Y Q==::RAW', 'Y*==::RAW', 'YQ==\n::RAW', 'YQ=::RAW', ' YQ==::RAW']) {
+            assert.throws(() => fromTytx(bad), /not standard padded base64/, bad);
+        }
     });
 
     for (const bytes of samples) {

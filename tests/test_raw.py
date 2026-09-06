@@ -58,6 +58,15 @@ class TestRawWireFormat:
         with pytest.raises(ValueError):
             from_tytx("not base64!::RAW")
 
+    @pytest.mark.parametrize(
+        "bad", ["YQ::RAW", "Y Q==::RAW", "Y*==::RAW", "YQ==\n::RAW", "YQ=::RAW", " YQ==::RAW"]
+    )
+    def test_lenient_base64_is_refused(self, bad):
+        """Missing padding, inner space, character outside the alphabet,
+        trailing newline, short padding: refused, same as the JS client."""
+        with pytest.raises(ValueError):
+            from_tytx(bad)
+
     def test_bytearray_is_not_bytes(self):
         """Exact-type lookup: only bytes is RAW."""
         with pytest.raises(TypeError, match="not JSON serializable"):
