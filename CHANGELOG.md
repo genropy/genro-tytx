@@ -7,6 +7,12 @@ documented by their git tags and commit history.
 
 ### Added
 
+- `RAW` type for bytes: Python `bytes`, JavaScript `Uint8Array`. Standard
+  base64 under `::RAW` on JSON and XML (text and attributes); MessagePack
+  native `bin`, no base64 and no extension code. Round trip byte-identical
+  across the two languages (a Python test drives node on json and msgpack).
+  For small binary values inside a message, not for files (spec §6.8).
+
 - Type-code grammar: `register_type` / `registerType` (and the `register_class`
   / `registerClass` wrappers) now refuse a suffix that is not made of uppercase
   ASCII letters (`SUFFIX_PATTERN`, exported; no length limit). This is a new

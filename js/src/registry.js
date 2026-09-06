@@ -135,6 +135,17 @@ function _serializeFloat(v) {
     return v.toString();
 }
 
+function _serializeRaw(v) {
+    // Standard base64 (RFC 4648, padded), built from a binary string in
+    // chunks so a large view does not overflow the argument list. Text
+    // transports only: msgpack carries bytes as its native bin type.
+    let binary = '';
+    for (let i = 0; i < v.length; i += 0x8000) {
+        binary += String.fromCharCode.apply(null, v.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+}
+
 // =============================================================================
 // TYPE REGISTRY
 // =============================================================================
@@ -177,6 +188,10 @@ function getTypeEntry(value) {
     }
     if (isDecimal(value)) {
         return ['N', _serializeDecimal, false];
+    }
+    if (value instanceof Uint8Array) {
+        // Node's Buffer is a Uint8Array too, so it travels as RAW as well.
+        return ['RAW', _serializeRaw, false];
     }
     if (value instanceof Date) {
         const dateType = getDateType(value);
@@ -246,6 +261,15 @@ function _deserializeNone(s) {
     return null;
 }
 
+function _deserializeRaw(s) {
+    const binary = atob(s);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        out[i] = binary.charCodeAt(i);
+    }
+    return out;
+}
+
 function _deserializeQs(s) {
     // Lazy import to avoid circular dependency
     const { fromQs } = require('./qs.js');
@@ -272,6 +296,7 @@ const SUFFIX_TO_TYPE = {
     'B': [Boolean, _deserializeBool],
     'QS': [Object, _deserializeQs],
     'NN': [null, _deserializeNone],
+    'RAW': [Uint8Array, _deserializeRaw],
 };
 
 // =============================================================================
@@ -382,6 +407,7 @@ export {
     _serializeBool,
     _serializeInt,
     _serializeFloat,
+    _serializeRaw,
     // Deserializers (exported for testing)
     _deserializeDecimal,
     _deserializeDate,
@@ -392,4 +418,5 @@ export {
     _deserializeFloat,
     _deserializeStr,
     _deserializeNone,
+    _deserializeRaw,
 };

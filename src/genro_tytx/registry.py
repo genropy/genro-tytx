@@ -8,6 +8,7 @@ Only scalar types are supported in base version.
 
 from __future__ import annotations
 
+import base64
 import re
 from collections.abc import Callable
 from datetime import date, datetime, time, timezone
@@ -72,6 +73,12 @@ def _serialize_none(v: None) -> str:
     return ""
 
 
+def _serialize_raw(v: bytes) -> str:
+    """Standard base64 (RFC 4648, padded). Text transports only: msgpack
+    carries bytes as its native bin type and never reaches this hook."""
+    return base64.b64encode(v).decode("ascii")
+
+
 # Type Registry: type -> (suffix, serializer, json_native)
 # json_native=True means JSON handles it natively (no suffix needed in JSON)
 TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
@@ -83,6 +90,7 @@ TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
     int: ("L", _serialize_int, True),
     float: ("R", _serialize_float, True),
     type(None): ("NN", _serialize_none, True),
+    bytes: ("RAW", _serialize_raw, False),
 }
 
 
@@ -130,6 +138,10 @@ def _deserialize_none(s: str) -> None:
     return None
 
 
+def _deserialize_raw(s: str) -> bytes:
+    return base64.b64decode(s, validate=True)
+
+
 def _deserialize_qs(s: str) -> dict | list:
     from .qs import from_qs
 
@@ -150,6 +162,7 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     "B": (bool, _deserialize_bool),
     "NN": (type(None), _deserialize_none),
     "QS": (dict, _deserialize_qs),
+    "RAW": (bytes, _deserialize_raw),
 }
 
 

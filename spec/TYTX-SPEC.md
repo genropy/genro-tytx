@@ -24,6 +24,7 @@ These types are NOT native to JSON and MUST be encoded with type suffixes:
 | `D` | Date | ISO 8601 date (YYYY-MM-DD) | `"2025-01-15::D"` |
 | `DHZ` | DateTime | ISO 8601 datetime with milliseconds and Z suffix | `"2025-01-15T10:30:00.000Z::DHZ"` |
 | `H` | Time | ISO 8601 time with milliseconds (HH:MM:SS.sss) | `"10:30:00.000::H"` |
+| `RAW` | Bytes | Standard base64 (RFC 4648, padded) | `"AAEC::RAW"` |
 
 ### 2.2 Native Types (for XML and interop)
 
@@ -388,6 +389,9 @@ arrays, maps) travel as native MessagePack types.
 | `3` | time | ISO `"HH:MM:SS.ffffff"` |
 | `4` | registered custom type | `"SUFFIX:serialized"`, split at the **first** `:` |
 
+Bytes (`RAW`) need no extension: they are the MessagePack native `bin` type,
+with no base64 (§6.8).
+
 ### 6.2 Custom Types (ext 4)
 
 A type registered via `register_type` / `register_class` is packed as ext 4
@@ -486,6 +490,19 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 - Serialize: String representation
 - Example: `3.14159` -> `"3.14159"`
+
+### 6.8 Bytes (RAW)
+
+- Python `bytes`, JavaScript `Uint8Array` (Node's `Buffer` is one).
+- JSON and XML: standard base64 (RFC 4648, with padding) under `::RAW`, in
+  text content and in attributes alike: `"AAEC::RAW"`. Empty bytes are
+  `"::RAW"`. A payload that is not valid base64 is a decode error.
+- MessagePack: the native `bin` type, no base64, no extension code.
+- Round trip is byte-identical in both directions and both languages.
+- Intended for small binary values carried inside a message (a signature, a
+  token, a thumbnail). Not for files: base64 costs one third more and goes
+  through the JSON parser; files stay on HTTP.
+- Exact-type lookup applies: `bytearray` and `memoryview` are not `RAW`.
 
 ## 7. API Functions
 
@@ -660,7 +677,7 @@ Note: The body is valid JSON (parseable by standard parsers), but contains TYTX 
 
 | Version | Changes |
 |---------|---------|
-| 0.7.1 | Registered types: code grammar (`[A-Z]+`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
+| 0.7.1 | `RAW` bytes type (base64 on JSON/XML, native bin on MessagePack, §6.8). Registered types: code grammar (`[A-Z]+`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
 | 0.7.0 | Scalar values without `::JS` suffix; MessagePack simplified; XML attrs/value structure |
 | 0.6.x | Initial release with `::JS` for all typed outputs |
 

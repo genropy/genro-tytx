@@ -294,6 +294,7 @@ const result = await fetchTytx('/api/process_order', { body: orderData, transpor
 | `date` | `Date` (midnight UTC) | `"2025-01-15::D"` |
 | `datetime` | `Date` | `"2025-01-15T10:30:00.000Z::DHZ"` |
 | `time` | `Date` (epoch date) | `"10:30:00.000::H"` |
+| `bytes` | `Uint8Array` | `"AAEC::RAW"` (base64; native bin on MessagePack) |
 
 Native JSON types (string, number, boolean, null) pass through unchanged.
 
