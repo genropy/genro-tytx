@@ -315,6 +315,24 @@ describe('suffix grammar', () => {
         }
     });
 
+    for (const suffix of ['SOURCE', 'SOURCEBRANCH']) {
+        for (const transport of [null, 'json', 'xml', 'msgpack']) {
+            test(`long code ${suffix} round-trips (transport=${transport})`, () => {
+                registerType(Point, suffix, p => `${p.x},${p.y}`,
+                    s => { const [x, y] = s.split(',').map(Number); return new Point(x, y); });
+                const value = { root: { value: [new Point(1, 2), 'k'] } };
+                const encoded = toTytx(value, transport);
+                if (transport !== 'msgpack') {
+                    assert.ok(encoded.includes(`::${suffix}`));
+                }
+                const inner = fromTytx(encoded, transport).root.value;
+                assert.ok(inner[0].equals(new Point(1, 2)));
+                assert.strictEqual(inner[1], 'k');
+                _resetCustomTypes();
+            });
+        }
+    }
+
     test('registerClass validates too', () => {
         class Bad {
             static tytxSuffix = 'bad';

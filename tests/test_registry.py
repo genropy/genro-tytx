@@ -413,6 +413,19 @@ class TestSuffixGrammar:
         assert suffix not in SUFFIX_TO_TYPE
         assert Point not in TYPE_REGISTRY
 
+    @pytest.mark.parametrize("suffix", ["SOURCE", "SOURCEBRANCH"])
+    @pytest.mark.parametrize("transport", [None, "json", "xml", "msgpack"])
+    def test_long_code_round_trips(self, clean_registry, suffix, transport):
+        """A code longer than three letters works end to end on every transport."""
+        register_type(Point, suffix, _serialize_point, _deserialize_point)
+        value = {"root": {"value": [Point(1, 2), "k"]}}
+        encoded = to_tytx(value, transport)
+        if transport != "msgpack":
+            assert f"::{suffix}" in encoded
+        decoded = from_tytx(encoded, transport)
+        inner = decoded["root"]["value"]
+        assert inner == [Point(1, 2), "k"]
+
     def test_register_class_validates_too(self, clean_registry):
         class Bad:
             __tytx_suffix__ = "bad"
