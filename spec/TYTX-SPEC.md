@@ -10,7 +10,7 @@ TYTX extends JSON/XML by adding type suffixes to string values that represent no
 value::SUFFIX
 ```
 
-Where `SUFFIX` is a 1-3 character type code.
+Where `SUFFIX` is a type code made of uppercase ASCII letters (§2.5).
 
 ## 2. Type Codes
 
@@ -59,10 +59,11 @@ through the registry (`register_type` / `register_class` in Python,
 `registerType` / `registerClass` in JavaScript), which the owning package
 calls at its own import time. Registration binds one class to one code.
 
-**Code grammar.** A code is 1 to 3 uppercase ASCII letters (`^[A-Z]{1,3}$`).
-Registration refuses anything else. The grammar rules out `:`, so a code can
-never be confused with the `::` separator or with the `:` that splits the
-MessagePack ext-4 payload (§6.2).
+**Code grammar.** A code is one or more uppercase ASCII letters (`[A-Z]+`,
+matched against the whole string); there is no length limit, so a longer code
+can be chosen for clarity. Registration refuses anything else. The grammar
+rules out `:`, so a code can never be confused with the `::` separator or with
+the `:` that splits the MessagePack ext-4 payload (§6.2).
 
 **Codes reserved by consumers.** These codes are not built into TYTX; they are
 listed here so nobody else claims them.
@@ -102,9 +103,11 @@ that information is not in the wire, and no decoder can recover it. Consumers
 that must tell the two apart choose the root class explicitly when they
 decode old payloads.
 
-**MessagePack.** Only ext-4 values are typed (§6.2); strings are not
-rescanned. A literal `"::CODE"` string inside a MessagePack map arrives as a
-string, even for a registered code, whereas the JSON path hydrates it.
+**MessagePack.** Registered types travel as ext-4 values (§6.2), next to the
+native extensions for Decimal, date, time and the Timestamp for datetime;
+strings are not rescanned. A literal `"::CODE"` string inside a MessagePack
+map arrives as a string, even for a registered code, whereas the JSON path
+hydrates it.
 
 ## 3. JSON Format
 
@@ -657,7 +660,7 @@ Note: The body is valid JSON (parseable by standard parsers), but contains TYTX 
 
 | Version | Changes |
 |---------|---------|
-| 0.7.1 | Registered types: code grammar (`^[A-Z]{1,3}$`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
+| 0.7.1 | Registered types: code grammar (`[A-Z]+`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
 | 0.7.0 | Scalar values without `::JS` suffix; MessagePack simplified; XML attrs/value structure |
 | 0.6.x | Initial release with `::JS` for all typed outputs |
 

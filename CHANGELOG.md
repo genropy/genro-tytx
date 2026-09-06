@@ -8,10 +8,11 @@ documented by their git tags and commit history.
 ### Added
 
 - Type-code grammar: `register_type` / `registerType` (and the `register_class`
-  / `registerClass` wrappers) now refuse a suffix that is not 1 to 3 uppercase
-  ASCII letters (`SUFFIX_PATTERN`, exported). Every suffix registered so far
-  (`X`, `BAG`, the test codes) already conforms.
-- Spec §2.5 "Registered Types and Reserved Codes": exact-type lookup with one
+  / `registerClass` wrappers) now refuse a suffix that is not made of uppercase
+  ASCII letters (`SUFFIX_PATTERN`, exported; no length limit). This is a new
+  restriction: the registry used to accept any string. Every suffix registered
+  in the indexed repositories (`X`, `BAG`, the test codes) conforms.
+- Spec §2.5 "Registered Types and Reserved Codes": code grammar, exact-type lookup with one
   code per subclass (`X` for `Bag`, `XS` for `SourceBag`, `BAG` for the legacy
   Bag), opaque and possibly empty payloads, unknown codes returned untouched,
   the structural requirement on consumers that embed `"::CODE"` markers, and

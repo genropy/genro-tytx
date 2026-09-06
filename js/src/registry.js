@@ -252,10 +252,11 @@ function _deserializeQs(s) {
     return fromQs(s);
 }
 
-// A type code is 1 to 3 uppercase ASCII letters ("N", "XS", "DHZ"). The
-// grammar rules out ":" so a code can never be confused with the "::" suffix
-// separator or with the ":" that splits the msgpack ext-4 payload.
-const SUFFIX_PATTERN = /^[A-Z]{1,3}$/;
+// A type code is one or more uppercase ASCII letters ("N", "XS", "DHZ"). No
+// length limit. The grammar rules out ":" so a code can never be confused with
+// the "::" suffix separator or with the ":" that splits the msgpack ext-4
+// payload.
+const SUFFIX_PATTERN = /^[A-Z]+$/;
 
 // Suffix -> [type, deserializer] - includes all for decoding
 // Accepts both DH (deprecated) and DHZ (canonical) for datetime
@@ -288,7 +289,7 @@ const SUFFIX_TO_TYPE = {
  * replaces its hooks; reusing a suffix owned by a different type throws.
  *
  * @param {Function} cls - the class/constructor to register
- * @param {string} suffix - the TYTX suffix: 1 to 3 uppercase ASCII letters (e.g. "X")
+ * @param {string} suffix - the TYTX suffix: uppercase ASCII letters (e.g. "X")
  * @param {function(any): string} serializer - instance -> string
  * @param {function(string): any} deserializer - string -> instance
  * @param {boolean} [jsonNative=false] - if true, skip suffix when JSON-native
@@ -298,7 +299,7 @@ const SUFFIX_TO_TYPE = {
 function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
     if (typeof suffix !== 'string' || !SUFFIX_PATTERN.test(suffix)) {
         throw new Error(
-            `TYTX suffix '${suffix}' is invalid: expected 1 to 3 uppercase ASCII letters`);
+            `TYTX suffix '${suffix}' is invalid: expected uppercase ASCII letters only`);
     }
     const existing = SUFFIX_TO_TYPE[suffix];
     if (existing !== undefined && existing[0] !== cls) {

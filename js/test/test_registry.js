@@ -297,8 +297,8 @@ describe('registered subclass protocol', () => {
 describe('suffix grammar', () => {
     afterEach(() => _resetCustomTypes());
 
-    test('1 to 3 uppercase ASCII letters are accepted', () => {
-        for (const suffix of ['X', 'XS', 'BAG']) {
+    test('uppercase ASCII letters of any length are accepted', () => {
+        for (const suffix of ['X', 'XS', 'BAG', 'SOURCE']) {
             assert.ok(SUFFIX_PATTERN.test(suffix));
             registerType(Point, suffix, () => '', () => null);
             assert.strictEqual(SUFFIX_TO_TYPE[suffix][0], Point);
@@ -306,8 +306,9 @@ describe('suffix grammar', () => {
         }
     });
 
-    test('anything else is refused and leaves no trace', () => {
-        for (const suffix of ['', 'x', 'Xs', 'XSXS', 'X:S', 'X::S', 'X1', 'X S', '::X', null, 7]) {
+    test('anything else is refused whole and leaves no trace', () => {
+        // A trailing newline must not slip through the end anchor.
+        for (const suffix of ['', 'x', 'Xs', 'X:S', 'X::S', 'X1', 'X S', '::X', 'ZZ\n', '\nZZ', 'ZZ\r\n', null, 7]) {
             assert.throws(() => registerType(Point, suffix, () => '', () => null), /invalid/);
             assert.ok(!(suffix in SUFFIX_TO_TYPE));
             assert.ok(!toTytx({ p: new Point(1, 2) }).includes('::'));

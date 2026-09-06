@@ -394,17 +394,20 @@ class TestRegisteredSubclassProtocol:
 
 
 class TestSuffixGrammar:
-    """A type code is 1 to 3 uppercase ASCII letters."""
+    """A type code is one or more uppercase ASCII letters, any length."""
 
-    @pytest.mark.parametrize("suffix", ["X", "XS", "BAG"])
+    @pytest.mark.parametrize("suffix", ["X", "XS", "BAG", "SOURCE"])
     def test_accepted(self, clean_registry, suffix):
         register_type(Point, suffix, _serialize_point, _deserialize_point)
         assert SUFFIX_TO_TYPE[suffix][0] is Point
 
     @pytest.mark.parametrize(
-        "suffix", ["", "x", "Xs", "XSXS", "X:S", "X::S", "X1", "X S", "::X", None, 7]
+        "suffix",
+        ["", "x", "Xs", "X:S", "X::S", "X1", "X S", "::X", "ZZ\n", "\nZZ", "ZZ\r\n", None, 7],
     )
     def test_refused(self, clean_registry, suffix):
+        """Refused whole: a trailing newline is not a match, and nothing is
+        written to either registry."""
         with pytest.raises(ValueError, match="invalid"):
             register_type(Point, suffix, _serialize_point, _deserialize_point)
         assert suffix not in SUFFIX_TO_TYPE
