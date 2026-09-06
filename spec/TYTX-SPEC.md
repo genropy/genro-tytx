@@ -1,4 +1,4 @@
-# TYTX Protocol Specification v0.7.0
+# TYTX Protocol Specification v0.7.1
 
 **TYTX** (Typed Text) is a protocol for transmitting typed scalar values over text-based formats (JSON, XML) and binary formats (MessagePack).
 
@@ -51,6 +51,60 @@ These suffixes indicate structured data formats:
 | Suffix | Replacement | Notes |
 |--------|-------------|-------|
 | `DH` | `DHZ` | Still accepted on decode, never emitted |
+
+### 2.5 Registered Types and Reserved Codes
+
+TYTX ships the codes above and nothing else. Any other type reaches the wire
+through the registry (`register_type` / `register_class` in Python,
+`registerType` / `registerClass` in JavaScript), which the owning package
+calls at its own import time. Registration binds one class to one code.
+
+**Code grammar.** A code is 1 to 3 uppercase ASCII letters (`^[A-Z]{1,3}$`).
+Registration refuses anything else. The grammar rules out `:`, so a code can
+never be confused with the `::` separator or with the `:` that splits the
+MessagePack ext-4 payload (§6.2).
+
+**Codes reserved by consumers.** These codes are not built into TYTX; they are
+listed here so nobody else claims them.
+
+| Code | Class | Registered by |
+|------|-------|---------------|
+| `X` | `Bag` | genro-bag (Python) and genro-bag-js |
+| `XS` | `SourceBag` | genro-builders (Python) and genro-dom-js |
+| `BAG` | legacy `gnr.core.gnrbag.Bag` | genropy-asgi |
+
+**Lookup is by exact type.** The encoder looks a value up by its exact class
+(`type(value)` in Python, `value.constructor` in JavaScript). A subclass is
+never matched through its parent: a subclass that must travel declares and
+registers its own code, and the parent's code keeps meaning the parent. A
+subclass cannot be registered under a code already owned by another class.
+This is why `Bag` is `X` and `SourceBag` is `XS`.
+
+**The payload is opaque.** TYTX hands the serializer's output to the wire and
+the wire's text to the deserializer, verbatim. An empty payload is legal:
+`"::X"` decodes to whatever the `X` deserializer makes of `""` (an empty
+`Bag`). The decoder rebuilds the instance from the text alone: a class that
+needs runtime context (a `SourceBag` needs its builder) is rebuilt detached,
+and the consumer binds it afterwards.
+
+**Unknown codes are not errors.** A string whose code is not registered on the
+receiving side comes back untouched, on every transport (§3.5, §6.2). A
+consumer that uses `"::CODE"` strings as structural markers inside its own
+format — the Bag row format marks a branch node with `"::X"` — must take its
+structure from its own data (the rows), never from whether hydration
+happened. An unknown branch marker therefore leaves the hierarchy intact and
+the children under their parent; that requirement belongs to the consumer's
+decoder, not to TYTX.
+
+**Old payloads.** A `"::X"` marker written before `XS` existed says only
+"this branch is a Bag". It does not say whether the branch was source or data;
+that information is not in the wire, and no decoder can recover it. Consumers
+that must tell the two apart choose the root class explicitly when they
+decode old payloads.
+
+**MessagePack.** Only ext-4 values are typed (§6.2); strings are not
+rescanned. A literal `"::CODE"` string inside a MessagePack map arrives as a
+string, even for a registered code, whereas the JSON path hydrates it.
 
 ## 3. JSON Format
 
@@ -603,6 +657,7 @@ Note: The body is valid JSON (parseable by standard parsers), but contains TYTX 
 
 | Version | Changes |
 |---------|---------|
+| 0.7.1 | Registered types: code grammar (`^[A-Z]{1,3}$`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
 | 0.7.0 | Scalar values without `::JS` suffix; MessagePack simplified; XML attrs/value structure |
 | 0.6.x | Initial release with `::JS` for all typed outputs |
 
