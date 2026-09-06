@@ -3,7 +3,7 @@
 Notable changes to genro-tytx. Started at 0.12.2; earlier releases are
 documented by their git tags and commit history.
 
-## [Unreleased]
+## [0.14.0] - 2026-09-06
 
 ### Added
 
@@ -30,6 +30,13 @@ documented by their git tags and commit history.
 
 - CLAUDE.md pointed to `spec/type-codes.md`, which does not exist; the spec is
   `spec/TYTX-SPEC.md`.
+
+### Known limits
+
+- `qs` transport: bytes come out as base64 without percent-encoding
+  (`b=YWI=::RAW`); the Python round trip works, but `=`, `+` and `/` are not
+  protected in a real query string. The transport never percent-encoded any
+  value, so this is pre-existing behaviour, not a regression.
 
 ## [0.13.0] - 2026-09-02
 
