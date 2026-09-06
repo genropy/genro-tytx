@@ -24,6 +24,7 @@ from .encode import json_dumps, to_tytx
 from .msgpack import from_msgpack, to_msgpack
 from .qs import from_qs, to_qs
 from .registry import (
+    SUFFIX_PATTERN,
     SUFFIX_TO_TYPE,
     TYPE_REGISTRY,
     register_class,
@@ -48,6 +49,7 @@ __all__ = [
     "to_qs",
     "from_qs",
     # Registry (for extensibility)
+    "SUFFIX_PATTERN",
     "SUFFIX_TO_TYPE",
     "TYPE_REGISTRY",
     "register_type",

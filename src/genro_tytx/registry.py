@@ -8,10 +8,16 @@ Only scalar types are supported in base version.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
+
+# A type code is 1 to 3 uppercase ASCII letters ("N", "XS", "DHZ"). The
+# grammar rules out ":" so a code can never be confused with the "::" suffix
+# separator or with the ":" that splits the msgpack ext-4 payload.
+SUFFIX_PATTERN = re.compile(r"^[A-Z]{1,3}$")
 
 # =============================================================================
 # SERIALIZERS (Python type -> string)
@@ -163,20 +169,26 @@ def register_type(
     Lets an external package (e.g. genro-bag) extend TYTX without creating a
     circular dependency: the package calls this at its own import time.
 
-    Matching is by exact type: subclasses are not matched. Re-registering the
-    same class replaces its hooks; reusing a suffix owned by a different type
-    is an error.
+    Matching is by exact type: subclasses are not matched. A subclass that
+    must travel declares and registers its own code (Bag is "X", SourceBag is
+    "XS"). Re-registering the same class replaces its hooks; reusing a suffix
+    owned by a different type is an error.
 
     Args:
         cls: The Python type to register
-        suffix: The TYTX suffix (e.g. "X" for Bag)
+        suffix: The TYTX suffix: 1 to 3 uppercase ASCII letters (e.g. "X" for Bag)
         serializer: Pre-JSON hook - converts obj to string
         deserializer: Post-JSON hook - converts string back to obj
         json_native: If True, skip suffix when value is JSON-native
 
     Raises:
-        ValueError: if the suffix is already registered for a different type
+        ValueError: if the suffix does not match SUFFIX_PATTERN, or is already
+            registered for a different type
     """
+    if not isinstance(suffix, str) or not SUFFIX_PATTERN.match(suffix):
+        raise ValueError(
+            f"TYTX suffix {suffix!r} is invalid: expected 1 to 3 uppercase ASCII letters"
+        )
     existing = SUFFIX_TO_TYPE.get(suffix)
     if existing is not None and existing[0] is not cls:
         raise ValueError(

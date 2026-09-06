@@ -288,3 +288,138 @@ class TestMsgpackCustomTypes:
         """Without registration msgpack still refuses the unknown type."""
         with pytest.raises(TypeError):
             to_tytx({"p": Point(1, 2)}, transport="msgpack")
+
+
+class Branch:
+    """A container type owning its wire format, standing in for Bag ("X")."""
+
+    __tytx_suffix__ = "XB"
+
+    def __init__(self, items=None):
+        self.items = dict(items or {})
+
+    def __eq__(self, other):
+        return type(other) is type(self) and other.items == self.items
+
+    def to_tytx(self):
+        return ",".join(f"{k}={v}" for k, v in self.items.items())
+
+    @classmethod
+    def from_tytx(cls, s):
+        return cls(dict(pair.split("=") for pair in s.split(",")) if s else {})
+
+
+class SourceBranch(Branch):
+    """A subclass with its own code, standing in for SourceBag ("XS")."""
+
+    __tytx_suffix__ = "XSB"
+
+
+class TestRegisteredSubclassProtocol:
+    """A registered class and its registered subclass travel under distinct codes.
+
+    Lookup stays by exact type: the subclass is found only through its own
+    registration, and the parent's code keeps meaning the parent.
+    """
+
+    @pytest.fixture
+    def both_registered(self, clean_registry):
+        register_class(Branch)
+        register_class(SourceBranch)
+
+    def test_subclass_under_parent_code_is_refused(self, clean_registry):
+        """Two classes cannot share one code, parent and child included."""
+        register_class(Branch)
+
+        class Clone(Branch):
+            __tytx_suffix__ = "XB"
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_class(Clone)
+
+    def test_unregistered_subclass_still_refused(self, clean_registry):
+        """Inheriting the hooks is not enough: without its own code it fails."""
+        register_class(Branch)
+        with pytest.raises(TypeError, match="not JSON serializable"):
+            to_tytx({"source": SourceBranch({"a": "1"})})
+        with pytest.raises(TypeError):
+            to_tytx({"source": SourceBranch({"a": "1"})}, transport="msgpack")
+
+    def test_each_class_emits_its_own_code(self, both_registered):
+        encoded = to_tytx({"data": Branch({"a": "1"}), "source": SourceBranch({"b": "2"})})
+        assert '"a=1::XB"' in encoded
+        assert '"b=2::XSB"' in encoded
+
+    @pytest.mark.parametrize("transport", [None, "json", "msgpack"])
+    def test_identity_survives_dict_and_list(self, both_registered, transport):
+        value = {
+            "data": Branch({"a": "1"}),
+            "source": SourceBranch({"b": "2"}),
+            "mixed": [Branch(), SourceBranch(), "k"],
+        }
+        decoded = from_tytx(to_tytx(value, transport), transport)
+        assert decoded == value
+        assert type(decoded["data"]) is Branch
+        assert type(decoded["source"]) is SourceBranch
+        assert [type(v) for v in decoded["mixed"]] == [Branch, SourceBranch, str]
+
+    def test_identity_survives_xml(self, both_registered):
+        value = {"root": {"value": {"data": Branch({"a": "1"}), "source": SourceBranch()}}}
+        decoded = from_tytx(to_tytx(value, "xml"), "xml")
+        inner = decoded["root"]["value"]
+        assert type(inner["data"]) is Branch and inner["data"] == Branch({"a": "1"})
+        assert type(inner["source"]) is SourceBranch and inner["source"] == SourceBranch()
+
+    def test_empty_marker_hydrates_through_public_api(self, both_registered):
+        """"::CODE" with no payload is a legal value: the public decoder rebuilds
+        the empty instance, so consumers never need SUFFIX_TO_TYPE."""
+        assert from_tytx("::XB") == Branch()
+        assert type(from_tytx("::XSB")) is SourceBranch
+        decoded = from_tytx(to_tytx({"rows": [["", "n", None, "::XSB", {}]]}))
+        assert type(decoded["rows"][0][3]) is SourceBranch
+
+    def test_unknown_marker_is_returned_untouched(self, both_registered):
+        """An unknown code is not an error: the string comes back as it was."""
+        assert from_tytx("::ZZ") == "::ZZ"
+        assert from_tytx('{"v": "::ZZ"}::JS') == {"v": "::ZZ"}
+        decoded = from_tytx(to_tytx({"v": "::ZZ"}, "msgpack"), "msgpack")
+        assert decoded == {"v": "::ZZ"}
+
+    def test_msgpack_does_not_rescan_strings(self, both_registered):
+        """On msgpack only ext-4 values are typed: a literal "::CODE" string
+        stays a string, even for a known code (the JSON path hydrates it)."""
+        decoded = from_tytx(to_tytx({"v": "::XB"}, "msgpack"), "msgpack")
+        assert decoded == {"v": "::XB"}
+        assert from_tytx('{"v": "::XB"}::JS') == {"v": Branch()}
+
+
+class TestSuffixGrammar:
+    """A type code is 1 to 3 uppercase ASCII letters."""
+
+    @pytest.mark.parametrize("suffix", ["X", "XS", "BAG"])
+    def test_accepted(self, clean_registry, suffix):
+        register_type(Point, suffix, _serialize_point, _deserialize_point)
+        assert SUFFIX_TO_TYPE[suffix][0] is Point
+
+    @pytest.mark.parametrize(
+        "suffix", ["", "x", "Xs", "XSXS", "X:S", "X::S", "X1", "X S", "::X", None, 7]
+    )
+    def test_refused(self, clean_registry, suffix):
+        with pytest.raises(ValueError, match="invalid"):
+            register_type(Point, suffix, _serialize_point, _deserialize_point)
+        assert suffix not in SUFFIX_TO_TYPE
+        assert Point not in TYPE_REGISTRY
+
+    def test_register_class_validates_too(self, clean_registry):
+        class Bad:
+            __tytx_suffix__ = "bad"
+
+            def to_tytx(self):
+                return ""
+
+            @classmethod
+            def from_tytx(cls, s):
+                return cls()
+
+        with pytest.raises(ValueError, match="invalid"):
+            register_class(Bad)

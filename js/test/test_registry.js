@@ -12,6 +12,7 @@ import {
     registerClass,
     _resetCustomTypes,
     SUFFIX_TO_TYPE,
+    SUFFIX_PATTERN,
     createDecimal,
 } from '../src/registry.js';
 
@@ -187,5 +188,138 @@ describe('msgpack custom types (ext code 4)', () => {
         const decoded = fromTytx(toTytx(value, 'msgpack'), 'msgpack');
         assert.strictEqual(decoded.price.toString(), '100.5');
         assert.ok(decoded.p.equals(new Point(1, 2)));
+    });
+});
+
+// A container type owning its wire format, standing in for Bag ("X").
+class Branch {
+    static tytxSuffix = 'XB';
+    constructor(items = {}) { this.items = { ...items }; }
+    toTytx() { return Object.entries(this.items).map(([k, v]) => `${k}=${v}`).join(','); }
+    static fromTytx(s) {
+        // `this` is the class the code was registered for, so a subclass
+        // inheriting this factory rebuilds an instance of itself.
+        const items = s ? Object.fromEntries(s.split(',').map(p => p.split('='))) : {};
+        return new this(items);
+    }
+    equals(o) { return o.constructor === this.constructor
+        && JSON.stringify(o.items) === JSON.stringify(this.items); }
+}
+
+// A subclass with its own code, standing in for SourceBag ("XS").
+class SourceBranch extends Branch {
+    static tytxSuffix = 'XSB';
+}
+
+describe('registered subclass protocol', () => {
+    afterEach(() => _resetCustomTypes());
+
+    const registerBoth = () => { registerClass(Branch); registerClass(SourceBranch); };
+
+    test('subclass under the parent code is refused', () => {
+        registerClass(Branch);
+        class Clone extends Branch { static tytxSuffix = 'XB'; }
+        assert.throws(() => registerClass(Clone), /already registered/);
+    });
+
+    test('unregistered subclass is walked as a plain object, not encoded', () => {
+        // Inheriting the hooks is not enough: without its own registration the
+        // encoder sees an ordinary object and never emits the parent code.
+        registerClass(Branch);
+        const encoded = toTytx({ source: new SourceBranch({ a: '1' }) });
+        assert.ok(!encoded.includes('::XB'));
+        assert.deepStrictEqual(fromTytx(encoded), { source: { items: { a: '1' } } });
+    });
+
+    test('each class emits its own code', () => {
+        registerBoth();
+        const encoded = toTytx({ data: new Branch({ a: '1' }), source: new SourceBranch({ b: '2' }) });
+        assert.ok(encoded.includes('"a=1::XB"'));
+        assert.ok(encoded.includes('"b=2::XSB"'));
+    });
+
+    for (const transport of [null, 'json', 'msgpack']) {
+        test(`identity survives object and array (transport=${transport})`, () => {
+            registerBoth();
+            const value = {
+                data: new Branch({ a: '1' }),
+                source: new SourceBranch({ b: '2' }),
+                mixed: [new Branch(), new SourceBranch(), 'k'],
+            };
+            const decoded = fromTytx(toTytx(value, transport), transport);
+            assert.ok(decoded.data.equals(value.data));
+            assert.ok(decoded.source.equals(value.source));
+            assert.strictEqual(decoded.data.constructor, Branch);
+            assert.strictEqual(decoded.source.constructor, SourceBranch);
+            assert.deepStrictEqual(decoded.mixed.map(v => v.constructor), [Branch, SourceBranch, String]);
+        });
+    }
+
+    test('identity survives xml', () => {
+        registerBoth();
+        const value = { root: { value: { data: new Branch({ a: '1' }), source: new SourceBranch() } } };
+        const decoded = fromTytx(toTytx(value, 'xml'), 'xml');
+        const inner = decoded.root.value;
+        assert.strictEqual(inner.data.constructor, Branch);
+        assert.ok(inner.data.equals(new Branch({ a: '1' })));
+        assert.strictEqual(inner.source.constructor, SourceBranch);
+    });
+
+    test('inherited static fromTytx must build the subclass', () => {
+        // registerClass stores `s => cls.fromTytx(s)`: a factory hardcoding
+        // `new Parent()` would rebuild the wrong class under the child code.
+        registerBoth();
+        assert.strictEqual(SourceBranch.fromTytx('').constructor, SourceBranch);
+        assert.strictEqual(fromTytx('::XSB').constructor, SourceBranch);
+    });
+
+    test('empty marker hydrates through the public API', () => {
+        registerBoth();
+        assert.ok(fromTytx('::XB').equals(new Branch()));
+        const decoded = fromTytx(toTytx({ rows: [['', 'n', null, '::XSB', {}]] }));
+        assert.strictEqual(decoded.rows[0][3].constructor, SourceBranch);
+    });
+
+    test('unknown marker is returned untouched', () => {
+        registerBoth();
+        assert.strictEqual(fromTytx('::ZZ'), '::ZZ');
+        assert.deepStrictEqual(fromTytx('{"v": "::ZZ"}::JS'), { v: '::ZZ' });
+        assert.deepStrictEqual(fromTytx(toTytx({ v: '::ZZ' }, 'msgpack'), 'msgpack'), { v: '::ZZ' });
+    });
+
+    test('msgpack does not rescan strings', () => {
+        registerBoth();
+        assert.deepStrictEqual(fromTytx(toTytx({ v: '::XB' }, 'msgpack'), 'msgpack'), { v: '::XB' });
+        assert.strictEqual(fromTytx('{"v": "::XB"}::JS').v.constructor, Branch);
+    });
+});
+
+describe('suffix grammar', () => {
+    afterEach(() => _resetCustomTypes());
+
+    test('1 to 3 uppercase ASCII letters are accepted', () => {
+        for (const suffix of ['X', 'XS', 'BAG']) {
+            assert.ok(SUFFIX_PATTERN.test(suffix));
+            registerType(Point, suffix, () => '', () => null);
+            assert.strictEqual(SUFFIX_TO_TYPE[suffix][0], Point);
+            _resetCustomTypes();
+        }
+    });
+
+    test('anything else is refused and leaves no trace', () => {
+        for (const suffix of ['', 'x', 'Xs', 'XSXS', 'X:S', 'X::S', 'X1', 'X S', '::X', null, 7]) {
+            assert.throws(() => registerType(Point, suffix, () => '', () => null), /invalid/);
+            assert.ok(!(suffix in SUFFIX_TO_TYPE));
+            assert.ok(!toTytx({ p: new Point(1, 2) }).includes('::'));
+        }
+    });
+
+    test('registerClass validates too', () => {
+        class Bad {
+            static tytxSuffix = 'bad';
+            toTytx() { return ''; }
+            static fromTytx() { return new Bad(); }
+        }
+        assert.throws(() => registerClass(Bad), /invalid/);
     });
 });
