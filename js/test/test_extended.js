@@ -328,3 +328,66 @@ if (process.argv[1] && process.argv[1].endsWith('test_extended.js')) {
         console.log(`\nAll ${total} roundtrips passed!`);
     }
 }
+
+describe('RAW bytes', () => {
+    const samples = [
+        [], [0], [0, 0, 0], [97], [97, 98], [97, 98, 99], [97, 98, 99, 100],
+        [255, 254, 253], Array.from({ length: 256 }, (_, i) => i),
+    ];
+    const wrapped = (bytes) => ({
+        blob: new Uint8Array(bytes), items: [new Uint8Array(bytes), 'k', 1], n: bytes.length,
+    });
+    const sameBytes = (a, b) => a instanceof Uint8Array && Array.from(a).join() === Array.from(b).join();
+
+    test('scalar is standard base64', () => {
+        assert.strictEqual(toTytx(new Uint8Array([97, 98])), 'YWI=::RAW');
+        assert.strictEqual(toTytx(new Uint8Array([])), '::RAW');
+        assert.strictEqual(toTytx(new Uint8Array([0])), 'AA==::RAW');
+        assert.strictEqual(toTytx(new Uint8Array([0, 1, 2])), 'AAEC::RAW');
+    });
+
+    test('inside a structure marks the json', () => {
+        assert.strictEqual(toTytx({ b: new Uint8Array([0]) }), '{"b":"AA==::RAW"}::JS');
+    });
+
+    test('Buffer is a Uint8Array and travels as RAW', () => {
+        assert.strictEqual(toTytx(Buffer.from('ab')), 'YWI=::RAW');
+    });
+
+    test('msgpack is native bin: a plain reader sees the bytes', () => {
+        const { decode } = require('@msgpack/msgpack');
+        const plain = decode(toTytx({ b: new Uint8Array([0, 97, 98]) }, 'msgpack'));
+        assert.ok(sameBytes(plain.b, [0, 97, 98]));
+    });
+
+    test('invalid base64 is an error', () => {
+        assert.throws(() => fromTytx('not base64!::RAW'), /not standard padded base64/);
+    });
+
+    test('lenient base64 is refused like Python does', () => {
+        // Missing padding, inner space, character outside the alphabet,
+        // trailing newline, padding too short.
+        for (const bad of ['YQ::RAW', 'Y Q==::RAW', 'Y*==::RAW', 'YQ==\n::RAW', 'YQ=::RAW', ' YQ==::RAW']) {
+            assert.throws(() => fromTytx(bad), /not standard padded base64/, bad);
+        }
+    });
+
+    for (const bytes of samples) {
+        for (const transport of [null, 'json', 'msgpack']) {
+            test(`dict and list round trip len=${bytes.length} transport=${transport}`, () => {
+                const decoded = fromTytx(toTytx(wrapped(bytes), transport), transport);
+                assert.ok(sameBytes(decoded.blob, bytes));
+                assert.ok(sameBytes(decoded.items[0], bytes));
+                assert.strictEqual(decoded.items[1], 'k');
+                assert.strictEqual(decoded.n, bytes.length);
+            });
+        }
+        test(`xml text and attribute round trip len=${bytes.length}`, () => {
+            const value = { root: { attrs: { sig: new Uint8Array(bytes) }, value: wrapped(bytes) } };
+            const decoded = fromTytx(toTytx(value, 'xml'), 'xml');
+            assert.ok(sameBytes(decoded.root.attrs.sig, bytes));
+            assert.ok(sameBytes(decoded.root.value.blob, bytes));
+            assert.ok(sameBytes(decoded.root.value.items[0], bytes));
+        });
+    }
+});

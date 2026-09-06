@@ -301,6 +301,7 @@ getTransport('application/msgpack');        // 'msgpack'
 | `D` | Date | `date` | `Date` (midnight UTC) | `"2025-01-15::D"` |
 | `DHZ` | DateTime | `datetime` | `Date` | `"2025-01-15T10:30:00.000Z::DHZ"` |
 | `H` | Time | `time` | `Date` (epoch) | `"10:30:00.000::H"` |
+| `RAW` | Bytes | `bytes` | `Uint8Array` | `"AAEC::RAW"` (base64; native bin on MessagePack) |
 | `L` | Integer | `int` | `number` | `"42::L"` |
 | `R` | Float | `float` | `number` | `"3.14::R"` |
 | `B` | Boolean | `bool` | `boolean` | `"true::B"` |

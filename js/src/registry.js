@@ -135,6 +135,17 @@ function _serializeFloat(v) {
     return v.toString();
 }
 
+function _serializeRaw(v) {
+    // Standard base64 (RFC 4648, padded), built from a binary string in
+    // chunks so a large view does not overflow the argument list. Text
+    // transports only: msgpack carries bytes as its native bin type.
+    let binary = '';
+    for (let i = 0; i < v.length; i += 0x8000) {
+        binary += String.fromCharCode.apply(null, v.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+}
+
 // =============================================================================
 // TYPE REGISTRY
 // =============================================================================
@@ -177,6 +188,10 @@ function getTypeEntry(value) {
     }
     if (isDecimal(value)) {
         return ['N', _serializeDecimal, false];
+    }
+    if (value instanceof Uint8Array) {
+        // Node's Buffer is a Uint8Array too, so it travels as RAW as well.
+        return ['RAW', _serializeRaw, false];
     }
     if (value instanceof Date) {
         const dateType = getDateType(value);
@@ -246,11 +261,33 @@ function _deserializeNone(s) {
     return null;
 }
 
+// Standard base64 with padding, whole string: atob alone accepts missing
+// padding and whitespace, which Python's strict decoder refuses.
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+function _deserializeRaw(s) {
+    if (!BASE64_PATTERN.test(s)) {
+        throw new Error(`RAW payload is not standard padded base64: '${s}'`);
+    }
+    const binary = atob(s);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        out[i] = binary.charCodeAt(i);
+    }
+    return out;
+}
+
 function _deserializeQs(s) {
     // Lazy import to avoid circular dependency
     const { fromQs } = require('./qs.js');
     return fromQs(s);
 }
+
+// A type code is one or more uppercase ASCII letters ("N", "XS", "DHZ"). No
+// length limit. The grammar rules out ":" so a code can never be confused with
+// the "::" suffix separator or with the ":" that splits the msgpack ext-4
+// payload.
+const SUFFIX_PATTERN = /^[A-Z]+$/;
 
 // Suffix -> [type, deserializer] - includes all for decoding
 // Accepts both DH (deprecated) and DHZ (canonical) for datetime
@@ -266,6 +303,7 @@ const SUFFIX_TO_TYPE = {
     'B': [Boolean, _deserializeBool],
     'QS': [Object, _deserializeQs],
     'NN': [null, _deserializeNone],
+    'RAW': [Uint8Array, _deserializeRaw],
 };
 
 // =============================================================================
@@ -277,18 +315,24 @@ const SUFFIX_TO_TYPE = {
  *
  * Lets external code extend TYTX with its own types. The encode side matches
  * instances by exact constructor (subclasses are not matched, mirroring the
- * Python exact-type lookup); the decode side maps the suffix back via
- * SUFFIX_TO_TYPE. Re-registering the same class replaces its hooks; reusing
- * a suffix owned by a different type throws.
+ * Python exact-type lookup); a subclass that must travel declares and
+ * registers its own code (Bag is "X", SourceBag is "XS"). The decode side
+ * maps the suffix back via SUFFIX_TO_TYPE. Re-registering the same class
+ * replaces its hooks; reusing a suffix owned by a different type throws.
  *
  * @param {Function} cls - the class/constructor to register
- * @param {string} suffix - the TYTX suffix (e.g. "X")
+ * @param {string} suffix - the TYTX suffix: uppercase ASCII letters (e.g. "X")
  * @param {function(any): string} serializer - instance -> string
  * @param {function(string): any} deserializer - string -> instance
  * @param {boolean} [jsonNative=false] - if true, skip suffix when JSON-native
- * @throws {Error} if the suffix is already registered for a different type
+ * @throws {Error} if the suffix does not match SUFFIX_PATTERN, or is already
+ *   registered for a different type
  */
 function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    if (typeof suffix !== 'string' || !SUFFIX_PATTERN.test(suffix)) {
+        throw new Error(
+            `TYTX suffix '${suffix}' is invalid: expected uppercase ASCII letters only`);
+    }
     const existing = SUFFIX_TO_TYPE[suffix];
     if (existing !== undefined && existing[0] !== cls) {
         const owner = existing[0] === null ? 'null' : existing[0].name;
@@ -357,6 +401,7 @@ export {
     getTypeEntry,
     getCustomTypeEntry,
     SUFFIX_TO_TYPE,
+    SUFFIX_PATTERN,
     // Custom type registration
     registerType,
     registerClass,
@@ -369,6 +414,7 @@ export {
     _serializeBool,
     _serializeInt,
     _serializeFloat,
+    _serializeRaw,
     // Deserializers (exported for testing)
     _deserializeDecimal,
     _deserializeDate,
@@ -379,4 +425,5 @@ export {
     _deserializeFloat,
     _deserializeStr,
     _deserializeNone,
+    _deserializeRaw,
 };

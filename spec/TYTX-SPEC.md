@@ -1,4 +1,4 @@
-# TYTX Protocol Specification v0.7.0
+# TYTX Protocol Specification v0.7.1
 
 **TYTX** (Typed Text) is a protocol for transmitting typed scalar values over text-based formats (JSON, XML) and binary formats (MessagePack).
 
@@ -10,7 +10,7 @@ TYTX extends JSON/XML by adding type suffixes to string values that represent no
 value::SUFFIX
 ```
 
-Where `SUFFIX` is a 1-3 character type code.
+Where `SUFFIX` is a type code made of uppercase ASCII letters (§2.5).
 
 ## 2. Type Codes
 
@@ -24,6 +24,7 @@ These types are NOT native to JSON and MUST be encoded with type suffixes:
 | `D` | Date | ISO 8601 date (YYYY-MM-DD) | `"2025-01-15::D"` |
 | `DHZ` | DateTime | ISO 8601 datetime with milliseconds and Z suffix | `"2025-01-15T10:30:00.000Z::DHZ"` |
 | `H` | Time | ISO 8601 time with milliseconds (HH:MM:SS.sss) | `"10:30:00.000::H"` |
+| `RAW` | Bytes | Standard base64 (RFC 4648, padded) | `"AAEC::RAW"` |
 
 ### 2.2 Native Types (for XML and interop)
 
@@ -51,6 +52,63 @@ These suffixes indicate structured data formats:
 | Suffix | Replacement | Notes |
 |--------|-------------|-------|
 | `DH` | `DHZ` | Still accepted on decode, never emitted |
+
+### 2.5 Registered Types and Reserved Codes
+
+TYTX ships the codes above and nothing else. Any other type reaches the wire
+through the registry (`register_type` / `register_class` in Python,
+`registerType` / `registerClass` in JavaScript), which the owning package
+calls at its own import time. Registration binds one class to one code.
+
+**Code grammar.** A code is one or more uppercase ASCII letters (`[A-Z]+`,
+matched against the whole string); there is no length limit, so a longer code
+can be chosen for clarity. Registration refuses anything else. The grammar
+rules out `:`, so a code can never be confused with the `::` separator or with
+the `:` that splits the MessagePack ext-4 payload (§6.2).
+
+**Codes reserved by consumers.** These codes are not built into TYTX; they are
+listed here so nobody else claims them.
+
+| Code | Class | Registered by |
+|------|-------|---------------|
+| `X` | `Bag` | genro-bag (Python) and genro-bag-js |
+| `XS` | `SourceBag` | genro-builders (Python) and genro-dom-js |
+| `BAG` | legacy `gnr.core.gnrbag.Bag` | genropy-asgi |
+
+**Lookup is by exact type.** The encoder looks a value up by its exact class
+(`type(value)` in Python, `value.constructor` in JavaScript). A subclass is
+never matched through its parent: a subclass that must travel declares and
+registers its own code, and the parent's code keeps meaning the parent. A
+subclass cannot be registered under a code already owned by another class.
+This is why `Bag` is `X` and `SourceBag` is `XS`.
+
+**The payload is opaque.** TYTX hands the serializer's output to the wire and
+the wire's text to the deserializer, verbatim. An empty payload is legal:
+`"::X"` decodes to whatever the `X` deserializer makes of `""` (an empty
+`Bag`). The decoder rebuilds the instance from the text alone: a class that
+needs runtime context (a `SourceBag` needs its builder) is rebuilt detached,
+and the consumer binds it afterwards.
+
+**Unknown codes are not errors.** A string whose code is not registered on the
+receiving side comes back untouched, on every transport (§3.5, §6.2). A
+consumer that uses `"::CODE"` strings as structural markers inside its own
+format — the Bag row format marks a branch node with `"::X"` — must take its
+structure from its own data (the rows), never from whether hydration
+happened. An unknown branch marker therefore leaves the hierarchy intact and
+the children under their parent; that requirement belongs to the consumer's
+decoder, not to TYTX.
+
+**Old payloads.** A `"::X"` marker written before `XS` existed says only
+"this branch is a Bag". It does not say whether the branch was source or data;
+that information is not in the wire, and no decoder can recover it. Consumers
+that must tell the two apart choose the root class explicitly when they
+decode old payloads.
+
+**MessagePack.** Registered types travel as ext-4 values (§6.2), next to the
+native extensions for Decimal, date, time and the Timestamp for datetime;
+strings are not rescanned. A literal `"::CODE"` string inside a MessagePack
+map arrives as a string, even for a registered code, whereas the JSON path
+hydrates it.
 
 ## 3. JSON Format
 
@@ -331,6 +389,9 @@ arrays, maps) travel as native MessagePack types.
 | `3` | time | ISO `"HH:MM:SS.ffffff"` |
 | `4` | registered custom type | `"SUFFIX:serialized"`, split at the **first** `:` |
 
+Bytes (`RAW`) need no extension: they are the MessagePack native `bin` type,
+with no base64 (§6.8).
+
 ### 6.2 Custom Types (ext 4)
 
 A type registered via `register_type` / `register_class` is packed as ext 4
@@ -429,6 +490,19 @@ The `::DH` type code is still supported in **deserialization** for backward comp
 
 - Serialize: String representation
 - Example: `3.14159` -> `"3.14159"`
+
+### 6.8 Bytes (RAW)
+
+- Python `bytes`, JavaScript `Uint8Array` (Node's `Buffer` is one).
+- JSON and XML: standard base64 (RFC 4648, with padding) under `::RAW`, in
+  text content and in attributes alike: `"AAEC::RAW"`. Empty bytes are
+  `"::RAW"`. A payload that is not valid base64 is a decode error.
+- MessagePack: the native `bin` type, no base64, no extension code.
+- Round trip is byte-identical in both directions and both languages.
+- Intended for small binary values carried inside a message (a signature, a
+  token, a thumbnail). Not for files: base64 costs one third more and goes
+  through the JSON parser; files stay on HTTP.
+- Exact-type lookup applies: `bytearray` and `memoryview` are not `RAW`.
 
 ## 7. API Functions
 
@@ -603,6 +677,7 @@ Note: The body is valid JSON (parseable by standard parsers), but contains TYTX 
 
 | Version | Changes |
 |---------|---------|
+| 0.7.1 | `RAW` bytes type (base64 on JSON/XML, native bin on MessagePack, §6.8). Registered types: code grammar (`[A-Z]+`), exact-type lookup with per-subclass codes, reserved `X` / `XS` / `BAG`, unknown-code and empty-payload rules (§2.5) |
 | 0.7.0 | Scalar values without `::JS` suffix; MessagePack simplified; XML attrs/value structure |
 | 0.6.x | Initial release with `::JS` for all typed outputs |
 

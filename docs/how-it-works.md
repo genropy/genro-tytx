@@ -24,6 +24,7 @@ The `::JS` suffix marks the entire payload as TYTX-encoded JSON.
 | `D` | Date | `"2025-01-15::D"` | `date(2025, 1, 15)` | `Date` (midnight UTC) |
 | `DHZ` | DateTime | `"2025-01-15T10:30:00.000Z::DHZ"` | `datetime(...)` | `Date` |
 | `H` | Time (Hour) | `"10:30:00::H"` | `time(10, 30, 0)` | `Date` (epoch date) |
+| `RAW` | Bytes | `"AAEC::RAW"` (base64) | `bytes` | `Uint8Array` |
 
 ### Decode-only Types (native to JSON, used in XML)
 

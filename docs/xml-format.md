@@ -212,6 +212,7 @@ Type suffixes in XML:
 | Date | `::D` | `2025-01-15::D` |
 | DateTime | `::DHZ` | `2025-01-15T10:30:00.000Z::DHZ` |
 | Time | `::H` | `10:30:00.000::H` |
+| Bytes | `::RAW` | `AAEC::RAW` (base64) |
 | Boolean | `::B` | `1::B` or `0::B` |
 | Integer | `::L` | `123::L` |
 | Float | `::R` | `3.14::R` |

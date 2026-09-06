@@ -8,10 +8,18 @@ Only scalar types are supported in base version.
 
 from __future__ import annotations
 
+import base64
+import re
 from collections.abc import Callable
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
+
+# A type code is one or more uppercase ASCII letters ("N", "XS", "DHZ"). No
+# length limit. The grammar rules out ":" so a code can never be confused with
+# the "::" suffix separator or with the ":" that splits the msgpack ext-4
+# payload. Validated with fullmatch: "$" alone would accept a trailing newline.
+SUFFIX_PATTERN = re.compile(r"[A-Z]+")
 
 # =============================================================================
 # SERIALIZERS (Python type -> string)
@@ -65,6 +73,12 @@ def _serialize_none(v: None) -> str:
     return ""
 
 
+def _serialize_raw(v: bytes) -> str:
+    """Standard base64 (RFC 4648, padded). Text transports only: msgpack
+    carries bytes as its native bin type and never reaches this hook."""
+    return base64.b64encode(v).decode("ascii")
+
+
 # Type Registry: type -> (suffix, serializer, json_native)
 # json_native=True means JSON handles it natively (no suffix needed in JSON)
 TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
@@ -76,6 +90,7 @@ TYPE_REGISTRY: dict[type, tuple[str, Callable[[Any], str], bool]] = {
     int: ("L", _serialize_int, True),
     float: ("R", _serialize_float, True),
     type(None): ("NN", _serialize_none, True),
+    bytes: ("RAW", _serialize_raw, False),
 }
 
 
@@ -123,6 +138,10 @@ def _deserialize_none(s: str) -> None:
     return None
 
 
+def _deserialize_raw(s: str) -> bytes:
+    return base64.b64decode(s, validate=True)
+
+
 def _deserialize_qs(s: str) -> dict | list:
     from .qs import from_qs
 
@@ -143,6 +162,7 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
     "B": (bool, _deserialize_bool),
     "NN": (type(None), _deserialize_none),
     "QS": (dict, _deserialize_qs),
+    "RAW": (bytes, _deserialize_raw),
 }
 
 
@@ -163,20 +183,26 @@ def register_type(
     Lets an external package (e.g. genro-bag) extend TYTX without creating a
     circular dependency: the package calls this at its own import time.
 
-    Matching is by exact type: subclasses are not matched. Re-registering the
-    same class replaces its hooks; reusing a suffix owned by a different type
-    is an error.
+    Matching is by exact type: subclasses are not matched. A subclass that
+    must travel declares and registers its own code (Bag is "X", SourceBag is
+    "XS"). Re-registering the same class replaces its hooks; reusing a suffix
+    owned by a different type is an error.
 
     Args:
         cls: The Python type to register
-        suffix: The TYTX suffix (e.g. "X" for Bag)
+        suffix: The TYTX suffix: uppercase ASCII letters (e.g. "X" for Bag)
         serializer: Pre-JSON hook - converts obj to string
         deserializer: Post-JSON hook - converts string back to obj
         json_native: If True, skip suffix when value is JSON-native
 
     Raises:
-        ValueError: if the suffix is already registered for a different type
+        ValueError: if the suffix does not match SUFFIX_PATTERN, or is already
+            registered for a different type
     """
+    if not isinstance(suffix, str) or not SUFFIX_PATTERN.fullmatch(suffix):
+        raise ValueError(
+            f"TYTX suffix {suffix!r} is invalid: expected uppercase ASCII letters only"
+        )
     existing = SUFFIX_TO_TYPE.get(suffix)
     if existing is not None and existing[0] is not cls:
         raise ValueError(

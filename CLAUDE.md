@@ -26,7 +26,7 @@ Il crash avviene quando il glob restituisce troppi risultati.
 ## Project-Specific Guidelines
 
 ### Type Codes Specification
-I type codes sono definiti in `spec/type-codes.md` - questa è la fonte di verità.
+I type codes sono definiti in `spec/TYTX-SPEC.md` (§2 per i codici, §2.5 per le classi registrate e i codici riservati) - questa è la fonte di verità. Il lato JavaScript ha in più `js/TYTX-JS-SPEC.md` per date e Decimal.
 
 ### Test-First Development
 Ogni modifica al codice deve essere accompagnata da test.
