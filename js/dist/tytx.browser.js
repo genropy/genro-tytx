@@ -115,6 +115,13 @@ var TYTX = (() => {
   function _serializeFloat(v) {
     return v.toString();
   }
+  function _serializeRaw(v) {
+    let binary = "";
+    for (let i = 0; i < v.length; i += 32768) {
+      binary += String.fromCharCode.apply(null, v.subarray(i, i + 32768));
+    }
+    return btoa(binary);
+  }
   var CUSTOM_TYPES = [];
   function getCustomTypeEntry(value) {
     if (value === null || typeof value !== "object") {
@@ -133,6 +140,9 @@ var TYTX = (() => {
     }
     if (isDecimal(value)) {
       return ["N", _serializeDecimal, false];
+    }
+    if (value instanceof Uint8Array) {
+      return ["RAW", _serializeRaw, false];
     }
     if (value instanceof Date) {
       const dateType = getDateType(value);
@@ -186,10 +196,23 @@ var TYTX = (() => {
   function _deserializeNone(s) {
     return null;
   }
+  var BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  function _deserializeRaw(s) {
+    if (!BASE64_PATTERN.test(s)) {
+      throw new Error(`RAW payload is not standard padded base64: '${s}'`);
+    }
+    const binary = atob(s);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      out[i] = binary.charCodeAt(i);
+    }
+    return out;
+  }
   function _deserializeQs(s) {
     const { fromQs } = require2("./qs.js");
     return fromQs(s);
   }
+  var SUFFIX_PATTERN = /^[A-Z]+$/;
   var SUFFIX_TO_TYPE = {
     "N": [Object, _deserializeDecimal],
     // Object as placeholder for Decimal type
@@ -204,9 +227,15 @@ var TYTX = (() => {
     "T": [String, _deserializeStr],
     "B": [Boolean, _deserializeBool],
     "QS": [Object, _deserializeQs],
-    "NN": [null, _deserializeNone]
+    "NN": [null, _deserializeNone],
+    "RAW": [Uint8Array, _deserializeRaw]
   };
   function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
+    if (typeof suffix !== "string" || !SUFFIX_PATTERN.test(suffix)) {
+      throw new Error(
+        `TYTX suffix '${suffix}' is invalid: expected uppercase ASCII letters only`
+      );
+    }
     const existing = SUFFIX_TO_TYPE[suffix];
     if (existing !== void 0 && existing[0] !== cls) {
       const owner = existing[0] === null ? "null" : existing[0].name;
