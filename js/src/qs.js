@@ -12,9 +12,8 @@
  * - Mixed → error (use ::JS embedded for complex structures)
  */
 
+import { fromTytx } from './decode.js';
 import { rawEncode } from './utils.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
 
 /**
  * Encode a JavaScript object or array to TYTX QS string.
@@ -65,8 +64,6 @@ function toQs(value) {
  * // ["alfa", "beta", "gamma"]
  */
 function fromQs(data) {
-    // Lazy import to avoid circular dependency
-    const { fromTytx } = require('./decode.js');
 
     if (!data) {
         return [];

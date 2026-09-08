@@ -27,13 +27,14 @@ import {
     getDecimalLibrary,
     registerType,
     registerClass,
+    getRegisteredType,
 } from './registry.js';
 
 import { toTytx } from './encode.js';
 import { fromTytx } from './decode.js';
 import { fetchTytx, getTransport, CONTENT_TYPES } from './http.js';
 
-const __version__ = '0.7.4';
+const __version__ = '0.15.0';
 
 export {
     // Core API
@@ -51,6 +52,7 @@ export {
     // Custom type registration
     registerType,
     registerClass,
+    getRegisteredType,
     // Version
     __version__,
 };

@@ -26,7 +26,7 @@ const datetime = (y, mo, d, h = 0, m = 0, s = 0, ms = 1) =>
     new Date(Date.UTC(y, mo - 1, d, h, m, s, ms));
 
 const PYTHON_SERVER_PORT = 3457;
-const PYTHON_SERVER_URL = `http://localhost:${PYTHON_SERVER_PORT}/echo`;
+const PYTHON_SERVER_URL = `http://127.0.0.1:${PYTHON_SERVER_PORT}/echo`;
 
 const HTTP_TRANSPORTS = ['json', 'xml', 'msgpack'];
 

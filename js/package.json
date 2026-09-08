@@ -1,6 +1,6 @@
 {
   "name": "genro-tytx",
-  "version": "0.9.0",
+  "version": "0.15.0",
   "description": "TYTX - Typed Text Protocol for Scalar Types",
   "main": "src/index.js",
   "type": "module",
@@ -8,7 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test test/test_extended.js",
+    "test": "node --test test/test_extended.js test/test_registry.js test/test_registry_lookup.js",
     "test:all": "node --test test/test_*.js",
     "test:http": "node --test test/test_http.js",
     "build": "node build.js"

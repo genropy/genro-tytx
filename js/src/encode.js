@@ -5,6 +5,9 @@
  * Supports multiple transports: json, xml, msgpack.
  */
 
+import { toQs } from './qs.js';
+import { toXml } from './xml.js';
+import { toMsgpack } from './msgpack.js';
 import { rawEncode } from './utils.js';
 import { getTypeEntry } from './registry.js';
 import { createRequire } from 'module';
@@ -123,7 +126,6 @@ function _toRawMsgpack(value) {
  */
 function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix = false } = {}) {
     if (qs) {
-        const { toQs } = require('./qs.js');
         return `${toQs(value)}::QS`;
     }
 
@@ -146,14 +148,10 @@ function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix
         }
         return result;
     } else if (transport === 'xml') {
-        // Lazy import to avoid circular dependency
-        const { toXml } = require('./xml.js');
-        const result = toXml(value);
+            const result = toXml(value);
         return `<?xml version="1.0" ?><tytx_root>${result}</tytx_root>`;
     } else if (transport === 'msgpack') {
-        // Lazy import to avoid circular dependency
-        const { toMsgpack } = require('./msgpack.js');
-        return toMsgpack(value);
+            return toMsgpack(value);
     } else {
         throw new Error(`Unknown transport: ${transport}`);
     }

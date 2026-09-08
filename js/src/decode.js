@@ -5,9 +5,9 @@
  * Supports multiple transports: json, xml, msgpack.
  */
 
+import { fromXml } from './xml.js';
+import { fromMsgpack } from './msgpack.js';
 import { walk, rawDecode } from './utils.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
 
 const TYTX_MARKER = '::JS';
 
@@ -66,7 +66,6 @@ function _decodeItem(s) {
  * @returns {any}
  */
 function _fromXml(data) {
-    const { fromXml } = require('./xml.js');
     const result = fromXml(data);
     // If result is a string with TYTX suffix, hydrate it via JSON decoder
     if (typeof result === 'string') {
@@ -81,7 +80,6 @@ function _fromXml(data) {
  * @returns {any}
  */
 function _fromMsgpack(data) {
-    const { fromMsgpack } = require('./msgpack.js');
     return fromMsgpack(data);
 }
 

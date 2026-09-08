@@ -6,6 +6,7 @@
  * Only scalar types are supported in base version.
  */
 
+import { fromQs } from './qs.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -278,8 +279,6 @@ function _deserializeRaw(s) {
 }
 
 function _deserializeQs(s) {
-    // Lazy import to avoid circular dependency
-    const { fromQs } = require('./qs.js');
     return fromQs(s);
 }
 
@@ -309,6 +308,11 @@ const SUFFIX_TO_TYPE = {
 // =============================================================================
 // CUSTOM TYPE REGISTRATION
 // =============================================================================
+
+/** Return the constructor registered for a suffix, without running its decoder. */
+function getRegisteredType(suffix) {
+    return Object.hasOwn(SUFFIX_TO_TYPE, suffix) ? SUFFIX_TO_TYPE[suffix][0] : null;
+}
 
 /**
  * Register a custom type for TYTX serialization.
@@ -399,6 +403,7 @@ export {
     getDateType,
     // Type registry
     getTypeEntry,
+    getRegisteredType,
     getCustomTypeEntry,
     SUFFIX_TO_TYPE,
     SUFFIX_PATTERN,

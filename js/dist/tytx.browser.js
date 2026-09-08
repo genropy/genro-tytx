@@ -26,6 +26,7 @@ var TYTX = (() => {
     fetchTytx: () => fetchTytx,
     fromTytx: () => fromTytx,
     getDecimalLibrary: () => getDecimalLibrary,
+    getRegisteredType: () => getRegisteredType,
     getTransport: () => getTransport,
     isDecimal: () => isDecimal,
     registerClass: () => registerClass,
@@ -41,17 +42,481 @@ var TYTX = (() => {
     };
   }
 
-  // src/registry.js
+  // src/msgpack.js
   var import_meta = {};
   var require2 = createRequire(import_meta.url);
+  var msgpack = null;
+  var HAS_MSGPACK = false;
+  try {
+    msgpack = require2("@msgpack/msgpack");
+    HAS_MSGPACK = true;
+  } catch {
+    HAS_MSGPACK = false;
+  }
+  function _checkMsgpack() {
+    if (!HAS_MSGPACK) {
+      throw new Error(
+        "@msgpack/msgpack is required for MessagePack support. Install with: npm install @msgpack/msgpack"
+      );
+    }
+  }
+  var _extensionCodec = _buildCodec();
+  function _buildCodec() {
+    if (!HAS_MSGPACK) {
+      return null;
+    }
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+    const codec = new msgpack.ExtensionCodec();
+    codec.register({
+      type: -1,
+      encode: (v) => {
+        if (v instanceof Date) {
+          const dt = getDateType(v);
+          if (dt === "D" || dt === "H") {
+            return null;
+          }
+        }
+        return msgpack.encodeTimestampExtension(v);
+      },
+      decode: (data) => msgpack.decodeTimestampExtension(data)
+    });
+    codec.register({
+      type: 1,
+      encode: (v) => {
+        if (isDecimal(v)) {
+          return enc.encode(v.toString());
+        }
+        return null;
+      },
+      decode: (data) => createDecimal(dec.decode(data))
+    });
+    codec.register({
+      type: 2,
+      encode: (v) => {
+        if (v instanceof Date && getDateType(v) === "D") {
+          const y = v.getUTCFullYear();
+          const m = String(v.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(v.getUTCDate()).padStart(2, "0");
+          return enc.encode(`${y}-${m}-${d}`);
+        }
+        return null;
+      },
+      decode: (data) => /* @__PURE__ */ new Date(dec.decode(data) + "T00:00:00.000Z")
+    });
+    codec.register({
+      type: 3,
+      encode: (v) => {
+        if (v instanceof Date && getDateType(v) === "H") {
+          const h = String(v.getUTCHours()).padStart(2, "0");
+          const m = String(v.getUTCMinutes()).padStart(2, "0");
+          const s = String(v.getUTCSeconds()).padStart(2, "0");
+          const ms = String(v.getUTCMilliseconds()).padStart(3, "0");
+          return enc.encode(`${h}:${m}:${s}.${ms}`);
+        }
+        return null;
+      },
+      decode: (data) => {
+        const str = dec.decode(data);
+        const dotIdx = str.indexOf(".");
+        const timePart = dotIdx >= 0 ? str.substring(0, dotIdx) : str;
+        const fracStr = dotIdx >= 0 ? str.substring(dotIdx + 1) : "0";
+        const [h, m, s] = timePart.split(":");
+        const ms = Math.round(+fracStr.substring(0, 3));
+        return new Date(Date.UTC(1970, 0, 1, +h, +m, +s, ms));
+      }
+    });
+    codec.register({
+      type: 4,
+      encode: (v) => {
+        const entry = getCustomTypeEntry(v);
+        if (entry !== null) {
+          const [suffix, serializer] = entry;
+          return enc.encode(`${suffix}:${serializer(v)}`);
+        }
+        return null;
+      },
+      decode: (data) => {
+        const str = dec.decode(data);
+        const idx = str.indexOf(":");
+        const suffix = str.slice(0, idx);
+        const payload = str.slice(idx + 1);
+        const entry = SUFFIX_TO_TYPE[suffix];
+        if (entry !== void 0) {
+          const [, deserializer] = entry;
+          return deserializer(payload);
+        }
+        return `${payload}::${suffix}`;
+      }
+    });
+    return codec;
+  }
+  function toMsgpack(value) {
+    _checkMsgpack();
+    return msgpack.encode(value, { extensionCodec: _extensionCodec });
+  }
+  function fromMsgpack(data) {
+    _checkMsgpack();
+    return msgpack.decode(data, { extensionCodec: _extensionCodec });
+  }
+
+  // src/utils.js
+  function rawEncode(value, forceSuffix = false) {
+    const entry = getTypeEntry(value);
+    if (entry === null) {
+      return [false, String(value)];
+    }
+    const [suffix, serializer, jsonNative] = entry;
+    if (jsonNative && !forceSuffix) {
+      return [false, String(value)];
+    }
+    return [true, `${serializer(value)}::${suffix}`];
+  }
+  function rawDecode(s) {
+    if (!s.includes("::")) {
+      return [false, s];
+    }
+    const lastIndex = s.lastIndexOf("::");
+    const value = s.slice(0, lastIndex);
+    const suffix = s.slice(lastIndex + 2);
+    const entry = SUFFIX_TO_TYPE[suffix];
+    if (entry === void 0) {
+      return [false, s];
+    }
+    const [, decoder] = entry;
+    return [true, decoder(value)];
+  }
+  function walk(data, callback, filtercb) {
+    if (data !== null && typeof data === "object" && !Array.isArray(data)) {
+      const result = {};
+      for (const [k, v] of Object.entries(data)) {
+        result[k] = walk(v, callback, filtercb);
+      }
+      return result;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => walk(item, callback, filtercb));
+    }
+    if (filtercb(data)) {
+      return callback(data);
+    }
+    return data;
+  }
+
+  // src/encode.js
+  var import_meta2 = {};
+  var require3 = createRequire(import_meta2.url);
+  function _preprocessValue(value) {
+    const entry = getTypeEntry(value);
+    if (entry !== null) {
+      const [suffix, serializer, jsonNative] = entry;
+      if (!jsonNative) {
+        return [`${serializer(value)}::${suffix}`, true];
+      }
+      return [value, false];
+    }
+    if (Array.isArray(value)) {
+      let hasSpecial = false;
+      const result = value.map((item) => {
+        const [processed, special] = _preprocessValue(item);
+        if (special) hasSpecial = true;
+        return processed;
+      });
+      return [result, hasSpecial];
+    }
+    if (value !== null && typeof value === "object") {
+      let hasSpecial = false;
+      const result = {};
+      for (const [k, v] of Object.entries(value)) {
+        const [processed, special] = _preprocessValue(v);
+        if (special) hasSpecial = true;
+        result[k] = processed;
+      }
+      return [result, hasSpecial];
+    }
+    return [value, false];
+  }
+  function _toJson(value, forceSuffix = false) {
+    const [encoded, result] = rawEncode(value, forceSuffix);
+    if (encoded) {
+      return result;
+    }
+    const [processed, hasSpecial] = _preprocessValue(value);
+    const jsonResult = JSON.stringify(processed);
+    if (hasSpecial) {
+      return `${jsonResult}::JS`;
+    }
+    return jsonResult;
+  }
+  function _toRawJson(value) {
+    return JSON.stringify(value);
+  }
+  function _toRawMsgpack(value) {
+    const { encode } = require3("@msgpack/msgpack");
+    return encode(value);
+  }
+  function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix = false } = {}) {
+    if (qs) {
+      return `${toQs(value)}::QS`;
+    }
+    if (raw) {
+      if (transport === null || transport === "json") {
+        return _toRawJson(value);
+      } else if (transport === "msgpack") {
+        return _toRawMsgpack(value);
+      } else if (transport === "xml") {
+        throw new Error("raw=true is not supported for XML transport");
+      } else {
+        throw new Error(`Unknown transport: ${transport}`);
+      }
+    }
+    if (transport === null || transport === "json") {
+      const result = _toJson(value, _forceSuffix);
+      if (transport === "json") {
+        return `"${result}"`;
+      }
+      return result;
+    } else if (transport === "xml") {
+      const result = toXml(value);
+      return `<?xml version="1.0" ?><tytx_root>${result}</tytx_root>`;
+    } else if (transport === "msgpack") {
+      return toMsgpack(value);
+    } else {
+      throw new Error(`Unknown transport: ${transport}`);
+    }
+  }
+
+  // src/xml.js
+  var import_meta3 = {};
+  var require4 = createRequire(import_meta3.url);
+  var DOMParser;
+  var XMLSerializer;
+  if (typeof window !== "undefined" && window.DOMParser) {
+    DOMParser = window.DOMParser;
+    XMLSerializer = window.XMLSerializer;
+  } else {
+    try {
+      const xmldom = require4("@xmldom/xmldom");
+      DOMParser = xmldom.DOMParser;
+      XMLSerializer = xmldom.XMLSerializer;
+    } catch {
+      DOMParser = null;
+      XMLSerializer = null;
+    }
+  }
+  function _isXmlElement(item) {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      return false;
+    }
+    const keys = Object.keys(item);
+    if (keys.length !== 1) {
+      return false;
+    }
+    const itemData = item[keys[0]];
+    return itemData !== null && typeof itemData === "object" && "value" in itemData;
+  }
+  function _serializeElement(doc, tag, data) {
+    const element = doc.createElement(tag);
+    const attrs = data.attrs || {};
+    const value = data.value;
+    for (const [attrName, attrValue] of Object.entries(attrs)) {
+      element.setAttribute(attrName, toTytx(attrValue, null, { _forceSuffix: true }));
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (_isXmlElement(item)) {
+          const [itemTag] = Object.keys(item);
+          const itemData = item[itemTag];
+          const childElement = _serializeElement(doc, itemTag, itemData);
+          element.appendChild(childElement);
+        } else {
+          element.textContent = toTytx(value);
+          break;
+        }
+      }
+    } else {
+      element.textContent = toTytx(value);
+    }
+    return element;
+  }
+  function toXml(value) {
+    if (!DOMParser) {
+      throw new Error("XML support requires @xmldom/xmldom package in Node.js");
+    }
+    if (_isXmlElement(value)) {
+      const [rootTag] = Object.keys(value);
+      const rootData = value[rootTag];
+      const doc = new DOMParser().parseFromString("<root/>", "text/xml");
+      const element = _serializeElement(doc, rootTag, rootData);
+      const serializer = new XMLSerializer();
+      return serializer.serializeToString(element);
+    } else {
+      return toTytx(value);
+    }
+  }
+  function fromXmlnode(element) {
+    const attrs = {};
+    for (let i = 0; i < element.attributes.length; i++) {
+      const attr = element.attributes[i];
+      attrs[attr.name] = fromTytx(attr.value);
+    }
+    const children = [];
+    for (let i = 0; i < element.childNodes.length; i++) {
+      const node = element.childNodes[i];
+      if (node.nodeType === 1) {
+        children.push(node);
+      }
+    }
+    if (children.length > 0) {
+      if (children.length === 1) {
+        const child = children[0];
+        const childData = fromXmlnode(child);
+        return { attrs, value: { [child.tagName]: childData } };
+      } else {
+        const valueList = [];
+        for (const child of children) {
+          const childData = fromXmlnode(child);
+          valueList.push({ [child.tagName]: childData });
+        }
+        return { attrs, value: valueList };
+      }
+    }
+    return { attrs, value: fromTytx(element.textContent) };
+  }
+  function fromXml(data) {
+    if (!DOMParser) {
+      throw new Error("XML support requires @xmldom/xmldom package in Node.js");
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data, "text/xml");
+    let root = doc.documentElement;
+    if (root.tagName === "tytx_root") {
+      let firstElementChild = null;
+      for (let i = 0; i < root.childNodes.length; i++) {
+        if (root.childNodes[i].nodeType === 1) {
+          firstElementChild = root.childNodes[i];
+          break;
+        }
+      }
+      if (!firstElementChild) {
+        return fromTytx(root.textContent);
+      }
+      root = firstElementChild;
+    }
+    const result = fromXmlnode(root);
+    return { [root.tagName]: result };
+  }
+
+  // src/decode.js
+  function isString(v) {
+    return typeof v === "string";
+  }
+  function _fromJson(data) {
+    const [decoded, value] = rawDecode(data);
+    if (decoded) {
+      return value;
+    }
+    let jsonData = data;
+    if (jsonData.endsWith("::JS")) {
+      jsonData = jsonData.slice(0, -4);
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonData);
+    } catch {
+      return data;
+    }
+    return walk(parsed, _decodeItem, isString);
+  }
+  function _decodeItem(s) {
+    if (!s.includes("::")) {
+      return s;
+    }
+    return rawDecode(s)[1];
+  }
+  function _fromXml(data) {
+    const result = fromXml(data);
+    if (typeof result === "string") {
+      return fromTytx(result);
+    }
+    return result;
+  }
+  function _fromMsgpack(data) {
+    return fromMsgpack(data);
+  }
+  function fromTytx(data, transport = null) {
+    if (data === null) {
+      return null;
+    }
+    if (transport === null || transport === "json") {
+      let jsonData = data;
+      if (transport === "json" && data.startsWith('"') && data.endsWith('"')) {
+        jsonData = data.slice(1, -1);
+      }
+      return _fromJson(jsonData);
+    } else if (transport === "xml") {
+      return _fromXml(data);
+    } else if (transport === "msgpack") {
+      return _fromMsgpack(data);
+    } else {
+      throw new Error(`Unknown transport: ${transport}`);
+    }
+  }
+
+  // src/qs.js
+  function toQs(value) {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item)).join("&");
+    }
+    if (value !== null && typeof value === "object") {
+      const parts = [];
+      for (const [k, v] of Object.entries(value)) {
+        const [encoded, result] = rawEncode(v, true);
+        if (encoded) {
+          parts.push(`${k}=${result}`);
+        } else {
+          parts.push(`${k}=${v}`);
+        }
+      }
+      return parts.join("&");
+    }
+    throw new TypeError(`toQs expects object or array, got ${typeof value}`);
+  }
+  function fromQs(data) {
+    if (!data) {
+      return [];
+    }
+    const parts = data.split("&");
+    const hasEq = parts.map((p) => p.includes("="));
+    const allWithEq = hasEq.every(Boolean);
+    const noneWithEq = !hasEq.some(Boolean);
+    if (!allWithEq && !noneWithEq) {
+      throw new Error("QS format error: mixed items with and without '='");
+    }
+    if (noneWithEq) {
+      return parts.map((p) => fromTytx(p));
+    }
+    const result = {};
+    for (const part of parts) {
+      const eqIndex = part.indexOf("=");
+      const key = part.slice(0, eqIndex);
+      const value = part.slice(eqIndex + 1);
+      result[key] = fromTytx(value);
+    }
+    return result;
+  }
+
+  // src/registry.js
+  var import_meta4 = {};
+  var require5 = createRequire(import_meta4.url);
   var DecimalJS = null;
   var BigJS = null;
   try {
-    DecimalJS = require2("decimal.js");
+    DecimalJS = require5("decimal.js");
   } catch {
   }
   try {
-    BigJS = require2("big.js");
+    BigJS = require5("big.js");
   } catch {
   }
   var DecimalClass = DecimalJS || BigJS || Number;
@@ -209,7 +674,6 @@ var TYTX = (() => {
     return out;
   }
   function _deserializeQs(s) {
-    const { fromQs } = require2("./qs.js");
     return fromQs(s);
   }
   var SUFFIX_PATTERN = /^[A-Z]+$/;
@@ -230,6 +694,9 @@ var TYTX = (() => {
     "NN": [null, _deserializeNone],
     "RAW": [Uint8Array, _deserializeRaw]
   };
+  function getRegisteredType(suffix) {
+    return Object.hasOwn(SUFFIX_TO_TYPE, suffix) ? SUFFIX_TO_TYPE[suffix][0] : null;
+  }
   function registerType(cls, suffix, serializer, deserializer, jsonNative = false) {
     if (typeof suffix !== "string" || !SUFFIX_PATTERN.test(suffix)) {
       throw new Error(
@@ -263,195 +730,6 @@ var TYTX = (() => {
       cls.tytxJsonNative || false
     );
     return cls;
-  }
-
-  // src/utils.js
-  function rawEncode(value, forceSuffix = false) {
-    const entry = getTypeEntry(value);
-    if (entry === null) {
-      return [false, String(value)];
-    }
-    const [suffix, serializer, jsonNative] = entry;
-    if (jsonNative && !forceSuffix) {
-      return [false, String(value)];
-    }
-    return [true, `${serializer(value)}::${suffix}`];
-  }
-  function rawDecode(s) {
-    if (!s.includes("::")) {
-      return [false, s];
-    }
-    const lastIndex = s.lastIndexOf("::");
-    const value = s.slice(0, lastIndex);
-    const suffix = s.slice(lastIndex + 2);
-    const entry = SUFFIX_TO_TYPE[suffix];
-    if (entry === void 0) {
-      return [false, s];
-    }
-    const [, decoder] = entry;
-    return [true, decoder(value)];
-  }
-  function walk(data, callback, filtercb) {
-    if (data !== null && typeof data === "object" && !Array.isArray(data)) {
-      const result = {};
-      for (const [k, v] of Object.entries(data)) {
-        result[k] = walk(v, callback, filtercb);
-      }
-      return result;
-    }
-    if (Array.isArray(data)) {
-      return data.map((item) => walk(item, callback, filtercb));
-    }
-    if (filtercb(data)) {
-      return callback(data);
-    }
-    return data;
-  }
-
-  // src/encode.js
-  var import_meta2 = {};
-  var require3 = createRequire(import_meta2.url);
-  function _preprocessValue(value) {
-    const entry = getTypeEntry(value);
-    if (entry !== null) {
-      const [suffix, serializer, jsonNative] = entry;
-      if (!jsonNative) {
-        return [`${serializer(value)}::${suffix}`, true];
-      }
-      return [value, false];
-    }
-    if (Array.isArray(value)) {
-      let hasSpecial = false;
-      const result = value.map((item) => {
-        const [processed, special] = _preprocessValue(item);
-        if (special) hasSpecial = true;
-        return processed;
-      });
-      return [result, hasSpecial];
-    }
-    if (value !== null && typeof value === "object") {
-      let hasSpecial = false;
-      const result = {};
-      for (const [k, v] of Object.entries(value)) {
-        const [processed, special] = _preprocessValue(v);
-        if (special) hasSpecial = true;
-        result[k] = processed;
-      }
-      return [result, hasSpecial];
-    }
-    return [value, false];
-  }
-  function _toJson(value, forceSuffix = false) {
-    const [encoded, result] = rawEncode(value, forceSuffix);
-    if (encoded) {
-      return result;
-    }
-    const [processed, hasSpecial] = _preprocessValue(value);
-    const jsonResult = JSON.stringify(processed);
-    if (hasSpecial) {
-      return `${jsonResult}::JS`;
-    }
-    return jsonResult;
-  }
-  function _toRawJson(value) {
-    return JSON.stringify(value);
-  }
-  function _toRawMsgpack(value) {
-    const { encode } = require3("@msgpack/msgpack");
-    return encode(value);
-  }
-  function toTytx(value, transport = null, { raw = false, qs = false, _forceSuffix = false } = {}) {
-    if (qs) {
-      const { toQs } = require3("./qs.js");
-      return `${toQs(value)}::QS`;
-    }
-    if (raw) {
-      if (transport === null || transport === "json") {
-        return _toRawJson(value);
-      } else if (transport === "msgpack") {
-        return _toRawMsgpack(value);
-      } else if (transport === "xml") {
-        throw new Error("raw=true is not supported for XML transport");
-      } else {
-        throw new Error(`Unknown transport: ${transport}`);
-      }
-    }
-    if (transport === null || transport === "json") {
-      const result = _toJson(value, _forceSuffix);
-      if (transport === "json") {
-        return `"${result}"`;
-      }
-      return result;
-    } else if (transport === "xml") {
-      const { toXml } = require3("./xml.js");
-      const result = toXml(value);
-      return `<?xml version="1.0" ?><tytx_root>${result}</tytx_root>`;
-    } else if (transport === "msgpack") {
-      const { toMsgpack } = require3("./msgpack.js");
-      return toMsgpack(value);
-    } else {
-      throw new Error(`Unknown transport: ${transport}`);
-    }
-  }
-
-  // src/decode.js
-  var import_meta3 = {};
-  var require4 = createRequire(import_meta3.url);
-  function isString(v) {
-    return typeof v === "string";
-  }
-  function _fromJson(data) {
-    const [decoded, value] = rawDecode(data);
-    if (decoded) {
-      return value;
-    }
-    let jsonData = data;
-    if (jsonData.endsWith("::JS")) {
-      jsonData = jsonData.slice(0, -4);
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonData);
-    } catch {
-      return data;
-    }
-    return walk(parsed, _decodeItem, isString);
-  }
-  function _decodeItem(s) {
-    if (!s.includes("::")) {
-      return s;
-    }
-    return rawDecode(s)[1];
-  }
-  function _fromXml(data) {
-    const { fromXml } = require4("./xml.js");
-    const result = fromXml(data);
-    if (typeof result === "string") {
-      return fromTytx(result);
-    }
-    return result;
-  }
-  function _fromMsgpack(data) {
-    const { fromMsgpack } = require4("./msgpack.js");
-    return fromMsgpack(data);
-  }
-  function fromTytx(data, transport = null) {
-    if (data === null) {
-      return null;
-    }
-    if (transport === null || transport === "json") {
-      let jsonData = data;
-      if (transport === "json" && data.startsWith('"') && data.endsWith('"')) {
-        jsonData = data.slice(1, -1);
-      }
-      return _fromJson(jsonData);
-    } else if (transport === "xml") {
-      return _fromXml(data);
-    } else if (transport === "msgpack") {
-      return _fromMsgpack(data);
-    } else {
-      throw new Error(`Unknown transport: ${transport}`);
-    }
   }
 
   // src/http.js
@@ -513,7 +791,7 @@ var TYTX = (() => {
   }
 
   // src/index.js
-  var __version__ = "0.7.4";
+  var __version__ = "0.15.0";
   return __toCommonJS(index_exports);
 })();
 //# sourceMappingURL=tytx.browser.js.map

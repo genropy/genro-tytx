@@ -14,6 +14,8 @@
  *     <order id="123::L" created="2025-01-15::D">...</order>
  */
 
+import { toTytx } from './encode.js';
+import { fromTytx } from './decode.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -66,7 +68,6 @@ function _isXmlElement(item) {
  * @returns {Element} XML Element
  */
 function _serializeElement(doc, tag, data) {
-    const { toTytx } = require('./encode.js');
 
     const element = doc.createElement(tag);
 
@@ -110,7 +111,6 @@ function toXml(value) {
         throw new Error('XML support requires @xmldom/xmldom package in Node.js');
     }
 
-    const { toTytx } = require('./encode.js');
 
     // Check if value is valid XML element format
     if (_isXmlElement(value)) {
@@ -136,7 +136,6 @@ function toXml(value) {
  * @returns {Object} Dict with 'attrs' and 'value' keys
  */
 function fromXmlnode(element) {
-    const { fromTytx } = require('./decode.js');
 
     // Hydrate attributes
     const attrs = {};
@@ -202,7 +201,6 @@ function fromXml(data) {
         throw new Error('XML support requires @xmldom/xmldom package in Node.js');
     }
 
-    const { fromTytx } = require('./decode.js');
 
     const parser = new DOMParser();
     const doc = parser.parseFromString(data, 'text/xml');
