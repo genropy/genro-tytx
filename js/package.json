@@ -7,6 +7,12 @@
   "exports": {
     ".": "./src/index.js"
   },
+  "imports": {
+    "#dependencies": {
+      "browser": "./src/platform/dependencies.browser.js",
+      "default": "./src/platform/dependencies.node.js"
+    }
+  },
   "scripts": {
     "test": "node --test test/test_extended.js test/test_registry.js test/test_registry_lookup.js",
     "test:all": "node --test test/test_*.js",

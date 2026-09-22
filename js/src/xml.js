@@ -16,8 +16,7 @@
 
 import { toTytx } from './encode.js';
 import { fromTytx } from './decode.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+import { NodeDOMParser, NodeXMLSerializer } from '#dependencies';
 
 // XML DOM support - use @xmldom/xmldom for Node.js
 let DOMParser, XMLSerializer;
@@ -26,16 +25,8 @@ if (typeof window !== 'undefined' && window.DOMParser) {
     DOMParser = window.DOMParser;
     XMLSerializer = window.XMLSerializer;
 } else {
-    // Node.js environment
-    try {
-        const xmldom = require('@xmldom/xmldom');
-        DOMParser = xmldom.DOMParser;
-        XMLSerializer = xmldom.XMLSerializer;
-    } catch {
-        // Will throw when XML functions are called
-        DOMParser = null;
-        XMLSerializer = null;
-    }
+    DOMParser = NodeDOMParser;
+    XMLSerializer = NodeXMLSerializer;
 }
 
 /**

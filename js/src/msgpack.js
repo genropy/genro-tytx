@@ -19,19 +19,10 @@ import {
     getCustomTypeEntry,
     SUFFIX_TO_TYPE,
 } from './registry.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+import { msgpack } from '#dependencies';
 
 // Check for @msgpack/msgpack availability
-let msgpack = null;
-let HAS_MSGPACK = false;
-
-try {
-    msgpack = require('@msgpack/msgpack');
-    HAS_MSGPACK = true;
-} catch {
-    HAS_MSGPACK = false;
-}
+const HAS_MSGPACK = msgpack !== null;
 
 function _checkMsgpack() {
     if (!HAS_MSGPACK) {

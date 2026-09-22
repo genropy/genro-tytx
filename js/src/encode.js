@@ -10,8 +10,7 @@ import { toXml } from './xml.js';
 import { toMsgpack } from './msgpack.js';
 import { rawEncode } from './utils.js';
 import { getTypeEntry } from './registry.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+import { msgpack } from '#dependencies';
 
 /**
  * Pre-process a value recursively, converting typed values to TYTX strings.
@@ -96,8 +95,8 @@ function _toRawJson(value) {
  * @returns {Uint8Array}
  */
 function _toRawMsgpack(value) {
-    const { encode } = require('@msgpack/msgpack');
-    return encode(value);
+    if (!msgpack) throw new Error('@msgpack/msgpack is required for MessagePack support');
+    return msgpack.encode(value);
 }
 
 /**

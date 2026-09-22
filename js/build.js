@@ -8,31 +8,6 @@
 
 import * as esbuild from 'esbuild';
 
-// Plugin to handle Node.js 'module' import for browser
-const nodeModulePlugin = {
-    name: 'node-module-shim',
-    setup(build) {
-        // Replace 'module' with a shim that returns a no-op createRequire
-        build.onResolve({ filter: /^module$/ }, () => ({
-            path: 'module',
-            namespace: 'node-module-shim',
-        }));
-
-        build.onLoad({ filter: /.*/, namespace: 'node-module-shim' }, () => ({
-            contents: `
-                // Browser shim for Node.js 'module' package
-                export function createRequire() {
-                    // In browser, return a require that always throws
-                    return function browserRequire(id) {
-                        throw new Error(\`Cannot require '\${id}' in browser environment\`);
-                    };
-                }
-            `,
-            loader: 'js',
-        }));
-    },
-};
-
 await esbuild.build({
     entryPoints: ['src/index.js'],
     bundle: true,
@@ -43,7 +18,7 @@ await esbuild.build({
     target: ['es2020'],
     minify: false,
     sourcemap: true,
-    plugins: [nodeModulePlugin],
+    conditions: ['browser'],
     define: {
         'process.env.NODE_ENV': '"production"',
     },

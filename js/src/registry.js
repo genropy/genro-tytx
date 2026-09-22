@@ -7,20 +7,13 @@
  */
 
 import { fromQs } from './qs.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+import { BigJS, DecimalJS } from '#dependencies';
 
 // =============================================================================
 // DECIMAL LIBRARY DETECTION
 // =============================================================================
 
 // Import all decimal libraries at startup
-let DecimalJS = null;
-let BigJS = null;
-
-try { DecimalJS = require('decimal.js'); } catch {}
-try { BigJS = require('big.js'); } catch {}
-
 // Current active class and library name
 let DecimalClass = DecimalJS || BigJS || Number;
 let decimalLibrary = DecimalJS ? 'decimal.js' : BigJS ? 'big.js' : 'number';
