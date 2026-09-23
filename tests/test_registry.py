@@ -80,8 +80,8 @@ class TestRegisterType:
             pass
 
         register_type(Tag, "TG", str, Tag, json_native=True)
-        # json_native types without force_suffix are emitted bare (utils.raw_encode)
-        assert to_tytx(Tag("hello")) == "hello"
+        # json_native types without force_suffix carry no suffix, only JSON quoting
+        assert to_tytx(Tag("hello")) == '"hello"'
 
     def test_registry_restored_after_test(self):
         """The clean_registry fixture must leave no trace of Point."""
@@ -194,8 +194,8 @@ class TestRegisterClass:
                 return cls(s)
 
         assert TYPE_REGISTRY[Tag][2] is True
-        # json_native emitted bare without force_suffix
-        assert to_tytx(Tag("hello")) == "hello"
+        # json_native without force_suffix: no suffix, only JSON quoting
+        assert to_tytx(Tag("hello")) == '"hello"'
 
     def test_missing_suffix_raises(self, clean_registry):
         """A class without __tytx_suffix__ cannot be registered."""

@@ -73,10 +73,6 @@ def _to_json(value: Any, force_suffix: bool = False) -> str:
     if encoded:
         return result
 
-    # String: return as-is without JSON quoting
-    if isinstance(value, str):
-        return value
-
     if USE_ORJSON:
         default_fn = _OrjsonDefault()
         # OPT_PASSTHROUGH_DATETIME forces date/datetime/time to go through default
