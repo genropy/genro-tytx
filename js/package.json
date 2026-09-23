@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/test_extended.js test/test_registry.js test/test_registry_lookup.js",
+    "test": "node --test test/test_extended.js test/test_registry.js test/test_registry_lookup.js test/test_string_roundtrip.js",
     "test:all": "node --test test/test_*.js",
     "test:http": "node --test test/test_http.js",
     "build": "node build.js"
