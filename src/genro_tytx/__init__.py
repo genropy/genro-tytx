@@ -34,7 +34,7 @@ from .registry import (
 )
 from .xml import from_xml, to_xml
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 __all__ = [
     # Unified API

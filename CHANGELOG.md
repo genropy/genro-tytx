@@ -3,7 +3,7 @@
 Notable changes to genro-tytx. Started at 0.12.2; earlier releases are
 documented by their git tags and commit history.
 
-## [Unreleased]
+## [0.16.0] - 2026-09-26
 
 ### Changed
 
