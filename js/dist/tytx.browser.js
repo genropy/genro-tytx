@@ -29,11 +29,13 @@ var TYTX = (() => {
     fromTytx: () => fromTytx,
     getDecimalLibrary: () => getDecimalLibrary,
     getRegisteredType: () => getRegisteredType,
+    getSubtypeDict: () => getSubtypeDict,
     getTransport: () => getTransport,
     isDecimal: () => isDecimal2,
     registerClass: () => registerClass,
     registerType: () => registerType,
     setDecimalLibrary: () => setDecimalLibrary,
+    setSubtypeDict: () => setSubtypeDict,
     toTytx: () => toTytx
   });
 
@@ -4733,13 +4735,16 @@ var TYTX = (() => {
     return btoa(binary);
   }
   var CUSTOM_TYPES = [];
+  var SUBTYPE_DICTS = /* @__PURE__ */ new Map();
   function getCustomTypeEntry(value) {
     if (value === null || typeof value !== "object") {
       return null;
     }
-    for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-      if (value.constructor === cls) {
-        return [suffix, serializer, jsonNative];
+    for (let proto = Object.getPrototypeOf(value); proto !== null; proto = Object.getPrototypeOf(proto)) {
+      for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+        if (cls.prototype === proto) {
+          return [suffix, serializer, jsonNative];
+        }
       }
     }
     return null;
@@ -4876,6 +4881,12 @@ var TYTX = (() => {
     );
     return cls;
   }
+  function setSubtypeDict(suffix, subtypes) {
+    SUBTYPE_DICTS.set(suffix, subtypes);
+  }
+  function getSubtypeDict(suffix) {
+    return SUBTYPE_DICTS.has(suffix) ? SUBTYPE_DICTS.get(suffix) : {};
+  }
 
   // src/http.js
   var CONTENT_TYPES = {
@@ -4936,7 +4947,7 @@ var TYTX = (() => {
   }
 
   // src/index.js
-  var __version__ = "0.15.0";
+  var __version__ = "0.16.0";
   return __toCommonJS(index_exports);
 })();
 /*! Bundled license information:
