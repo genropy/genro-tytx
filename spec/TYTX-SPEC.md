@@ -71,16 +71,30 @@ listed here so nobody else claims them.
 
 | Code | Class | Registered by |
 |------|-------|---------------|
-| `X` | `Bag` | genro-bag (Python) and genro-bag-js |
-| `XS` | `SourceBag` | genro-builders (Python) and genro-dom-js |
+| `X` | `Bag` and its subclasses | genro-bag (Python) and genro-bag-js |
 | `BAG` | legacy `gnr.core.gnrbag.Bag` | genropy-asgi |
 
-**Lookup is by exact type.** The encoder looks a value up by its exact class
-(`type(value)` in Python, `value.constructor` in JavaScript). A subclass is
-never matched through its parent: a subclass that must travel declares and
-registers its own code, and the parent's code keeps meaning the parent. A
-subclass cannot be registered under a code already owned by another class.
-This is why `Bag` is `X` and `SourceBag` is `XS`.
+**Lookup: exact type first, then the nearest registered ancestor.** The
+encoder looks a value up by its exact class (`type(value)` in Python, the
+first prototype in JavaScript). If that class is not registered, it walks the
+ancestors (the MRO in Python, the prototype chain in JavaScript) and uses the
+nearest class registered through `register_type` / `register_class`
+(`registerType` / `registerClass`). An unregistered subclass therefore
+travels under its registered ancestor's code, and its payload is written by
+the serializer (for `register_class`, the subclass's own `to_tytx`). Decoding
+goes through the ancestor's deserializer. Built-in types keep the exact-type
+rule: a subclass of `Decimal` or `datetime` is not matched. A class cannot be
+registered under a code already owned by another class.
+
+**Subtype dictionaries.** TYTX keeps one dictionary per code:
+`set_subtype_dict(suffix, dict)` stores it, replacing the previous one, and
+`get_subtype_dict(suffix)` returns it, or `{}` if none was set (JavaScript:
+`setSubtypeDict` / `getSubtypeDict`). TYTX never reads it and checks nothing.
+The type that owns the code decides its content and uses it in its own
+serializer and deserializer to carry the concrete class. Whoever adds a
+subclass reads the dictionary, adds its entries and sets it again. For `X`,
+genro-bag maps the symbolic class name (`Bag`, `SourceBag`, ...) to the class
+and writes it in the Bag payload as `__cls`; the value syntax does not change.
 
 **The payload is opaque.** TYTX hands the serializer's output to the wire and
 the wire's text to the deserializer, verbatim. An empty payload is legal:
@@ -98,11 +112,9 @@ happened. An unknown branch marker therefore leaves the hierarchy intact and
 the children under their parent; that requirement belongs to the consumer's
 decoder, not to TYTX.
 
-**Old payloads.** A `"::X"` marker written before `XS` existed says only
-"this branch is a Bag". It does not say whether the branch was source or data;
-that information is not in the wire, and no decoder can recover it. Consumers
-that must tell the two apart choose the root class explicitly when they
-decode old payloads.
+**Old payloads.** A `"::X"` marker says only "this branch is a Bag". The
+concrete class travels inside the Bag payload (`__cls`), not in the code.
+A payload written without `__cls` decodes to plain Bags.
 
 **MessagePack.** Registered types travel as ext-4 values (§6.2), next to the
 native extensions for Decimal, date, time and the Timestamp for datetime;

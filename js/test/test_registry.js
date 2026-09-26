@@ -11,6 +11,8 @@ import {
     registerType,
     registerClass,
     _resetCustomTypes,
+    setSubtypeDict,
+    getSubtypeDict,
     SUFFIX_TO_TYPE,
     SUFFIX_PATTERN,
     createDecimal,
@@ -85,12 +87,17 @@ describe('registerType', () => {
         );
     });
 
-    test('subclass is not matched (exact constructor)', () => {
+    test('unregistered subclass travels under the parent suffix', () => {
         registerType(Point, 'PT', p => `${p.x},${p.y}`,
             s => { const [x, y] = s.split(',').map(Number); return new Point(x, y); });
         class Point3 extends Point {}
         const encoded = toTytx({ p: new Point3(1, 2) });
-        assert.ok(!encoded.includes('::PT'));
+        assert.ok(encoded.includes('"1,2::PT"'));
+        const decoded = fromTytx(encoded);
+        assert.strictEqual(decoded.p.constructor, Point);
+        assert.ok(decoded.p.equals(new Point(1, 2)));
+        const viaMsgpack = fromTytx(toTytx(new Point3(1, 2), 'msgpack'), 'msgpack');
+        assert.ok(viaMsgpack.equals(new Point(1, 2)));
     });
 });
 
@@ -206,7 +213,7 @@ class Branch {
         && JSON.stringify(o.items) === JSON.stringify(this.items); }
 }
 
-// A subclass with its own code, standing in for SourceBag ("XS").
+// A subclass registered with its own code.
 class SourceBranch extends Branch {
     static tytxSuffix = 'XSB';
 }
@@ -222,13 +229,25 @@ describe('registered subclass protocol', () => {
         assert.throws(() => registerClass(Clone), /already registered/);
     });
 
-    test('unregistered subclass is walked as a plain object, not encoded', () => {
-        // Inheriting the hooks is not enough: without its own registration the
-        // encoder sees an ordinary object and never emits the parent code.
-        registerClass(Branch);
-        const encoded = toTytx({ source: new SourceBranch({ a: '1' }) });
-        assert.ok(!encoded.includes('::XB'));
-        assert.deepStrictEqual(fromTytx(encoded), { source: { items: { a: '1' } } });
+    for (const transport of [null, 'msgpack', 'xml']) {
+        test(`unregistered subclass uses the parent code (transport=${transport})`, () => {
+            // Written by the subclass's own toTytx, decoded by the parent's fromTytx.
+            class Tagged extends Branch { toTytx() { return 'tag=1'; } }
+            registerClass(Branch);
+            const value = { root: { value: { b: new Tagged({ a: '1' }) } } };
+            const decoded = fromTytx(toTytx(value, transport), transport);
+            const b = decoded.root.value.b;
+            assert.strictEqual(b.constructor, Branch);
+            assert.ok(b.equals(new Branch({ tag: '1' })));
+        });
+    }
+
+    test('nearest registered ancestor wins', () => {
+        registerBoth();
+        class DeepSource extends SourceBranch {}
+        const encoded = toTytx({ s: new DeepSource({ a: '1' }) });
+        assert.ok(encoded.includes('"a=1::XSB"'));
+        assert.strictEqual(fromTytx(encoded).s.constructor, SourceBranch);
     });
 
     test('each class emits its own code', () => {
@@ -340,5 +359,55 @@ describe('suffix grammar', () => {
             static fromTytx() { return new Bad(); }
         }
         assert.throws(() => registerClass(Bad), /invalid/);
+    });
+});
+
+describe('subtype dictionary', () => {
+    // TYTX stores one dictionary per suffix and never interprets it.
+    afterEach(() => _resetCustomTypes());
+
+    test('unset suffix returns an empty object', () => {
+        assert.deepStrictEqual(getSubtypeDict('ZZ'), {});
+    });
+
+    test('set then get returns the same object', () => {
+        const subtypes = { Branch };
+        setSubtypeDict('XB', subtypes);
+        assert.strictEqual(getSubtypeDict('XB'), subtypes);
+    });
+
+    test('set replaces the whole dictionary', () => {
+        setSubtypeDict('XB', { Branch });
+        setSubtypeDict('XB', { SourceBranch });
+        assert.deepStrictEqual(getSubtypeDict('XB'), { SourceBranch });
+    });
+
+    test('read, add, set', () => {
+        setSubtypeDict('XB', { Branch });
+        setSubtypeDict('XB', { ...getSubtypeDict('XB'), SourceBranch });
+        assert.deepStrictEqual(getSubtypeDict('XB'), { Branch, SourceBranch });
+    });
+
+    test('dictionaries are per suffix', () => {
+        setSubtypeDict('XB', { Branch });
+        assert.deepStrictEqual(getSubtypeDict('XSB'), {});
+    });
+
+    test('nothing is checked', () => {
+        setSubtypeDict('NOTREGISTERED', { anything: 1 });
+        assert.deepStrictEqual(getSubtypeDict('NOTREGISTERED'), { anything: 1 });
+    });
+
+    test('reset clears the dictionaries', () => {
+        setSubtypeDict('XB', { Branch });
+        _resetCustomTypes();
+        assert.deepStrictEqual(getSubtypeDict('XB'), {});
+    });
+
+    test('does not change the wire', () => {
+        registerClass(Branch);
+        const before = toTytx({ b: new Branch({ a: '1' }) });
+        setSubtypeDict('XB', { Branch });
+        assert.strictEqual(toTytx({ b: new Branch({ a: '1' }) }), before);
     });
 });

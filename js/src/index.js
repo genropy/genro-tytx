@@ -28,13 +28,15 @@ import {
     registerType,
     registerClass,
     getRegisteredType,
+    setSubtypeDict,
+    getSubtypeDict,
 } from './registry.js';
 
 import { toTytx } from './encode.js';
 import { fromTytx } from './decode.js';
 import { fetchTytx, getTransport, CONTENT_TYPES } from './http.js';
 
-const __version__ = '0.15.0';
+const __version__ = '0.16.0';
 
 export {
     // Core API
@@ -53,6 +55,8 @@ export {
     registerType,
     registerClass,
     getRegisteredType,
+    setSubtypeDict,
+    getSubtypeDict,
     // Version
     __version__,
 };

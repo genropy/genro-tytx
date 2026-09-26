@@ -3,6 +3,25 @@
 Notable changes to genro-tytx. Started at 0.12.2; earlier releases are
 documented by their git tags and commit history.
 
+## [0.16.0] - 2026-09-26
+
+### Changed
+
+- An unregistered subclass of a type registered through `register_type` /
+  `register_class` (`registerType` / `registerClass`) now travels under the
+  suffix of its nearest registered ancestor, written by its own serializer,
+  instead of raising `TypeError` (Python) or being walked as a plain object
+  (JavaScript). The exact type still wins; built-in types keep the exact-type
+  rule (spec §2.5). Refs #48.
+
+### Added
+
+- Subtype dictionaries: `set_subtype_dict(suffix, dict)` /
+  `get_subtype_dict(suffix)` (JavaScript `setSubtypeDict` / `getSubtypeDict`).
+  One dictionary per suffix; `set` replaces it, `get` returns `{}` when none
+  was set. TYTX stores it and never reads it: the type that owns the suffix
+  uses it to carry the concrete class (for `X`, genro-bag's `__cls`). Refs #48.
+
 ## [0.14.0] - 2026-09-06
 
 ### Added

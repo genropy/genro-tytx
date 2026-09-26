@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from .registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
+from .registry import SUFFIX_TO_TYPE, get_type_entry
 
 
 def raw_encode(value: Any, force_suffix: bool = False) -> tuple[bool, str]:
@@ -26,7 +26,7 @@ def raw_encode(value: Any, force_suffix: bool = False) -> tuple[bool, str]:
         (True, "serialized::SUFFIX") if type is registered and needs suffix
         (False, str(value)) if type not registered or json_native without force
     """
-    entry = TYPE_REGISTRY.get(type(value))
+    entry = get_type_entry(value)
     if entry is None:
         return (False, str(value))
     suffix, serializer, json_native = entry

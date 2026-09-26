@@ -1,6 +1,6 @@
 {
   "name": "genro-tytx",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "TYTX - Typed Text Protocol for Scalar Types",
   "main": "js/src/index.js",
   "type": "module",

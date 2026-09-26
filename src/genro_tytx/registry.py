@@ -15,7 +15,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
 
-# A type code is one or more uppercase ASCII letters ("N", "XS", "DHZ"). No
+# A type code is one or more uppercase ASCII letters ("N", "QS", "DHZ"). No
 # length limit. The grammar rules out ":" so a code can never be confused with
 # the "::" suffix separator or with the ":" that splits the msgpack ext-4
 # payload. Validated with fullmatch: "$" alone would accept a trailing newline.
@@ -170,6 +170,45 @@ SUFFIX_TO_TYPE: dict[str, tuple[type, Callable[[str], Any]]] = {
 # CUSTOM TYPE REGISTRATION
 # =============================================================================
 
+# Classes added through register_type. Only these are matched through their
+# subclasses; built-in types keep the exact-type lookup.
+CUSTOM_TYPES: set[type] = set()
+
+# Suffix -> subtype dictionary. TYTX stores it and never reads it: the type
+# that owns the suffix decides its content (for "X": symbolic name -> class).
+SUBTYPE_DICTS: dict[str, dict[str, Any]] = {}
+
+
+def get_type_entry(value: Any) -> tuple[str, Callable[[Any], str], bool] | None:
+    """Return the registry entry (suffix, serializer, json_native) for a value.
+
+    The exact type wins. Otherwise the nearest ancestor registered through
+    register_type is used, so an unregistered subclass of a custom type
+    travels under that type's suffix. Returns None when nothing matches.
+    """
+    entry = TYPE_REGISTRY.get(type(value))
+    if entry is not None:
+        return entry
+    for ancestor in type(value).__mro__[1:]:
+        if ancestor in CUSTOM_TYPES:
+            return TYPE_REGISTRY[ancestor]
+    return None
+
+
+def set_subtype_dict(suffix: str, subtypes: dict[str, Any]) -> None:
+    """Store the subtype dictionary of a suffix, replacing the previous one.
+
+    Nothing is checked: the suffix need not be registered and the content is
+    up to the type that owns the suffix. To extend it, read it with
+    get_subtype_dict, add the entries and set it again.
+    """
+    SUBTYPE_DICTS[suffix] = subtypes
+
+
+def get_subtype_dict(suffix: str) -> dict[str, Any]:
+    """Return the subtype dictionary stored for a suffix, or {} if none was set."""
+    return SUBTYPE_DICTS.get(suffix, {})
+
 
 def register_type(
     cls: type,
@@ -183,10 +222,13 @@ def register_type(
     Lets an external package (e.g. genro-bag) extend TYTX without creating a
     circular dependency: the package calls this at its own import time.
 
-    Matching is by exact type: subclasses are not matched. A subclass that
-    must travel declares and registers its own code (Bag is "X", SourceBag is
-    "XS"). Re-registering the same class replaces its hooks; reusing a suffix
-    owned by a different type is an error.
+    The exact type is matched first. An unregistered subclass of a class
+    registered here travels under that class's suffix, written by the
+    serializer (for register_class, the subclass's own to_tytx); built-in
+    types keep the exact-type rule. The concrete class of a subclass is the
+    type's own business, carried through its subtype dictionary
+    (set_subtype_dict). Re-registering the same class replaces its hooks;
+    reusing a suffix owned by a different type is an error.
 
     Args:
         cls: The Python type to register
@@ -210,6 +252,7 @@ def register_type(
         )
     TYPE_REGISTRY[cls] = (suffix, serializer, json_native)
     SUFFIX_TO_TYPE[suffix] = (cls, deserializer)
+    CUSTOM_TYPES.add(cls)
 
 
 def register_class(cls: type) -> type:

@@ -22,7 +22,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
 
-from .registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
+from .registry import SUFFIX_TO_TYPE, get_type_entry
 
 # Check for msgpack availability
 try:
@@ -54,7 +54,7 @@ def _default(obj: Any) -> Any:
         return msgpack.ExtType(2, obj.isoformat().encode("utf-8"))
     if isinstance(obj, time):
         return msgpack.ExtType(3, obj.isoformat().encode("utf-8"))
-    entry = TYPE_REGISTRY.get(type(obj))  # exact type, same as utils.raw_encode
+    entry = get_type_entry(obj)  # same lookup as utils.raw_encode
     if entry is not None:
         suffix, serializer, _ = entry
         return msgpack.ExtType(4, f"{suffix}:{serializer(obj)}".encode())
