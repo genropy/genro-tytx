@@ -150,11 +150,16 @@ function _serializeRaw(v) {
 // Custom types registered at runtime: [cls, suffix, serializer, jsonNative].
 let CUSTOM_TYPES = [];
 
+// Suffix -> subtype dictionary. TYTX stores it and never reads it: the type
+// that owns the suffix decides its content (for "X": symbolic name -> class).
+const SUBTYPE_DICTS = new Map();
+
 /**
  * Get the registered custom-type entry for a value, or null.
  *
- * Exact-constructor match, mirroring Python's exact-type lookup: subclasses
- * are not matched on either side.
+ * The prototype chain is walked from the value up, mirroring Python's MRO
+ * lookup: the exact class wins, otherwise the nearest registered ancestor,
+ * so an unregistered subclass travels under that ancestor's suffix.
  *
  * @param {any} value
  * @returns {[string, function, boolean]|null} [suffix, serializer, jsonNative] or null
@@ -163,9 +168,11 @@ function getCustomTypeEntry(value) {
     if (value === null || typeof value !== 'object') {
         return null;
     }
-    for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
-        if (value.constructor === cls) {
-            return [suffix, serializer, jsonNative];
+    for (let proto = Object.getPrototypeOf(value); proto !== null; proto = Object.getPrototypeOf(proto)) {
+        for (const [cls, suffix, serializer, jsonNative] of CUSTOM_TYPES) {
+            if (cls.prototype === proto) {
+                return [suffix, serializer, jsonNative];
+            }
         }
     }
     return null;
@@ -275,7 +282,7 @@ function _deserializeQs(s) {
     return fromQs(s);
 }
 
-// A type code is one or more uppercase ASCII letters ("N", "XS", "DHZ"). No
+// A type code is one or more uppercase ASCII letters ("N", "QS", "DHZ"). No
 // length limit. The grammar rules out ":" so a code can never be confused with
 // the "::" suffix separator or with the ":" that splits the msgpack ext-4
 // payload.
@@ -311,11 +318,13 @@ function getRegisteredType(suffix) {
  * Register a custom type for TYTX serialization.
  *
  * Lets external code extend TYTX with its own types. The encode side matches
- * instances by exact constructor (subclasses are not matched, mirroring the
- * Python exact-type lookup); a subclass that must travel declares and
- * registers its own code (Bag is "X", SourceBag is "XS"). The decode side
- * maps the suffix back via SUFFIX_TO_TYPE. Re-registering the same class
- * replaces its hooks; reusing a suffix owned by a different type throws.
+ * the exact constructor first; an unregistered subclass travels under the
+ * suffix of its nearest registered ancestor, written by the serializer (for
+ * registerClass, the subclass's own toTytx). The concrete class of a subclass
+ * is the type's own business, carried through its subtype dictionary
+ * (setSubtypeDict). The decode side maps the suffix back via SUFFIX_TO_TYPE.
+ * Re-registering the same class replaces its hooks; reusing a suffix owned by
+ * a different type throws.
  *
  * @param {Function} cls - the class/constructor to register
  * @param {string} suffix - the TYTX suffix: uppercase ASCII letters (e.g. "X")
@@ -376,13 +385,38 @@ function registerClass(cls) {
 }
 
 /**
- * Remove all custom type registrations (test helper).
+ * Store the subtype dictionary of a suffix, replacing the previous one.
+ *
+ * Nothing is checked: the suffix need not be registered and the content is up
+ * to the type that owns the suffix. To extend it, read it with getSubtypeDict,
+ * add the entries and set it again.
+ *
+ * @param {string} suffix
+ * @param {Object} subtypes
+ */
+function setSubtypeDict(suffix, subtypes) {
+    SUBTYPE_DICTS.set(suffix, subtypes);
+}
+
+/**
+ * Return the subtype dictionary stored for a suffix, or {} if none was set.
+ *
+ * @param {string} suffix
+ * @returns {Object}
+ */
+function getSubtypeDict(suffix) {
+    return SUBTYPE_DICTS.has(suffix) ? SUBTYPE_DICTS.get(suffix) : {};
+}
+
+/**
+ * Remove all custom type registrations and subtype dictionaries (test helper).
  */
 function _resetCustomTypes() {
     for (const [, suffix] of CUSTOM_TYPES) {
         delete SUFFIX_TO_TYPE[suffix];
     }
     CUSTOM_TYPES = [];
+    SUBTYPE_DICTS.clear();
 }
 
 export {
@@ -403,6 +437,8 @@ export {
     // Custom type registration
     registerType,
     registerClass,
+    setSubtypeDict,
+    getSubtypeDict,
     _resetCustomTypes,
     // Serializers (exported for testing)
     _serializeDecimal,

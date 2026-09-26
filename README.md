@@ -131,7 +131,7 @@ to_tytx([1, Point(5, 6), "k"])   # '[1,"5,6::PT","k"]::JS'
 from_tytx('5,6::PT')             # Point(5, 6)
 ```
 
-The custom type flows like any built-in scalar, including nested inside dicts and lists. Matching is by exact type — a subclass is never matched through its parent: it declares and registers its own code (genro-bag's `Bag` is `X`, genro-builders' `SourceBag` is `XS`), and cannot be registered under a code another class owns. A code is one or more uppercase ASCII letters, any length; registration refuses anything else. Re-registering the same class replaces its hooks; reusing a suffix owned by a different type raises an error. An unknown code on the receiving side is not an error: the string comes back untouched. The same semantics apply to the JavaScript client (`registerType` / `registerClass`). The rules and the codes reserved by consumers are in `spec/TYTX-SPEC.md` §2.5.
+The custom type flows like any built-in scalar, including nested inside dicts and lists. The exact type is matched first; an unregistered subclass of a registered type travels under that type's code, written by its own serializer (genro-builders' `SourceBag` travels as genro-bag's `X`). Built-in types keep the exact-type rule. A class cannot be registered under a code another class owns. A code is one or more uppercase ASCII letters, any length; registration refuses anything else. Re-registering the same class replaces its hooks; reusing a suffix owned by a different type raises an error. An unknown code on the receiving side is not an error: the string comes back untouched. The same semantics apply to the JavaScript client (`registerType` / `registerClass`). The rules and the codes reserved by consumers are in `spec/TYTX-SPEC.md` §2.5.
 
 When the type owns its serialization, `register_class` reads the hooks from the class itself — usable as a decorator. It needs `__tytx_suffix__`, an instance `to_tytx()` and a `from_tytx` classmethod (`from_tytx` must be a classmethod: decoding starts from the suffix and rebuilds the instance from scratch):
 
@@ -146,6 +146,8 @@ class Point:
     @classmethod
     def from_tytx(cls, s): return cls(*map(int, s.split(",")))
 ```
+
+The concrete class of a subclass is the type's own business. TYTX keeps one subtype dictionary per code and never reads it: `set_subtype_dict(suffix, dict)` replaces it, `get_subtype_dict(suffix)` returns it (`{}` if none was set). JavaScript: `setSubtypeDict` / `getSubtypeDict`. The type's `to_tytx`/`from_tytx` use it; whoever adds a subclass reads the dictionary, adds its entries and sets it again. genro-bag maps symbolic names to Bag classes this way.
 
 ## Installation
 

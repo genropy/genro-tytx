@@ -6,8 +6,15 @@ from decimal import Decimal
 
 import pytest
 
-from genro_tytx import from_tytx, register_class, register_type, to_tytx
-from genro_tytx.registry import SUFFIX_TO_TYPE, TYPE_REGISTRY
+from genro_tytx import (
+    from_tytx,
+    get_subtype_dict,
+    register_class,
+    register_type,
+    set_subtype_dict,
+    to_tytx,
+)
+from genro_tytx.registry import CUSTOM_TYPES, SUBTYPE_DICTS, SUFFIX_TO_TYPE, TYPE_REGISTRY
 
 
 class Point:
@@ -35,11 +42,17 @@ def clean_registry():
     """Snapshot and restore the global registry around each test."""
     type_snapshot = dict(TYPE_REGISTRY)
     suffix_snapshot = dict(SUFFIX_TO_TYPE)
+    custom_snapshot = set(CUSTOM_TYPES)
+    subtype_snapshot = dict(SUBTYPE_DICTS)
     yield
     TYPE_REGISTRY.clear()
     TYPE_REGISTRY.update(type_snapshot)
     SUFFIX_TO_TYPE.clear()
     SUFFIX_TO_TYPE.update(suffix_snapshot)
+    CUSTOM_TYPES.clear()
+    CUSTOM_TYPES.update(custom_snapshot)
+    SUBTYPE_DICTS.clear()
+    SUBTYPE_DICTS.update(subtype_snapshot)
 
 
 class TestRegisterType:
@@ -116,15 +129,26 @@ class TestRegisterType:
         assert encoded == "1;2::PT"
         assert from_tytx(encoded) == Point(1, 2)
 
-    def test_subclass_not_matched(self, clean_registry):
-        """Matching is by exact type: a subclass is not serialized."""
+    def test_subclass_travels_under_parent_suffix(self, clean_registry):
+        """An unregistered subclass of a custom type is written with its code."""
         register_type(Point, "PT", _serialize_point, _deserialize_point)
 
         class Point3(Point):
             pass
 
+        encoded = to_tytx({"p": Point3(1, 2)})
+        assert '"1,2::PT"' in encoded
+        assert from_tytx(encoded) == {"p": Point(1, 2)}
+        assert from_tytx(to_tytx(Point3(1, 2), "msgpack"), "msgpack") == Point(1, 2)
+
+    def test_builtin_subclass_not_matched(self):
+        """Built-in types keep the exact-type rule: a Decimal subclass fails."""
+
+        class Money(Decimal):
+            pass
+
         with pytest.raises(TypeError, match="not JSON serializable"):
-            to_tytx({"p": Point3(1, 2)})
+            to_tytx({"m": Money("1.5")})
 
 
 class TestRegisterClass:
@@ -310,7 +334,7 @@ class Branch:
 
 
 class SourceBranch(Branch):
-    """A subclass with its own code, standing in for SourceBag ("XS")."""
+    """A subclass registered with its own code."""
 
     __tytx_suffix__ = "XSB"
 
@@ -318,8 +342,8 @@ class SourceBranch(Branch):
 class TestRegisteredSubclassProtocol:
     """A registered class and its registered subclass travel under distinct codes.
 
-    Lookup stays by exact type: the subclass is found only through its own
-    registration, and the parent's code keeps meaning the parent.
+    A registered subclass is found through its own registration before its
+    parent's; an unregistered one travels under its nearest registered ancestor.
     """
 
     @pytest.fixture
@@ -337,13 +361,27 @@ class TestRegisteredSubclassProtocol:
         with pytest.raises(ValueError, match="already registered"):
             register_class(Clone)
 
-    def test_unregistered_subclass_still_refused(self, clean_registry):
-        """Inheriting the hooks is not enough: without its own code it fails."""
+    @pytest.mark.parametrize("transport", [None, "msgpack", "xml"])
+    def test_unregistered_subclass_uses_parent_code(self, clean_registry, transport):
+        """An unregistered subclass travels under its parent's code, written by
+        its own to_tytx; decoding goes through the parent's from_tytx."""
+
+        class Tagged(Branch):
+            def to_tytx(self):
+                return "tag=1"
+
         register_class(Branch)
-        with pytest.raises(TypeError, match="not JSON serializable"):
-            to_tytx({"source": SourceBranch({"a": "1"})})
-        with pytest.raises(TypeError):
-            to_tytx({"source": SourceBranch({"a": "1"})}, transport="msgpack")
+        value = {"root": {"value": {"b": Tagged({"a": "1"})}}}
+        decoded = from_tytx(to_tytx(value, transport), transport)
+        assert decoded["root"]["value"] == {"b": Branch({"tag": "1"})}
+
+    def test_nearest_registered_ancestor_wins(self, both_registered):
+        class DeepSource(SourceBranch):
+            pass
+
+        encoded = to_tytx({"s": DeepSource({"a": "1"})})
+        assert '"a=1::XSB"' in encoded
+        assert type(from_tytx(encoded)["s"]) is SourceBranch
 
     def test_each_class_emits_its_own_code(self, both_registered):
         encoded = to_tytx({"data": Branch({"a": "1"}), "source": SourceBranch({"b": "2"})})
@@ -439,3 +477,41 @@ class TestSuffixGrammar:
 
         with pytest.raises(ValueError, match="invalid"):
             register_class(Bad)
+
+
+class TestSubtypeDict:
+    """TYTX stores one subtype dictionary per suffix and never interprets it."""
+
+    def test_unset_suffix_returns_empty_dict(self, clean_registry):
+        assert get_subtype_dict("ZZ") == {}
+
+    def test_set_then_get_returns_the_same_dict(self, clean_registry):
+        subtypes = {"Branch": Branch}
+        set_subtype_dict("XB", subtypes)
+        assert get_subtype_dict("XB") is subtypes
+
+    def test_set_replaces_the_whole_dict(self, clean_registry):
+        set_subtype_dict("XB", {"Branch": Branch})
+        set_subtype_dict("XB", {"SourceBranch": SourceBranch})
+        assert get_subtype_dict("XB") == {"SourceBranch": SourceBranch}
+
+    def test_read_add_set(self, clean_registry):
+        """The specialisation flow: read the dictionary, extend it, set it again."""
+        set_subtype_dict("XB", {"Branch": Branch})
+        set_subtype_dict("XB", {**get_subtype_dict("XB"), "SourceBranch": SourceBranch})
+        assert get_subtype_dict("XB") == {"Branch": Branch, "SourceBranch": SourceBranch}
+
+    def test_dicts_are_per_suffix(self, clean_registry):
+        set_subtype_dict("XB", {"Branch": Branch})
+        assert get_subtype_dict("XSB") == {}
+
+    def test_nothing_is_checked(self, clean_registry):
+        """No suffix registration or content validation: the owner of the type decides."""
+        set_subtype_dict("NOTREGISTERED", {"anything": 1})
+        assert get_subtype_dict("NOTREGISTERED") == {"anything": 1}
+
+    def test_does_not_change_the_wire(self, clean_registry):
+        register_class(Branch)
+        before = to_tytx({"b": Branch({"a": "1"})})
+        set_subtype_dict("XB", {"Branch": Branch})
+        assert to_tytx({"b": Branch({"a": "1"})}) == before

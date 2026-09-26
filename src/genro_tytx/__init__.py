@@ -27,8 +27,10 @@ from .registry import (
     SUFFIX_PATTERN,
     SUFFIX_TO_TYPE,
     TYPE_REGISTRY,
+    get_subtype_dict,
     register_class,
     register_type,
+    set_subtype_dict,
 )
 from .xml import from_xml, to_xml
 
@@ -54,6 +56,8 @@ __all__ = [
     "TYPE_REGISTRY",
     "register_type",
     "register_class",
+    "set_subtype_dict",
+    "get_subtype_dict",
     # Version
     "__version__",
 ]
